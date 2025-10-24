@@ -1,0 +1,30 @@
+[
+  {
+    "model": "student.User",
+    "pk": 1,
+    "fields": {
+      "username": "testuser",
+      "first_name": "测试用户",
+      "last_name": "",
+      "email": "test@example.com",
+      "student_id": "20230001",
+      "user_avatar_emoji": "👨‍💻",
+      "class_name": "计算机科学与技术 2023级",
+      "major": "计算机科学与技术",
+      "birth_date": "2005-01-15",
+      "hometown": "广东省广州市",
+      "political_status": "团员",
+      "phone": "13800138000",
+      "website": "",
+      "bio": "这是一个测试用户的个人简介。",
+      "password": "pbkdf2_sha256$720000$VvW6W0m3Z1j5X2k9$6J9DZ8F7E2R4T1Y5U3I6O9P8A7S4D5F6G2H3J1K7L9M0N8B4",
+      "is_active": true,
+      "is_staff": false,
+      "is_superuser": false,
+      "last_login": null,
+      "date_joined": "2023-09-01T00:00:00Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  }
+]

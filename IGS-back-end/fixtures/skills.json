@@ -1,0 +1,38 @@
+[
+  {
+    "model": "student.Skill",
+    "pk": 1,
+    "fields": {
+      "user": 1,
+      "name": "Python",
+      "level": "中级"
+    }
+  },
+  {
+    "model": "student.skill",
+    "pk": 2,
+    "fields": {
+      "user": 1,
+      "name": "JavaScript",
+      "level": "初级"
+    }
+  },
+  {
+    "model": "student.skill",
+    "pk": 3,
+    "fields": {
+      "user": 1,
+      "name": "Django",
+      "level": "中级"
+    }
+  },
+  {
+    "model": "student.skill",
+    "pk": 4,
+    "fields": {
+      "user": 1,
+      "name": "Vue.js",
+      "level": "初级"
+    }
+  }
+]

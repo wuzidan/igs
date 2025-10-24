@@ -1,0 +1,35 @@
+[
+  {
+    "model": "question.PracticeRecord",
+    "pk": 1,
+    "fields": {
+      "student": 1,
+      "type": "练习",
+      "date": "2024-10-10T10:30:00Z",
+      "score": 85,
+      "duration_minutes": 25
+    }
+  },
+  {
+    "model": "question.practicerecord",
+    "pk": 2,
+    "fields": {
+      "student": 1,
+      "type": "模拟考试",
+      "date": "2024-10-15T14:00:00Z",
+      "score": 78,
+      "duration_minutes": 60
+    }
+  },
+  {
+    "model": "question.practicerecord",
+    "pk": 3,
+    "fields": {
+      "student": 1,
+      "type": "练习",
+      "date": "2024-10-16T09:15:00Z",
+      "score": 92,
+      "duration_minutes": 20
+    }
+  }
+]

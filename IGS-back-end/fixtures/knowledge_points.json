@@ -1,0 +1,67 @@
+[
+  {
+    "model": "knowledge.KnowledgePoint",
+    "pk": 1,
+    "fields": {
+      "user": 1,
+      "name": "变量与数据类型",
+      "category": "core",
+      "mastery": 85,
+      "description": "理解编程语言中的变量概念和各种数据类型的使用",
+      "practice_count": 25,
+      "last_practiced": "2024-10-10"
+    }
+  },
+  {
+    "model": "knowledge.knowledgepoint",
+    "pk": 2,
+    "fields": {
+      "user": 1,
+      "name": "控制结构",
+      "category": "core",
+      "mastery": 75,
+      "description": "掌握条件语句和循环结构的使用",
+      "practice_count": 20,
+      "last_practiced": "2024-10-12"
+    }
+  },
+  {
+    "model": "knowledge.knowledgepoint",
+    "pk": 3,
+    "fields": {
+      "user": 1,
+      "name": "函数与模块",
+      "category": "core",
+      "mastery": 65,
+      "description": "函数定义、调用和模块化编程",
+      "practice_count": 15,
+      "last_practiced": "2024-10-08"
+    }
+  },
+  {
+    "model": "knowledge.knowledgepoint",
+    "pk": 4,
+    "fields": {
+      "user": 1,
+      "name": "数据结构基础",
+      "category": "basic",
+      "mastery": 55,
+      "description": "数组、链表等基础数据结构",
+      "practice_count": 12,
+      "last_practiced": "2024-10-05"
+    }
+  },
+  {
+    "model": "knowledge.knowledgepoint",
+    "pk": 5,
+    "fields": {
+      "user": 1,
+      "name": "算法分析",
+      "category": "advanced",
+      "mastery": 40,
+      "description": "时间复杂度和空间复杂度分析",
+      "practice_count": 8,
+      "last_practiced": "2024-10-01"
+    }
+  }
+]
