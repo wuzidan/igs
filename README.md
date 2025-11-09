@@ -183,7 +183,7 @@ IGS-front1.1.8/
 ## 附录
 
 ### API文档
-后端API文档可通过访问`http://localhost:8000/swagger/`查看（需安装并配置drf-yasg）
+后端API文档可通过访问`http://localhost:8000/swagger/`查看（需安装并配置drf-yasg）666
 
 ### 常见问题解决
 1. **跨域问题**: 确保后端正确配置了CORS_ORIGIN_WHITELIST
