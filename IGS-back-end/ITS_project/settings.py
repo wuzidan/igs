@@ -87,8 +87,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'igs_db',
-        'USER': 'admin',
-        'PASSWORD': '',
+        'USER': 'root',
+        'PASSWORD': '12345',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {

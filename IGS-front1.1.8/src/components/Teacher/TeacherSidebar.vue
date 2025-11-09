@@ -29,7 +29,9 @@
                     <li>
                         <router-link
                             to="/teacher/class/tracking"
-                            :class="{ 'active-submenu': activeSubmenu === '追踪状态' }"
+                            :class="{
+                                'active-submenu': activeSubmenu === '追踪状态',
+                            }"
                             @click="setActiveSubmenu('追踪状态')"
                         >
                             <span class="submenu-dot"></span>追踪状态
@@ -38,7 +40,10 @@
                     <li>
                         <router-link
                             to="/teacher/class/info"
-                            :class="{ 'active-submenu': activeSubmenu === '学习者信息' }"
+                            :class="{
+                                'active-submenu':
+                                    activeSubmenu === '学习者信息',
+                            }"
                             @click="setActiveSubmenu('学习者信息')"
                         >
                             <span class="submenu-dot"></span>学习者信息
@@ -66,7 +71,10 @@
                     <li>
                         <router-link
                             to="/teacher/exercise/existing"
-                            :class="{ 'active-submenu': activeSubmenu === '已设计习题' }"
+                            :class="{
+                                'active-submenu':
+                                    activeSubmenu === '已设计习题',
+                            }"
                             @click="setActiveSubmenu('已设计习题')"
                         >
                             <span class="submenu-dot"></span>已设计习题
@@ -75,7 +83,9 @@
                     <li>
                         <router-link
                             to="/teacher/exercise/new"
-                            :class="{ 'active-submenu': activeSubmenu === '设计新题' }"
+                            :class="{
+                                'active-submenu': activeSubmenu === '设计新题',
+                            }"
                             @click="setActiveSubmenu('设计新题')"
                         >
                             <span class="submenu-dot"></span>设计新题
@@ -84,7 +94,9 @@
                     <li>
                         <router-link
                             to="/teacher/exercise/bank"
-                            :class="{ 'active-submenu': activeSubmenu === '题库' }"
+                            :class="{
+                                'active-submenu': activeSubmenu === '题库',
+                            }"
                             @click="setActiveSubmenu('题库')"
                         >
                             <span class="submenu-dot"></span>题库
@@ -92,7 +104,35 @@
                     </li>
                 </ul>
             </li>
-
+            <!-- 图谱模块 -->
+            <li
+                class="menu-item"
+                :class="{ active: activeMenu === 'graph' }"
+                data-menu="graph"
+            >
+                <div class="menu-title" @click="toggleMenu('graph')">
+                    <span class="icon">📊</span>
+                    <span>图谱模块</span>
+                    <span
+                        class="arrow"
+                        :class="{ rotate: activeMenu === 'graph' }"
+                        >▼</span
+                    >
+                </div>
+                <ul class="submenu" v-if="activeMenu === 'graph'">
+                    <li>
+                        <router-link
+                            to="/teacher/graphs/graph"
+                            :class="{
+                                'active-submenu': activeSubmenu === '图谱管理',
+                            }"
+                            @click="setActiveSubmenu('图谱管理')"
+                        >
+                            <span class="submenu-dot"></span>图谱管理
+                        </router-link>
+                    </li>
+                </ul>
+            </li>
             <!-- 信息模块 -->
             <li
                 class="menu-item"
@@ -112,7 +152,9 @@
                     <li>
                         <router-link
                             to="/teacher/info/personal"
-                            :class="{ 'active-submenu': activeSubmenu === '个人信息' }"
+                            :class="{
+                                'active-submenu': activeSubmenu === '个人信息',
+                            }"
                             @click="setActiveSubmenu('个人信息')"
                         >
                             <span class="submenu-dot"></span>个人信息
@@ -125,20 +167,20 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref } from "vue";
+import { useRouter } from "vue-router";
 
 const router = useRouter();
 
 // 当前激活的菜单
-const activeMenu = ref('');
+const activeMenu = ref("");
 // 当前激活的子菜单
-const activeSubmenu = ref('');
+const activeSubmenu = ref("");
 
 // 切换菜单展开/收起
 const toggleMenu = (menu) => {
     if (activeMenu.value === menu) {
-        activeMenu.value = '';
+        activeMenu.value = "";
     } else {
         activeMenu.value = menu;
     }
@@ -441,7 +483,7 @@ const setActiveSubmenu = (submenu) => {
     .sidebar {
         width: 220px;
     }
-    
+
     .logo-text {
         font-size: 16px;
     }
@@ -451,15 +493,15 @@ const setActiveSubmenu = (submenu) => {
     .sidebar {
         width: 200px;
     }
-    
+
     .logo-text {
         font-size: 15px;
     }
-    
+
     .menu-title {
         padding: 12px 15px;
     }
-    
+
     .submenu a {
         padding: 10px 40px;
     }

@@ -28,7 +28,18 @@
                 <ul class="submenu" v-if="activeMenu === 'answer'">
                     <li>
                         <router-link
-                            to="/student/quiz-challenge"
+                            to="/homework"
+                            :class="{
+                                'active-submenu': activeSubmenu === '我的作业',
+                            }"
+                            @click="setActiveSubmenu('我的作业')"
+                        >
+                            <span class="submenu-dot"></span>我的作业
+                        </router-link>
+                    </li>
+                    <li>
+                        <router-link
+                            to="/quiz-challenge"
                             :class="{
                                 'active-submenu': activeSubmenu === '题库中心',
                             }"
@@ -39,7 +50,7 @@
                     </li>
                     <li>
                         <router-link
-                            to="/student/history"
+                            to="/history"
                             :class="{
                                 'active-submenu': activeSubmenu === '作答历史',
                             }"
@@ -68,7 +79,7 @@
                 <ul class="submenu" v-if="activeMenu === 'knowledge'">
                     <li>
                         <router-link
-                            to="/student/visualization"
+                            to="/visualization"
                             :class="{
                                 'active-submenu':
                                     activeSubmenu === '状态可视化',
@@ -80,7 +91,7 @@
                     </li>
                     <li>
                         <router-link
-                            to="/student/knowledge-structure"
+                            to="/knowledge-structure"
                             :class="{
                                 'active-submenu': activeSubmenu === '知识结构',
                             }"
@@ -109,13 +120,26 @@
                 <ul class="submenu" v-if="activeMenu === 'info'">
                     <li>
                         <router-link
-                            to="/student/user-info"
+                            to="/user-info"
                             :class="{
                                 'active-submenu': activeSubmenu === '个人信息',
                             }"
                             @click="setActiveSubmenu('个人信息')"
                         >
                             <span class="submenu-dot"></span>个人信息
+                        </router-link>
+                    </li>
+
+                    <!-- 添加路径规划子菜单 -->
+                    <li>
+                        <router-link
+                            to="/route"
+                            :class="{
+                                'active-submenu': activeSubmenu === '路径规划',
+                            }"
+                            @click="setActiveSubmenu('路径规划')"
+                        >
+                            <span class="submenu-dot"></span>路径规划
                         </router-link>
                     </li>
                 </ul>
@@ -144,34 +168,28 @@ export default {
             (newPath) => {
                 switch (newPath) {
                     case "/quiz-challenge":
-                    case "/student/quiz-challenge":
                         activeMenu.value = "answer";
                         activeSubmenu.value = "题库中心";
                         break;
                     case "/history":
-                    case "/student/history":
                         activeMenu.value = "answer";
                         activeSubmenu.value = "作答历史";
                         break;
                     case "/":
-                    case "/student/index":
                         activeMenu.value = "knowledge";
                         activeSubmenu.value = "状态可视化";
                         break;
                     case "/knowledge-structure":
-                    case "/student/knowledge-structure":
                         activeMenu.value = "knowledge";
                         activeSubmenu.value = "知识结构";
                         break;
                     case "/user-info":
-                    case "/student/user-info":
                         activeMenu.value = "info";
                         activeSubmenu.value = "个人信息";
                         break;
-                    case "/visualization":
-                    case "/student/visualization":
-                        activeMenu.value = "knowledge";
-                        activeSubmenu.value = "状态可视化";
+                    case "/route":
+                        activeMenu.value = "info";
+                        activeSubmenu.value = "路径规划";
                         break;
                 }
             },

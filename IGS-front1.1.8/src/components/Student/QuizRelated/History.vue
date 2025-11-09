@@ -524,7 +524,7 @@ const errorMsg = ref(""); // 错误信息
 // 个人信息由StudentHeader组件获取和管理
 const fetchStudentInfo = () => {
     return Promise.resolve(); // 返回空Promise以保持原有调用结构
-}
+};
 
 // 获取练习历史数据
 const fetchHistoryData = () => {

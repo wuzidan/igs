@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import index from '../components/index.vue';
+import index from '../components/Student/index.vue';
 import userInfo from '../components/Student/UserInfo/UserInfo.vue';
 import visualization from '../components/Student/KnowledgeStatus/KnowledgeVisualization.vue';
 import knowledgeStructure from '../components/Student/KnowledgeStatus/knowledgeStructure.vue';
@@ -13,76 +13,54 @@ import wechatLogin from '../components/LogRelated/LoginMethod/WechatLogin.vue';
 import teacherHeader from '../components/Teacher/TeacherHeader.vue';
 import personalInfo from '../components/Teacher/Info/PersonalInfo.vue';
 
-
 const routes = [
+  // 添加默认路由重定向到/index
+  {
+    path: '/',
+    redirect: '/index'
+  },
   // 学生端路由
   {
-    path: '/student',
-    name: 'student',
-    children: [
-      {
-        path: 'index',
-        name: 'student-index',
-        component: () => import('../components/student/index.vue'),
-      },
-      {
-        path: 'visualization',
-        name: 'student-visualization',
-        component: visualization,
-      },
-      {
-        path: 'user-info',
-        name: 'student-userInfo',
-        component: userInfo,
-      },
-      {
-        path: 'knowledge-structure',
-        name: 'student-knowledge-structure',
-        component: knowledgeStructure,
-      },
-      {
-        path: 'quiz-challenge',
-        name: 'student-quiz-challenge',
-        component: quizChallenge,
-      },
-      {
-        path: 'history',
-        name: 'student-history',
-        component: history,
-      },
-    ],
-  },
-  // 保留原来的学生端路由作为重定向，确保兼容性
-  {
     path: '/index',
-    redirect: '/student/index'
+    name: 'index',
+    component: index,
   },
   {
     path: '/visualization',
-    redirect: '/student/visualization'
+    name: 'visualization',
+    component: visualization,
   },
+   {
+        path: '/route',
+        name: 'route',
+        component: () => import('../components/Student/UserInfo/Route.vue'),
+      },
+       {
+        path: '/homework',
+        name: 'homework',
+        component: () => import('../components/Student/QuizRelated/Homework.vue'),
+      },
   {
     path: '/user-info',
-    redirect: '/student/user-info'
+    name: 'userInfo',
+    component: userInfo,
   },
   {
     path: '/knowledge-structure',
-    redirect: '/student/knowledge-structure'
+    name: 'knowledge-structure',
+    component: knowledgeStructure,
   },
   {
     path: '/quiz-challenge',
-    redirect: '/student/quiz-challenge'
+    name: 'quiz-challenge',
+    component: quizChallenge,
   },
   {
     path: '/history',
-    redirect: '/student/history'
+    name: 'history',
+    component: history,
   },
   // 教师端路由
-  {
-    path: '/teacher/index',
-    name: 'teacher-index',
-    component: () => import('../components/teacher/index.vue'),
-  },
   {
     path: '/teacher',
     name: 'teacher',
@@ -117,6 +95,26 @@ const routes = [
         path: 'info/personal',
         name: 'teacher-personal-info',
         component: personalInfo,
+      },
+      {
+        path: 'graphs/graph',
+        name: 'graph',
+        component: () => import('../components/Teacher/Graphs/Graph.vue'),
+      },
+      {
+        path: 'graphs/create',
+        name: 'create-graph',
+        component: () => import('../components/Teacher/Graphs/CreateGraph.vue'),
+      },
+      {
+        path: 'graphs/edit/new',
+        name: 'edit-newgraph',
+        component: () => import('../components/Teacher/Graphs/GraphEdit.vue'),
+      },
+      {
+        path: 'index',
+        name: 'teacher-index',
+        component: () => import('../components/Teacher/index.vue'),
       },
     ],
   },

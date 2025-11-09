@@ -487,7 +487,7 @@ import { ref, onMounted, computed } from "vue";
 import Chart from "chart.js/auto";
 import { useRouter } from "vue-router";
 import api from "../../../api/index";
-import StudentHeader from '../StudentHeader.vue';
+import StudentHeader from "../StudentHeader.vue";
 
 // 路由实例
 const router = useRouter();
