@@ -1,0 +1,92 @@
+[
+  {
+    "model": "question.question",
+    "pk": 1,
+    "fields": {
+      "record": 1,
+      "type": "singleChoice",
+      "difficulty": "easy",
+      "content": "下列哪种数据结构是线性的？",
+      "correct": true,
+      "user_answer": ["C"],
+      "correct_answer": ["C"],
+      "options": [{"text": "A. 树", "value": "A"}, {"text": "B. 图", "value": "B"}, {"text": "C. 数组", "value": "C"}, {"text": "D. 二叉树", "value": "D"}],
+      "analysis": "数组是一种线性数据结构，而树、图和二叉树都属于非线性数据结构。"
+    }
+  },
+  {
+    "model": "question.question",
+    "pk": 2,
+    "fields": {
+      "record": 1,
+      "type": "multipleChoice",
+      "difficulty": "medium",
+      "content": "下列哪些排序算法是稳定的？",
+      "correct": true,
+      "user_answer": ["A", "C"],
+      "correct_answer": ["A", "C"],
+      "options": [{"text": "A. 冒泡排序", "value": "A"}, {"text": "B. 快速排序", "value": "B"}, {"text": "C. 插入排序", "value": "C"}, {"text": "D. 堆排序", "value": "D"}],
+      "analysis": "冒泡排序和插入排序是稳定的排序算法，而快速排序和堆排序是不稳定的。"
+    }
+  },
+  {
+    "model": "question.question",
+    "pk": 3,
+    "fields": {
+      "record": 1,
+      "type": "judgment",
+      "difficulty": "easy",
+      "content": "快速排序的平均时间复杂度是O(n log n)。",
+      "correct": true,
+      "user_answer": ["true"],
+      "correct_answer": ["true"],
+      "options": null,
+      "analysis": "快速排序的平均时间复杂度确实是O(n log n)，但最坏情况下是O(n²)。"
+    }
+  },
+  {
+    "model": "question.question",
+    "pk": 4,
+    "fields": {
+      "record": 2,
+      "type": "shortAnswer",
+      "difficulty": "hard",
+      "content": "简述二叉搜索树的基本性质。",
+      "correct": false,
+      "user_answer": ["二叉搜索树的左子树节点值小于根节点，右子树节点值大于根节点。"],
+      "correct_answer": ["二叉搜索树具有以下性质：1. 若任意节点的左子树不空，则左子树上所有节点的值均小于它的根节点的值；2. 若任意节点的右子树不空，则右子树上所有节点的值均大于它的根节点的值；3. 任意节点的左、右子树也分别为二叉搜索树。"],
+      "options": null,
+      "analysis": "二叉搜索树是一种特殊的二叉树，它支持快速的查找、插入和删除操作，平均时间复杂度为O(log n)。"
+    }
+  },
+  {
+    "model": "question.question",
+    "pk": 5,
+    "fields": {
+      "record": 2,
+      "type": "singleChoice",
+      "difficulty": "medium",
+      "content": "Python中，以下哪个不是可变数据类型？",
+      "correct": true,
+      "user_answer": ["C"],
+      "correct_answer": ["C"],
+      "options": [{"text": "A. 列表(list)", "value": "A"}, {"text": "B. 字典(dict)", "value": "B"}, {"text": "C. 元组(tuple)", "value": "C"}, {"text": "D. 集合(set)", "value": "D"}],
+      "analysis": "在Python中，元组(tuple)是不可变的数据类型，而列表、字典和集合都是可变的。"
+    }
+  },
+  {
+    "model": "question.question",
+    "pk": 6,
+    "fields": {
+      "record": 3,
+      "type": "singleChoice",
+      "difficulty": "medium",
+      "content": "在Django中，用于定义URL路由的文件是？",
+      "correct": true,
+      "user_answer": ["A"],
+      "correct_answer": ["A"],
+      "options": [{"text": "A. urls.py", "value": "A"}, {"text": "B. views.py", "value": "B"}, {"text": "C. models.py", "value": "C"}, {"text": "D. settings.py", "value": "D"}],
+      "analysis": "在Django框架中，urls.py文件用于定义URL路由和视图函数的映射关系。"
+    }
+  }
+]

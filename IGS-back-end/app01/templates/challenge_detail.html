@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课程管理系统</title>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            font-family: 'Arial', sans-serif;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow-y: auto;
+        }
+
+        .content {
+            flex: 1;
+            padding: 40px;
+            margin-left: 250px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center; /* 水平居中 */
+            align-items: center; /* 垂直居中 */
+        }
+
+        .sidebar .logo {
+            font-size: 24px;
+            font-weight: bold;
+            padding: 20px; /* 增加内边距 */
+            border-bottom: 1px solid #34495e;
+            margin-bottom: 20px;
+            text-align: center; /* 文字居中 */
+            display: block; /* 让 <a> 标签变成块级元素 */
+            color: white; /* 确保文字颜色是白色 */
+            text-decoration: none; /* 移除下划线（可选） */
+        }
+
+        .sidebar .logo:hover {
+            background-color: #34495e; /* 悬停时背景变深 */
+        }
+
+        .menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .menu-item {
+            margin-bottom: 5px;
+        }
+
+        .menu-title {
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .menu-title:hover {
+            background-color: #34495e;
+        }
+
+        .menu-title .icon {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+
+        .submenu {
+            list-style: none;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            padding: 0;
+        }
+
+        .menu-item.active .submenu {
+            max-height: 200px;
+        }
+
+        .submenu li a {
+            display: block;
+            padding: 10px 20px 10px 50px;
+            color: #bdc3c7;
+            text-decoration: none;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .submenu li a:hover {
+            background-color: #34495e;
+            color: white;
+        }
+
+        /* 答题区域样式 */
+        .question-container {
+            position: relative; /* 关键：为题目框添加相对定位 */
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 30px;
+        }
+
+        .question-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .question-content {
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        .answer-input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            resize: vertical;
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .btn:hover {
+            background-color: #2980b9;
+        }
+
+        .btn-next {
+            background-color: #2ecc71;
+        }
+
+        .btn-next:hover {
+            background-color: #27ae60;
+        }
+
+        .explanation {
+            background-color: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .explanation-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .explanation-content {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .result {
+            margin-bottom: 20px;
+            font-weight: bold;
+            font-size: 18px;
+            display: none;
+        }
+
+        .correct {
+            color: #2ecc71;
+        }
+
+        .incorrect {
+            color: #e74c3c;
+        }
+
+        .top-buttons {
+            position: absolute; /* 关键：绝对定位相对于题目框 */
+            top: 20px; /* 距离顶部20px */
+            right: 20px; /* 距离右侧20px */
+            display: flex;
+            gap: 15px;
+        }
+
+        .top-buttons .btn {
+            padding: 8px 15px; /* 比主按钮更小 */
+            font-size: 14px;
+        }
+    </style>
+    </style>
+</head>
+<body>
+<div class="container">
+    <nav class="sidebar">
+        <a href="{% url 'index' %}" class="logo">课程管理系统</a>
+        <ul class="menu">
+            <li class="menu-item active">
+                <div class="menu-title">
+                    <span class="icon">📝</span>
+                    <span>答题模块</span>
+                </div>
+                <ul class="submenu">
+                    <li><a href="#">题库</a></li>
+                    <li><a href="#">作答历史</a></li>
+                </ul>
+            </li>
+            <li class="menu-item">
+                <div class="menu-title">
+                    <span class="icon">📊</span>
+                    <span>知识状态</span>
+                </div>
+                <ul class="submenu">
+                    <li><a href="#">状态可视化</a></li>
+                    <li><a href="#">知识结构</a></li>
+                </ul>
+            </li>
+            <li class="menu-item">
+                <div class="menu-title">
+                    <span class="icon">👤</span>
+                    <span>信息模块</span>
+                </div>
+                <ul class="submenu">
+                    <li><a href="#">个人信息</a></li>
+                </ul>
+            </li>
+        </ul>
+    </nav>
+
+    <main class="content">
+
+
+        <div class="question-container">
+            <div class="top-buttons" style="align-self: flex-start; margin-bottom: 20px;">
+                <!-- 返回按钮 -->
+                <a href="{% url 'index' %}" class="btn">返回首页</a>
+            </div>
+            <div class="question-title" id="questionTitle">{{ item.name|safe }}</div>
+            <div class="question-content" id="questionContent">
+                {{ item.content|safe }}
+            </div>
+
+            <textarea class="answer-input" id="answerInput" placeholder="请输入你的答案..."></textarea>
+
+            <div class="btn-container">
+                <button class="btn" id="submitBtn">提交答案</button>
+                <button class="btn btn-next" id="nextBtn" disabled>下一题</button>
+                <!-- 完成答题按钮 -->
+                <button class="btn" id="finishBtn">完成答题</button>
+            </div>
+
+            <div class="result" id="result"></div>
+
+            <div class="explanation" id="explanation">
+                <div class="explanation-title">解析</div>
+                <div class="explanation-content" id="explanationContent">
+                    {{ item.analysis|safe }}
+                </div>
+                <!-- 新增正确答案显示区域 -->
+                <div class="explanation-title" style="margin-top: 15px;">正确答案</div>
+                <div class="answer-content" id="answer-content">
+                    {{ item.answer|safe }}
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    // 侧边栏菜单交互
+    document.querySelectorAll('.menu-title').forEach(title => {
+        title.addEventListener('click', () => {
+            const menuItem = title.closest('.menu-item');
+            menuItem.classList.toggle('active');
+        });
+    });
+
+    const finishBtn = document.getElementById('finishBtn');
+    finishBtn.addEventListener('click', () => {
+        alert('答题情况已提交！');  // 显示弹窗
+        window.location.href = "{% url 'index' %}";  // 跳转回首页
+    });
+
+    // 新增：将 Django 传递的 item 序列化为 JavaScript 对象
+    const item = JSON.parse('{{ item_json|escapejs }}');  // escapejs 防止引号转义问题
+    const data = JSON.parse('{{ data_json|escapejs }}');  // escapejs 防止引号转义问题
+
+    let currentQuestionIndex = item.id;
+    const answerInput = document.getElementById('answerInput');
+    const submitBtn = document.getElementById('submitBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const resultElement = document.getElementById('result');
+    const explanationElement = document.getElementById('explanation');
+    const questionTitle = document.getElementById('questionTitle');
+    const questionContent = document.getElementById('questionContent');
+    const explanationContent = document.getElementById('explanationContent');
+    const answerContent = document.getElementById('answer-content');
+
+    // 加载当前问题
+    function loadQuestion(index) {
+        if (index < data.length) {
+            const question = data[index];
+            questionTitle.textContent = question.name;
+            questionContent.innerHTML = question.content;
+            explanationContent.innerHTML = question.analysis;
+            answerContent.innerHTML = question.answer;
+            answerInput.value = '';
+            resultElement.style.display = 'none';
+            explanationElement.style.display = 'none';
+            submitBtn.disabled = false;
+            nextBtn.disabled = true;
+        } else {
+            // 所有题目完成
+            questionTitle.textContent = '恭喜！你已完成所有题目';
+            questionContent.textContent = '';
+            answerInput.style.display = 'none';
+            submitBtn.style.display = 'none';
+            nextBtn.style.display = 'none';
+            resultElement.style.display = 'none';
+            explanationElement.style.display = 'none';
+        }
+    }
+
+    function getCSRFToken() {
+        const cookieValue = document.cookie.split('; ')
+            .find(row => row.startsWith('csrftoken='))
+            ?.split('=')[1];
+        return cookieValue || '';
+    }
+
+    // 提交答案
+    // 提交答案
+    submitBtn.addEventListener('click', () => {
+        const userAnswer = answerInput.value.trim().toLowerCase();
+        const rawCorrectAnswer = data[currentQuestionIndex].answer.replace(/<[^>]*>/g, '');
+        const correctAnswer = rawCorrectAnswer.toLowerCase();
+        const isCorrect = userAnswer.includes(correctAnswer);
+
+        resultElement.textContent = isCorrect ? '✅ 回答正确！' : '❌ 回答错误';
+        resultElement.className = 'result ' + (isCorrect ? 'correct' : 'incorrect');
+        resultElement.style.display = 'block';
+        explanationElement.style.display = 'block';
+        submitBtn.disabled = true;
+        nextBtn.disabled = false;
+
+        // 答案正确时调用后端接口更新数据库（新增）
+        if (isCorrect) {
+            fetch("{% url 'update_aigroup_percent' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken(),
+                    'Content-Type': 'application/json',
+                },
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error('网络请求失败');
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success') {
+                        console.log('"语法"类记录percent已更新为0.28');
+                    } else {
+                        console.error('数据库更新失败:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('更新过程出错:', error);
+                });
+        }
+    });
+
+    // 下一题
+    nextBtn.addEventListener('click', () => {
+        currentQuestionIndex++;
+        loadQuestion(currentQuestionIndex);
+    });
+
+    // 初始化加载第一题
+    loadQuestion(currentQuestionIndex);
+</script>
+</body>
+</html>

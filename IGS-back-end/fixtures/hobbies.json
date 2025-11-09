@@ -1,0 +1,26 @@
+[
+  {
+    "model": "student.Hobby",
+    "pk": 1,
+    "fields": {
+      "user": 1,
+      "name": "编程"
+    }
+  },
+  {
+    "model": "student.hobby",
+    "pk": 2,
+    "fields": {
+      "user": 1,
+      "name": "读书"
+    }
+  },
+  {
+    "model": "student.hobby",
+    "pk": 3,
+    "fields": {
+      "user": 1,
+      "name": "篮球"
+    }
+  }
+]

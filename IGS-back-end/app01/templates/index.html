@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户页面</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* 新增分类按钮样式 - 美观版 */
+        .category-buttons {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px; /* 缩小间距使更紧凑 */
+            border-bottom: 2px solid #e0e0e0; /* 底部线条 */
+            padding-bottom: 5px; /* 与底部线条间距 */
+        }
+
+        .category-btn {
+            cursor: pointer;
+            color: #555; /* 默认灰色 */
+            transition: all 0.3s ease;
+            padding: 8px 16px;
+            border-radius: 6px 6px 0 0;
+            position: relative;
+            font-size: 14px;
+            border: 1px solid transparent;
+            background-color: #f5f5f5;
+        }
+
+        .category-btn:hover {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+
+        .category-btn.active {
+            color: #2196F3;
+            font-weight: bold;
+            background-color: white;
+            border: 1px solid #e0e0e0;
+            border-bottom: 2px solid white; /* 与背景同色覆盖底部线条 */
+            margin-bottom: -2px; /* 下移覆盖底部线条 */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 添加小箭头指示当前选中项 */
+        .category-btn.active::after {
+            content: "";
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: #2196F3;
+        }
+
+        /* 添加点击效果 */
+        .category-btn:active {
+            transform: translateY(1px);
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .category-buttons {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .category-btn {
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0; /* 浅灰色背景 */
+        }
+
+        .logo {
+            font-size: 30px;
+            font-weight: bold;
+            padding: 0 20px 20px;
+            border-bottom: 1px solid #34495e;
+            margin-bottom: 20px;
+        }
+
+        .sidebar .logo {
+            font-size: 24px;
+            font-weight: bold;
+            padding: 20px; /* 增加内边距 */
+            border-bottom: 1px solid #34495e;
+            margin-bottom: 20px;
+            text-align: center; /* 文字居中 */
+            display: block; /* 让 <a> 标签变成块级元素 */
+            color: white; /* 确保文字颜色是白色 */
+            text-decoration: none; /* 移除下划线（可选） */
+        }
+
+        .sidebar .logo:hover {
+            background-color: #34495e; /* 悬停时背景变深 */
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow-y: auto;
+        }
+
+        /* 用户头像区域样式 */
+        .user-avatar-container {
+            position: static; /* 取消绝对定位 */
+            align-self: flex-end; /* 头像区域右对齐 */
+            cursor: pointer;
+            margin-bottom: 20px; /* 与下方内容留间距 */
+
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+
+        /* 悬停提示样式 */
+        .user-info {
+            display: none;
+            position: absolute;
+            top: 40px;
+            right: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            min-width: 200px;
+            z-index: 100;
+        }
+
+        .user-avatar-container:hover .user-info {
+            display: block; /* 悬停时显示 */
+        }
+
+        .user-info p {
+            margin: 8px 0;
+            color: #333;
+        }
+
+        /* 主内容区域布局 */
+        .main-container {
+            margin-top: 10px; /* 避开头像区域 */
+            display: flex;
+            gap: 20px; /* 框框之间的间距 */
+            height: calc(100vh - 140px); /* 适应视口高度 */
+        }
+
+        .left-box {
+            flex: 2; /* 占据2/3宽度 */
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            height: 1200px;
+        }
+
+        .right-container {
+            flex: 1; /* 占据1/3宽度 */
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .right-box {
+            flex: 1; /* 上下两个框各占一半高度 */
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        /* 美观的下拉框样式 */
+        .filter-group {
+            position: relative;
+            margin-right: 15px;
+        }
+
+        .filter-group span {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .status-select {
+            appearance: none; /* 移除默认样式 */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 150px; /* 适当加宽 */
+            padding: 10px 35px 10px 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background-color: white;
+            color: #333;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 12px;
+        }
+
+        .status-select:hover {
+            border-color: #2196F3;
+            box-shadow: 0 2px 6px rgba(33, 150, 243, 0.15);
+        }
+
+        .status-select:focus {
+            outline: none;
+            border-color: #2196F3;
+            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
+        }
+
+        /* 下拉选项样式 */
+        .status-select option {
+            padding: 8px 12px;
+            background: white;
+            color: #333;
+        }
+
+        .status-select option:hover {
+            background-color: #f5f9ff;
+        }
+
+        /* 下拉框容器布局 */
+        .select-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-end; /* 底部对齐 */
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        /* 搜索按钮样式 */
+        .search-btn {
+            padding: 10px 20px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(33, 150, 243, 0.2);
+        }
+
+        .search-btn:hover {
+            background-color: #0d8bf2;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+        }
+
+        .search-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(33, 150, 243, 0.2);
+        }
+
+        /* 搜索输入框样式 */
+        .filter-group input[type="text"] {
+            padding: 10px 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            width: 180px;
+        }
+
+        .filter-group input[type="text"]:focus {
+            outline: none;
+            border-color: #2196F3;
+            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
+        }
+
+        /* 调整内容区域布局 */
+        .category-content {
+            min-height: 100px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px; /* 下拉框与文本内容间距 */
+        }
+
+        /* 新增右上框数据盒子样式 */
+        .stats-container {
+            display: flex;
+            gap: 45px;
+            align-items: center; /* 垂直居中对齐 */
+            background-color: white;
+            border-radius: 6px;
+            padding: 15px;
+        }
+
+        .stats-image {
+            width: 100px; /* 图片固定宽度 */
+            height: 100px; /* 图片固定高度 */
+            object-fit: cover; /* 保持图片比例 */
+        }
+
+        .stats-data {
+            display: flex;
+            flex-direction: column;
+            gap: 8px; /* 数据行间距 */
+        }
+
+        .stats-data p {
+            margin: 0;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .status-icon {
+            width: 20px; /* 图片尺寸可根据需求调整 */
+            height: 20px;
+            margin: 0 8px; /* 左右边距控制与文字的间距 */
+            vertical-align: middle; /* 垂直居中对齐文字 */
+        }
+
+        .right-box-img {
+            width: 280px;
+            height: 280px;
+            margin-left: 50px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .difficulty-simple {
+            color: green;
+        }
+
+        .difficulty-medium {
+            color: orange;
+        }
+
+        .difficulty-hard {
+            color: red;
+        }
+
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 5px 10px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        /* 新增全局布局样式 */
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            height: 100vh; /* 占满视口高度 */
+            position: fixed; /* 固定定位防止滚动时偏移 */
+            top: 0;
+            left: 0;
+        }
+
+        .content {
+            flex: 1;
+            padding: 20px;
+            display: flex; /* 新增flex布局 */
+            flex-direction: column; /* 垂直排列子元素 */
+            margin-left: 250px; /* 为侧边栏留出空间 */
+        }
+
+        .content .logo {
+            font-size: 40px; /* 比侧边栏logo小，更协调 */
+            padding: 0; /* 移除原有padding */
+            border-bottom: none; /* 移除底边 */
+            margin-bottom: 0; /* 移除下边距 */
+        }
+
+        /* 覆盖原有冲突样式（原.logo调整） */
+        .sidebar .logo { /* 限定侧边栏内的logo样式 */
+            font-size: 20px;
+            font-weight: bold;
+            padding: 0 20px 20px;
+            border-bottom: 1px solid #34495e;
+            margin-bottom: 20px;
+        }
+
+        .menu {
+            list-style: none;
+        }
+
+        .menu-item {
+            margin-bottom: 5px;
+        }
+
+        .menu-title {
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .menu-title:hover {
+            background-color: #34495e;
+        }
+
+        .menu-title .icon {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+
+        .submenu {
+            list-style: none;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .menu-item.active .submenu {
+            max-height: 200px;
+        }
+
+        .submenu li a {
+            display: block;
+            padding: 10px 20px 10px 50px;
+            color: #bdc3c7;
+            text-decoration: none;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .submenu li a:hover {
+            background-color: #34495e;
+            color: white;
+        }
+
+        /* 调整原有样式避免冲突 */
+        .main-container { /* 原主内容区增加左侧边距 */
+            margin-left: 0px;
+        }
+
+        .user-avatar-container { /* 调整头像位置避免与侧边栏重叠 */
+            top: 30px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between; /* 两端对齐 */
+            align-items: center; /* 垂直居中对齐 */
+            margin-bottom: 20px; /* 与下方主内容留间距 */
+        }
+
+        .stats-card, .calendar-card {
+            margin-bottom: 32px;
+        }
+
+        .stats-card h2, .calendar-card h2 {
+            color: var(--text-primary);
+            margin-bottom: 24px;
+            font-size: 18px;
+        }
+
+        .sub-filters {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+        }
+
+        .filter-group span {
+            color: var(--text-secondary);
+            margin-right: 8px;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 6px 12px;
+            border: 1px solid var(--gray);
+            border-radius: 4px;
+            background-color: white;
+            outline: none;
+        }
+
+        .search-btn {
+            padding: 6px 16px;
+            background-color: darkblue;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 8px;
+            transition: background-color 0.3s;
+        }
+
+        .search-btn:hover {
+            background-color: deepskyblue;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <nav class="sidebar">
+        <a href="{% url 'index' %}" class="logo">课程管理系统</a>
+        <ul class="menu">
+            <li class="menu-item">
+                <div class="menu-title">
+                    <span class="icon">📝</span>
+                    <span>答题模块</span>
+                </div>
+                <ul class="submenu">
+                    <li><a href="#">题库</a></li>
+                    <li><a href="#">作答历史</a></li>
+                </ul>
+            </li>
+            <li class="menu-item">
+                <div class="menu-title">
+                    <span class="icon">📊</span>
+                    <span>知识状态</span>
+                </div>
+                <ul class="submenu">
+                    <li><a href="#">状态可视化</a></li>
+                    <li><a href="#">知识结构</a></li>
+                </ul>
+            </li>
+            <li class="menu-item">
+                <div class="menu-title">
+                    <span class="icon">👤</span>
+                    <span>信息模块</span>
+                </div>
+                <ul class="submenu">
+                    <li><a href="#">个人信息</a></li>
+                </ul>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- 用户头像及悬停信息 -->
+    <div class="content">
+        <div class="header">
+            <div class="logo">题库管理</div>
+
+            <div class="user-avatar-container">
+                <img src="https://www.imgbb.io/images/f2Rks.png" alt="用户头像"
+                     style="width:390px;height:40px;margin-right:20px;">
+                <img src="https://www.imgbb.io/images/fn1Ti.png" alt="用户头像" class="user-avatar">
+                <div class="user-info">
+                    <p>用户姓名：admin</p>
+                    <p>用户年级：五年级</p>
+                    <p>当前学科：数学</p>
+                    <p>上次学习到的信息：</p>
+
+                </div>
+
+            </div>
+        </div>
+        <!-- 主内容区域 -->
+
+        <div class="main-container" style="margin-top: 10px;">
+            <div class="left-box">
+                <div class="category-buttons">
+                    <span class="category-btn active" data-type="全部">全部</span>
+                    <span class="category-btn" data-type="数与代数">语法</span>
+                    <span class="category-btn" data-type="图形与几何">数据结构</span>
+                    <span class="category-btn" data-type="统计与概率">函数与模块</span>
+                    <span class="category-btn" data-type="量与计算">面向对象</span>
+                    <span class="category-btn" data-type="逻辑与思维训练">文件与异常处理</span>
+
+                </div>
+                <!-- 内容显示区域 -->
+                <div class="category-content">
+                    <!-- 下拉框容器（同行显示） -->
+                    <div class="sub-filters">
+                        <div class="filter-group">
+                            <span>状态：</span>
+                            <select class="filter">
+                                <option>全部</option>
+                                <option>已解决</option>
+                                <option>未解决</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <span>标签：</span>
+                            <select class="filter">
+                                <option>全部</option>
+                                <option>整数与小数</option>
+                                <option>分数</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <span>难度：</span>
+                            <select class="filter">
+                                <option>全部</option>
+                                <option>简单</option>
+                                <option>中等</option>
+                                <option>困难</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <input type="text" placeholder="题目编号">
+                            <button class="search-btn">搜索</button>
+                        </div>
+                    </div>
+
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>编号</th>
+                            <th>标签</th>
+                            <th>题目</th>
+                            <th>难度</th>
+                            <th>预测正确率</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for item in data_list %}
+                            <tr>
+                                <td>{{ item.id }}</td>
+                                <td>{{ item.kind }}</td>
+                                <td>{{ item.name }}</td>
+                                <td><span class="difficulty-simple">{{ item.hard }}</span></td>
+                                <td>{{ item.percent }}</td>
+                                <td><a href="{% url 'challenge_detail' item.id %}" class="button">开始挑战</a></td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+
+                    </table>
+                </div>
+
+            </div>
+            <div class="right-container">
+                <div class="right-box">
+                    <!-- 右上框内容 -->
+                    <h3 style="font-weight: bold; margin: 0 0 15px 0;">刷题数据</h3>
+                    <div class="stats-container">
+                        <div class="chart-container">
+                            <div class="chart-title">题目解决情况统计</div>
+                            <canvas id="questionStatsChart"></canvas>
+                        </div>
+
+                        <div class="question-container">
+                            <div class="top-buttons" style="align-self: flex-start; margin-bottom: 20px;">
+                                <!-- 返回按钮 -->
+                                <a href="{% url 'index' %}" class="btn">返回首页</a>
+                            </div>
+                            <div class="question-title" id="questionTitle">{{ item.name|safe }}</div>
+                            <div class="question-content" id="questionContent">
+                                {{ item.content|safe }}
+                            </div>
+                            <div class="stats-data">
+                                <p>0/3302 <img src="https://p.sda1.dev/25/2509458fc6b92cd95163c34dd4d5639c/已解决.png"
+                                               alt="已解决图标" class="status-icon"><br> 已解决</p>
+                                <p>0/3302 <img src="https://p.sda1.dev/25/652b0ef47eaffc776511241561f94bc8/问号.png"
+                                               alt="尝试解决图标" class="status-icon"><br> 待解决</p>
+                                <p>0/3302 <img src="https://p.sda1.dev/25/3316d985823c57d34238e93f5e48a533/未解决.png"
+                                               alt="未解决图标" class="status-icon"><br> 未解决</p>
+                            </div>
+                        </div>
+
+                    </div>
+                    <h3 style="font-weight: bold; margin: 0 0 15px 0;">题目正确率</h3>
+                    <div class="right-box">
+                        <div class="calendar-card">
+                            <h2>打卡日历 <span class="month">   6月</span></h2>
+                            <table class="calendar-table">
+                                <thead>
+                                <tr>
+                                    <th>日</th>
+                                    <th>一</th>
+                                    <th>二</th>
+                                    <th>三</th>
+                                    <th>四</th>
+                                    <th>五</th>
+                                    <th>六</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td>1</td>
+                                    <td>2</td>
+                                </tr>
+                                <tr>
+                                    <td>3</td>
+                                    <td>4</td>
+                                    <td>5</td>
+                                    <td>6</td>
+                                    <td>7</td>
+                                    <td>8</td>
+                                    <td>9</td>
+                                </tr>
+                                <tr>
+                                    <td>10</td>
+                                    <td>11</td>
+                                    <td>12</td>
+                                    <td>13</td>
+                                    <td>14</td>
+                                    <td>15</td>
+                                    <td>16</td>
+                                </tr>
+                                <tr>
+                                    <td>17</td>
+                                    <td>18</td>
+                                    <td>19</td>
+                                    <td>20</td>
+                                    <td>21</td>
+                                    <td>22</td>
+                                    <td>23</td>
+                                </tr>
+                                <tr>
+                                    <td>24</td>
+                                    <td>25</td>
+                                    <td>26</td>
+                                    <td>27</td>
+                                    <td>28</td>
+                                    <td>29</td>
+                                    <td>30</td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+
+    // 侧边栏菜单展开/收起功能
+    document.querySelectorAll('.menu-title').forEach(item => {
+        item.addEventListener('click', function () {
+            const parent = this.parentElement;
+            parent.classList.toggle('active');
+        });
+    });
+    // 侧边栏菜单交互
+    document.querySelectorAll('.menu-title').forEach(title => {
+        title.addEventListener('click', () => {
+            const menuItem = title.closest('.menu-item');
+            menuItem.classList.toggle('active');
+        });
+    });
+
+    // 初始化饼图
+    function initQuestionStatsChart() {
+        const ctx = document.getElementById('questionStatsChart').getContext('2d');
+
+        // 示例数据 - 实际应用中应从后端获取
+        const questionStats = {
+            solved: 45,       // 已解决
+            attempted: 30,    // 尝试解决
+            unsolved: 25      // 未解决
+        };
+
+        const total = questionStats.solved + questionStats.attempted + questionStats.unsolved;
+
+        const chart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: [
+                    `已解决 (${questionStats.solved}, ${Math.round(questionStats.solved / total * 100)}%)`,
+                    `尝试解决 (${questionStats.attempted}, ${Math.round(questionStats.attempted / total * 100)}%)`,
+                    `未解决 (${questionStats.unsolved}, ${Math.round(questionStats.unsolved / total * 100)}%)`
+                ],
+                datasets: [{
+                    data: [questionStats.solved, questionStats.attempted, questionStats.unsolved],
+                    backgroundColor: [
+                        '#2ecc71',  // 已解决 - 绿色
+                        '#f39c12',  // 尝试解决 - 橙色
+                        '#e74c3c'   // 未解决 - 红色
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const label = context.label || '';
+                                const value = context.raw || 0;
+                                const percentage = Math.round(value / total * 100);
+                                return `${label}: ${percentage}% (${value}题)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 页面加载完成后初始化图表
+    document.addEventListener('DOMContentLoaded', initQuestionStatsChart);
+
+    const finishBtn = document.getElementById('finishBtn');
+    finishBtn.addEventListener('click', () => {
+        alert('答题情况已提交！');  // 显示弹窗
+        window.location.href = "{% url 'index' %}";  // 跳转回首页
+    });
+
+    // 新增：将 Django 传递的 item 序列化为 JavaScript 对象
+    const item = JSON.parse('{{ item_json|escapejs }}');  // escapejs 防止引号转义问题
+    const data = JSON.parse('{{ data_json|escapejs }}');  // escapejs 防止引号转义问题
+
+    let currentQuestionIndex = item.id;
+    const answerInput = document.getElementById('answerInput');
+    const submitBtn = document.getElementById('submitBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const resultElement = document.getElementById('result');
+    const explanationElement = document.getElementById('explanation');
+    const questionTitle = document.getElementById('questionTitle');
+    const questionContent = document.getElementById('questionContent');
+    const explanationContent = document.getElementById('explanationContent');
+    const answerContent = document.getElementById('answer-content');
+
+    // 加载当前问题
+    function loadQuestion(index) {
+        if (index < data.length) {
+            const question = data[index];
+            questionTitle.textContent = question.name;
+            questionContent.innerHTML = question.content;
+            explanationContent.innerHTML = question.analysis;
+            answerContent.innerHTML = question.answer;
+            answerInput.value = '';
+            resultElement.style.display = 'none';
+            explanationElement.style.display = 'none';
+            submitBtn.disabled = false;
+            nextBtn.disabled = true;
+        } else {
+            // 所有题目完成
+            questionTitle.textContent = '恭喜！你已完成所有题目';
+            questionContent.textContent = '';
+            answerInput.style.display = 'none';
+            submitBtn.style.display = 'none';
+            nextBtn.style.display = 'none';
+            resultElement.style.display = 'none';
+            explanationElement.style.display = 'none';
+        }
+    }
+
+    function getCSRFToken() {
+        const cookieValue = document.cookie.split('; ')
+            .find(row => row.startsWith('csrftoken='))
+            ?.split('=')[1];
+        return cookieValue || '';
+    }
+
+    // 提交答案
+    submitBtn.addEventListener('click', () => {
+        const userAnswer = answerInput.value.trim().toLowerCase();
+        const rawCorrectAnswer = data[currentQuestionIndex].answer.replace(/<[^>]*>/g, '');
+        const correctAnswer = rawCorrectAnswer.toLowerCase();
+        const isCorrect = userAnswer.includes(correctAnswer);
+
+        resultElement.textContent = isCorrect ? '✅ 回答正确！' : '❌ 回答错误';
+        resultElement.className = 'result ' + (isCorrect ? 'correct' : 'incorrect');
+        resultElement.style.display = 'block';
+        explanationElement.style.display = 'block';
+        submitBtn.disabled = true;
+        nextBtn.disabled = false;
+
+        // 答案正确时调用后端接口更新数据库（新增）
+        if (isCorrect) {
+            fetch("{% url 'update_aigroup_percent' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken(),
+                    'Content-Type': 'application/json',
+                },
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error('网络请求失败');
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success') {
+                        console.log('"语法"类记录percent已更新为0.28');
+                        // 更新饼图数据
+                        initQuestionStatsChart();
+                    } else {
+                        console.error('数据库更新失败:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('更新过程出错:', error);
+                });
+        }
+    });
+
+    // 下一题
+    nextBtn.addEventListener('click', () => {
+        currentQuestionIndex++;
+        loadQuestion(currentQuestionIndex);
+    });
+
+    // 初始化加载第一题
+    loadQuestion(currentQuestionIndex);
+</script>
+</html>

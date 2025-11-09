@@ -1,0 +1,14 @@
+[
+  {
+    "model": "student.Education",
+    "pk": 1,
+    "fields": {
+      "user": 1,
+      "school": "华南师范大学",
+      "period_s": "2023-09-01",
+      "period_e": "2027-06-30",
+      "major": "计算机科学与技术",
+      "degree": "本科"
+    }
+  }
+]
