@@ -61,11 +61,15 @@
                 <h3>答题统计</h3>
                 <div class="stats">
                     <div class="stat-item">
-                        <span class="stat-value">{{ studentInfo.accuracy || 0 }}</span>
+                        <span class="stat-value">{{
+                            studentInfo.accuracy || 0
+                        }}</span>
                         <span class="stat-label">正确率</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-value">{{ studentInfo.totalQuestions || 0 }}</span>
+                        <span class="stat-value">{{
+                            studentInfo.totalQuestions || 0
+                        }}</span>
                         <span class="stat-label">总题数</span>
                     </div>
                 </div>
@@ -121,7 +125,7 @@
         </ul>
       </div> -->
     </div>
-    <a href="/student/index" class="back-to-home">
+    <a href="/index" class="back-to-home">
         <span class="icon">🏠</span>
         <span>首页</span>
     </a>
@@ -132,7 +136,7 @@
 import { onMounted, ref } from "vue";
 import Chart from "chart.js/auto";
 import api from "../../../api/index";
-import StudentHeader from '../StudentHeader.vue';
+import StudentHeader from "../StudentHeader.vue";
 
 // 退出功能已在StudentHeader组件中实现，此处不再需要
 
@@ -202,7 +206,9 @@ const initKnowledgeChart = () => {
             datasets: [
                 {
                     label: "掌握程度",
-                    data: studentInfo.value.knowledgeMastery || [65, 50, 70, 45, 60, 55],
+                    data: studentInfo.value.knowledgeMastery || [
+                        65, 50, 70, 45, 60, 55,
+                    ],
                     backgroundColor: gradient, // 使用径向渐变
                     borderColor: "rgba(37, 99, 235, 0.9)", // 深蓝色边框
                     borderWidth: 2.5,
@@ -312,7 +318,13 @@ const initLearningHoursChart = () => {
         learningHoursChart.destroy();
     }
 
-    const labels = studentInfo.value.learningMonths || ["1月", "2月", "3月", "4月", "5月"];
+    const labels = studentInfo.value.learningMonths || [
+        "1月",
+        "2月",
+        "3月",
+        "4月",
+        "5月",
+    ];
     const data = studentInfo.value.learningHours || [10, 45, 60, 50, 40];
 
     // 创建渐变颜色数组（与之前图表风格一致）

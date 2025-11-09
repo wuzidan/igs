@@ -6,7 +6,7 @@
 
         <div class="logo-container">
             <div class="logo-icon">📚</div>
-            <div class="logo-text">智能导学系统-学生端</div>
+            <div class="logo-text">智能导学系统 - 学生端</div>
         </div>
 
         <ul class="menu">

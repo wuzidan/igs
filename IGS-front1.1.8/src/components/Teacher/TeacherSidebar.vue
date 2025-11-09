@@ -131,6 +131,17 @@
                             <span class="submenu-dot"></span>图谱管理
                         </router-link>
                     </li>
+                    <li>
+                        <router-link
+                            to="/teacher/graphs/create"
+                            :class="{
+                                'active-submenu': activeSubmenu === '新建图谱',
+                            }"
+                            @click="setActiveSubmenu('新建图谱')"
+                        >
+                            <span class="submenu-dot"></span>新建图谱
+                        </router-link>
+                    </li>
                 </ul>
             </li>
             <!-- 信息模块 -->

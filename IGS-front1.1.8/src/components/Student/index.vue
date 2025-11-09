@@ -190,7 +190,7 @@
                         <!-- 题库资源 -->
                         <div
                             class="feature-card floating-card"
-                            @click="navigateTo('/student/quiz-challenge')"
+                            @click="navigateTo('/quiz-challenge')"
                         >
                             <div class="feature-hover-effect"></div>
                             <div class="feature-icon-container">
@@ -213,7 +213,7 @@
                         <!-- 作答历史 -->
                         <div
                             class="feature-card floating-card"
-                            @click="navigateTo('/student/history')"
+                            @click="navigateTo('/history')"
                         >
                             <div class="feature-hover-effect"></div>
                             <div class="feature-icon-container">
@@ -234,7 +234,7 @@
                         <!-- 状态可视化 -->
                         <div
                             class="feature-card floating-card"
-                            @click="navigateTo('/student/visualization')"
+                            @click="navigateTo('/visualization')"
                         >
                             <div class="feature-hover-effect"></div>
                             <div class="feature-icon-container">
@@ -255,7 +255,7 @@
                         <!-- 知识结构 -->
                         <div
                             class="feature-card floating-card"
-                            @click="navigateTo('/student/knowledge-structure')"
+                            @click="navigateTo('/knowledge-structure')"
                         >
                             <div class="feature-hover-effect"></div>
                             <div class="feature-icon-container">
@@ -510,7 +510,7 @@ const logout = () => {
 const exploreKnowledgeGraph = () => {
     if (canAccessStudentFunctions.value) {
         console.log("探索完整知识图谱");
-        navigateTo("/student/knowledge-graph");
+        navigateTo("/knowledge-graph");
     } else {
         console.log("权限不足：无法访问学生功能");
     }
@@ -519,7 +519,7 @@ const exploreKnowledgeGraph = () => {
 const startLearning = (id) => {
     if (canAccessStudentFunctions.value) {
         console.log(`开始学习: ${id}`);
-        navigateTo(`/student/learning/${id}`);
+        navigateTo(`/learning/${id}`);
     } else {
         console.log("权限不足：无法访问学生功能");
     }

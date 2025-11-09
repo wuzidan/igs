@@ -1,5 +1,5 @@
 <template>
-    <a href="/teacher/graph" class="back-to-list">
+    <a href="/teacher/graphs/graph" class="back-to-list">
         <span class="icon">←</span>
         <span>返回知识图谱列表</span>
     </a>
@@ -239,7 +239,7 @@ const submitGraph = () => {
 
     // 实际应用中，这里会调用API创建图谱
     // 创建成功后跳转到编辑页面
-    alert("图谱创建成功，即将进入编辑页面");
+    // alert("图谱创建成功，即将进入编辑页面");
     router.push(`/teacher/graphs/edit/new`);
 };
 

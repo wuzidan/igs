@@ -1,70 +1,59 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import index from '../components/Student/index.vue';
-import userInfo from '../components/Student/UserInfo/UserInfo.vue';
 import visualization from '../components/Student/KnowledgeStatus/KnowledgeVisualization.vue';
-import knowledgeStructure from '../components/Student/KnowledgeStatus/knowledgeStructure.vue';
-import quizChallenge from '../components/Student/QuizRelated/QuizChallenge.vue';
-import history from '../components/Student/QuizRelated/History.vue';
-import login from '../components/LogRelated/Login.vue';
-import register from '../components/LogRelated/Register.vue';
-import changePassword from '../components/LogRelated/ChangePassword.vue';
-import wechatLogin from '../components/LogRelated/LoginMethod/WechatLogin.vue';
 // 教师端组件
-import teacherHeader from '../components/Teacher/TeacherHeader.vue';
-import personalInfo from '../components/Teacher/Info/PersonalInfo.vue';
 
 const routes = [
   // 添加默认路由重定向到/index
   {
     path: '/',
-    redirect: '/index'
+    redirect: '/student/index'
   },
   // 学生端路由
   {
-    path: '/index',
+    path: '/student/index',
     name: 'index',
-    component: index,
+    component: () => import('../components/Student/index.vue'),
   },
   {
     path: '/visualization',
     name: 'visualization',
-    component: visualization,
+    component: () => import('../components/Student/KnowledgeStatus/KnowledgeVisualization.vue'),
   },
-   {
-        path: '/route',
-        name: 'route',
-        component: () => import('../components/Student/UserInfo/Route.vue'),
-      },
-       {
-        path: '/homework',
-        name: 'homework',
-        component: () => import('../components/Student/QuizRelated/Homework.vue'),
-      },
+  {
+    path: '/route',
+    name: 'route',
+    component: () => import('../components/Student/UserInfo/Route.vue'),
+  },
+  {
+    path: '/homework',
+    name: 'homework',
+    component: () => import('../components/Student/QuizRelated/Homework.vue'),
+  },
   {
     path: '/user-info',
     name: 'userInfo',
-    component: userInfo,
+    component: () => import('../components/Student/UserInfo/UserInfo.vue'),
   },
   {
     path: '/knowledge-structure',
     name: 'knowledge-structure',
-    component: knowledgeStructure,
+    component: () => import('../components/Student/KnowledgeStatus/knowledgeStructure.vue'),
   },
   {
     path: '/quiz-challenge',
     name: 'quiz-challenge',
-    component: quizChallenge,
+    component: () => import('../components/Student/QuizRelated/QuizChallenge.vue'),
   },
   {
     path: '/history',
     name: 'history',
-    component: history,
+    component: () => import('../components/Student/QuizRelated/History.vue'),
   },
   // 教师端路由
   {
     path: '/teacher',
     name: 'teacher',
-    component: teacherHeader,
+    component: () => import('../components/Teacher/TeacherHeader.vue'),
     children: [
       {
         path: 'class/tracking',
@@ -94,7 +83,7 @@ const routes = [
       {
         path: 'info/personal',
         name: 'teacher-personal-info',
-        component: personalInfo,
+        component: () => import('../components/Teacher/Info/PersonalInfo.vue'),
       },
       {
         path: 'graphs/graph',
@@ -122,22 +111,22 @@ const routes = [
   {
     path: '/login',
     name: 'Login',
-    component: login,
+    component: () => import('../components/LogRelated/Login.vue'),
   },
   {
     path: '/register',
     name: 'Register',
-    component: register,
+    component: () => import('../components/LogRelated/Register.vue'),
   },
   {
     path: '/change-password',
     name: 'change-password',
-    component: changePassword,
+    component: () => import('../components/LogRelated/ChangePassword.vue'),
   },
   {
     path: '/wechat-login',
     name: 'wechat-login',
-    component: wechatLogin,
+    component: () => import('../components/LogRelated/LoginMethod/WechatLogin.vue'),
   },
   // 可以在这里添加其他路由
 ];

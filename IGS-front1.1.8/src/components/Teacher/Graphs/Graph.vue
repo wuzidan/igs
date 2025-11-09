@@ -1,5 +1,5 @@
 <template>
-    <a href="/index" class="back-to-home">
+    <a href="/teacher/index" class="back-to-home">
         <span class="icon">🏠</span>
         <span>首页</span>
     </a>

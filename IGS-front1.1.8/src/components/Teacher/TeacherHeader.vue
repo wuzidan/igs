@@ -40,8 +40,12 @@
                                 <div class="user-info">
                                     <!-- 显示教师姓名和账号 -->
                                     <div class="user-details">
-                                        <div class="user-name">{{ userName }}</div>
-                                        <div class="user-account">{{ userAccount }}</div>
+                                        <div class="user-name">
+                                            {{ userName }}
+                                        </div>
+                                        <div class="user-account">
+                                            {{ userAccount }}
+                                        </div>
                                     </div>
                                     <div class="user-avatar">
                                         <img
@@ -1158,7 +1162,7 @@ const formatDate = (dateString) => {
     .detail-label {
         flex: 0 0 80px;
     }
-    
+
     /* 响应式下调整用户信息显示 */
     .user-account {
         display: none; /* 小屏幕隐藏账号 */

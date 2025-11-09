@@ -369,7 +369,7 @@
             </div>
         </div>
 
-        <a href="/index" class="back-to-home">
+        <a href="/student/index" class="back-to-home">
             <span class="icon">🏠</span>
             <span>首页</span>
         </a>
