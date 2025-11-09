@@ -23,10 +23,9 @@ class HistoryRecord(models.Model):
 
     # 统计用户历史答题数据
     class UserStatistics(models.Model):
-        user = models.ForeignKey(
+        user = models.OneToOneField(
             settings.AUTH_USER_MODEL,  # 关键：改为引用配置的用户模型
             on_delete=models.CASCADE,
-            primary_key=True,
             related_name='statistics',
             verbose_name="用户",
             help_text="关联的用户"

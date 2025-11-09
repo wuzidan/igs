@@ -46,7 +46,7 @@ class KnowledgePoint(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="knowledge_points",
+        related_name="user_knowledge_points",
         help_text="关联的用户"
     )
 

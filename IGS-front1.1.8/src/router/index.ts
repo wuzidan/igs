@@ -9,7 +9,6 @@ import login from '../components/LogRelated/Login.vue';
 import register from '../components/LogRelated/Register.vue';
 import changePassword from '../components/LogRelated/ChangePassword.vue';
 import wechatLogin from '../components/LogRelated/LoginMethod/WechatLogin.vue';
-import lyq from '../components/lyq.vue';
 // 教师端组件
 import teacherHeader from '../components/Teacher/TeacherHeader.vue';
 import personalInfo from '../components/Teacher/Info/PersonalInfo.vue';
@@ -141,11 +140,6 @@ const routes = [
     path: '/wechat-login',
     name: 'wechat-login',
     component: wechatLogin,
-  },
-  {
-    path: '/lyq',
-    name: 'lyq',
-    component: lyq,
   },
   // 可以在这里添加其他路由
 ];

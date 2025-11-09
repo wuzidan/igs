@@ -5,9 +5,9 @@ from tqdm import tqdm
 import os
 import json
 
-# --- 配置常量 (保持不变) ---
-INTERACTIONS_FILE = 'E:/PycharmProjects/AAKT-main/__pycache__/MOOPer/interaction/challenge_interaction.csv'
-CHALLENGE_FILE = 'E:/PycharmProjects/AAKT-main/__pycache__/MOOPer/knowledgeGraph/entity/challenge.csv'
+# --- 配置常量 (修改为当前项目路径) ---
+INTERACTIONS_FILE = 'C:\\Users\\吴紫丹\\Desktop\\IGS\\AAKT-main\\__pycache__\\MOOPer\\interaction\\challenge_interaction.csv'
+CHALLENGE_FILE = 'C:\\Users\\吴紫丹\\Desktop\\IGS\\AAKT-main\\__pycache__\\MOOPer\\knowledgeGraph\\entity\\challenge.csv'
 OUTPUT_DIR = 'autodl-tmp'
 TRAIN_RATIO = 0.8
 VALID_RATIO = 0.1
