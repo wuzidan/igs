@@ -132,12 +132,6 @@ npm run build
 npm run preview
 ```
 
-## 使用说明
-1. 确保已安装Node.js 16+和npm 8+
-2. 克隆项目到本地
-3. 安装项目依赖：`npm install`
-4. 运行开发服务器：`npm run dev`
-5. 在浏览器中访问 http://localhost:3000 (默认端口)
 
 ## 与后端和模型集成说明
 
