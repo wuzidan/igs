@@ -97,21 +97,7 @@ IGS-back-end/
 **API端点**: 
 - `/model/predict/`: 调用预测模型接口
 
-## 数据库配置
-项目使用MySQL数据库，配置信息位于`ITS_project/settings.py`:
 
-```python
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'igs',
-        'USER': 'root',
-        'PASSWORD': '123456',
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
-    }
-}
-```
 
 ## 跨域配置
 系统已配置CORS支持，允许以下源的请求：
