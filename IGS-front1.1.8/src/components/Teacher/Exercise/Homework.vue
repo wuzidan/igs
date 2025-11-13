@@ -64,34 +64,22 @@
                         </select>
                     </div>
 
+                    <!-- 班级选择改为按钮触发弹窗模式 -->
                     <div class="form-item">
                         <label>选择班级:</label>
-                        <div class="class-checkbox-group">
-                            <label
-                                v-for="cls in classes"
-                                :key="cls.id"
-                                class="class-checkbox"
+                        <div class="class-selection-wrapper">
+                            <button
+                                type="button"
+                                class="input-field student-selector-btn"
+                                @click="showClassSelection"
                             >
-                                <input
-                                    type="checkbox"
-                                    :value="cls.id"
-                                    v-model="homework.selectedClassIds"
-                                    @change="handleClassChange"
-                                />
-                                <span class="checkbox-custom"></span>
-                                <span>{{ cls.name }}</span>
-                            </label>
-                        </div>
-                        <div
-                            v-if="homework.selectedClassNames.length > 0"
-                            class="selected-classes-info"
-                        >
-                            已选择: {{ homework.selectedClassNames.join(", ") }}
+                                {{ getSelectedClassesText() }}
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                <div clas="form-group">
+                <div class="form-group">
                     <div class="form-item">
                         <label>选择学生:</label>
                         <div class="student-selection-wrapper">
@@ -373,8 +361,124 @@
             </div>
         </div>
 
-        <!--tn-primary"
+        <!-- 学生选择弹窗 -->
+        <div v-if="showStudentSelector" class="student-selector-overlay">
+            <div class="student-selector-modal">
+                <div class="modal-header">
+                    <h3>选择学生</h3>
+                    <div class="modal-header-actions">
+                        <button
+                            class="close-btn"
+                            @click="closeStudentSelection"
+                        >
+                            ×
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="student-list">
+                        <!-- 学生全选按钮 - 添加了 select-all-btn 类并动态绑定状态类 -->
+                        <button
+                            class="btn select-all-btn"
+                            :class="{
+                                'select-all': !isAllStudentsSelected,
+                                'deselect-all': isAllStudentsSelected,
+                            }"
+                            @click="toggleSelectAllStudents"
+                        >
+                            {{ isAllStudentsSelected ? "取消全选" : "全选" }}
+                        </button>
+                        <div
+                            v-for="student in students"
+                            :key="student.id"
+                            class="student-item"
+                        >
+                            <label class="student-checkbox">
+                                <input
+                                    type="checkbox"
+                                    :value="student"
+                                    v-model="selectedStudents"
+                                    :id="`student-${student.id}`"
+                                />
+                                <span class="checkbox-custom"></span>
+                                <span class="student-info">
+                                    {{ student.name }} ({{ student.studentId }})
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button
+                        class="btn btn-secondary"
                         @click="closeStudentSelection"
+                    >
+                        取消
+                    </button>
+                    <button
+                        class="btn btn-primary"
+                        @click="closeStudentSelection"
+                    >
+                        确定
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 班级选择弹窗 -->
+        <div v-if="showClassSelector" class="student-selector-overlay">
+            <div class="student-selector-modal">
+                <div class="modal-header">
+                    <h3>选择班级</h3>
+                    <div class="modal-header-actions">
+                        <button class="close-btn" @click="closeClassSelection">
+                            ×
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="student-list">
+                        <!-- 班级全选按钮 - 添加了 select-all-btn 类并动态绑定状态类 -->
+                        <button
+                            class="btn select-all-btn"
+                            :class="{
+                                'select-all': !isAllClassesSelected,
+                                'deselect-all': isAllClassesSelected,
+                            }"
+                            @click="toggleSelectAllClasses"
+                        >
+                            {{ isAllClassesSelected ? "取消全选" : "全选" }}
+                        </button>
+                        <div
+                            v-for="cls in classes"
+                            :key="cls.id"
+                            class="class-item"
+                        >
+                            <label class="class-checkbox">
+                                <input
+                                    type="checkbox"
+                                    :value="cls.id"
+                                    v-model="homework.selectedClassIds"
+                                    @change="handleClassChange"
+                                />
+                                <span class="checkbox-custom"></span>
+                                <span class="class-info">
+                                    {{ cls.name }}
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button
+                        class="btn btn-secondary"
+                        @click="closeClassSelection"
+                    >
+                        取消
+                    </button>
+                    <button
+                        class="btn btn-primary"
+                        @click="closeClassSelection"
                     >
                         确定
                     </button>
@@ -418,8 +522,8 @@ const homework = ref({
     type: "",
     subjectId: "",
     difficulty: "",
-    selectedClassIds: [], // 改为存储多个班级ID的数组
-    selectedClassNames: [], // 改为存储多个班级名称的数组
+    selectedClassIds: [], // 存储多个班级ID的数组
+    selectedClassNames: [], // 存储多个班级名称的数组
     startTime: formatDateTime(new Date()),
     endTime: formatDateTime(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 默认7天后
     description: "",
@@ -438,6 +542,8 @@ const classes = ref([
 const students = ref([]); // 学生列表（根据选中的班级动态加载）
 const selectedStudents = ref([]); // 选中的学生列表
 const showStudentSelector = ref(false); // 是否显示学生选择器
+
+// 班级选择相关
 const showClassSelector = ref(false); // 是否显示班级选择器
 
 // 初始化学生数据（模拟数据，实际应该根据班级ID动态获取）
@@ -746,6 +852,41 @@ const getSelectedStudentsText = () => {
     return `${selectedStudents.value[0].name} 等 ${selectedStudents.value.length} 人`;
 };
 
+// 班级选择相关方法
+const showClassSelection = () => {
+    showClassSelector.value = true;
+};
+
+const closeClassSelection = () => {
+    showClassSelector.value = false;
+};
+
+const isAllClassesSelected = computed(() => {
+    return (
+        classes.value.length > 0 &&
+        homework.value.selectedClassIds.length === classes.value.length
+    );
+});
+
+const toggleSelectAllClasses = () => {
+    if (isAllClassesSelected.value) {
+        homework.value.selectedClassIds = [];
+    } else {
+        homework.value.selectedClassIds = classes.value.map((cls) => cls.id);
+    }
+    handleClassChange();
+};
+
+const getSelectedClassesText = () => {
+    if (homework.value.selectedClassIds.length === 0) {
+        return "点击选择班级";
+    }
+    if (homework.value.selectedClassIds.length <= 3) {
+        return homework.value.selectedClassNames.join(", ");
+    }
+    return `${homework.value.selectedClassNames[0]} 等 ${homework.value.selectedClassIds.length} 个班级`;
+};
+
 // 学生难度配置相关
 const studentDifficultyConfig = ref({}); // 存储学生特定的难度配置
 const showDifficultyConfig = ref(false); // 是否显示难度配置弹窗
@@ -1020,7 +1161,6 @@ onMounted(() => {
     });
 });
 </script>
-
 <style scoped>
 /* 整体容器样式 */
 .homework-container {
@@ -1587,8 +1727,8 @@ onMounted(() => {
     display: flex;
     flex-wrap: wrap;
     gap: 15px;
-    margin-top: 5px;
-    max-height: 50px;
+    margin-top: 10px;
+    max-height: 120px;
     overflow-y: auto;
     padding: 10px;
     border: 1px solid #e5e7eb;
@@ -1722,7 +1862,44 @@ onMounted(() => {
     transform: none;
     box-shadow: none;
 }
+/* 全选/取消全选按钮基础样式 */
+.select-all-btn {
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    height: 40px;
+    transition: all 0.3s ease;
+    margin-bottom: 15px;
+}
 
+/* 全选状态 - 绿色渐变 */
+.select-all-btn.select-all {
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 50%, #86efac 100%);
+    color: #006426;
+    box-shadow: 0 2px 5px rgba(74, 222, 128, 0.2);
+}
+
+.select-all-btn.select-all:hover {
+    background: linear-gradient(135deg, #bbf7d0 0%, #86efac 50%, #4ade80 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(74, 222, 128, 0.3);
+}
+
+/* 取消全选状态 - 红色渐变 */
+.select-all-btn.deselect-all {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 50%, #fca5a5 100%);
+    color: #880000;
+    box-shadow: 0 2px 5px rgba(239, 68, 68, 0.2);
+}
+
+.select-all-btn.deselect-all:hover {
+    background: linear-gradient(135deg, #fecaca 0%, #fca5a5 50%, #ef4444 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+}
 /* 学生难度配置弹窗样式 */
 .difficulty-config-overlay {
     position: fixed;
