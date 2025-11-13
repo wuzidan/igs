@@ -63,9 +63,7 @@
             <button class="edit-btn" @click="toggleEditMode">
                 <span v-if="!isEditing">编辑信息</span>
                 <span v-if="isEditing">保存</span>
-                <i class="edit-icon" :class="{ 'rotate-icon': isEditing }"
-                    >✎</i
-                >
+                <i class="edit-icon" :class="{ 'rotate-icon': isEditing }">✎</i>
             </button>
         </div>
 
@@ -363,7 +361,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import api from "../../../api/index";
-import StudentHeader from '../StudentHeader.vue';
+import StudentHeader from "../StudentHeader.vue";
 
 // 头像相关数据
 const userAvatarUrl = ref(""); // 自定义头像URL
@@ -703,11 +701,20 @@ const setDefaultData = () => {
     studentInfo.value = defaultData;
     // 填充表单数据（不包括由StudentHeader管理的字段）
     const fieldsToSet = [
-        'userAvatarUrl', 'userAvatar', 'birthDate', 'hometown', 
-        'politicalStatus', 'email', 'phone', 'website', 'bio', 
-        'hobbies', 'skills', 'education'
+        "userAvatarUrl",
+        "userAvatar",
+        "birthDate",
+        "hometown",
+        "politicalStatus",
+        "email",
+        "phone",
+        "website",
+        "bio",
+        "hobbies",
+        "skills",
+        "education",
     ];
-    
+
     fieldsToSet.forEach((key) => {
         if (key in defaultData && this[key] !== undefined) {
             this[key] = defaultData[key];
@@ -1639,32 +1646,74 @@ textarea {
     bottom: 30px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 20px;
+    justify-content: center; /* 居中图标 */
+    gap: 0; /* 初始无间距 */
+    padding: 12px; /* 小球状态的内边距 */
+    width: 50px; /* 小球宽度 */
+    height: 50px; /* 小球高度 */
     background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #3b82f6 100%);
     color: white;
-    border-radius: 50px;
+    border-radius: 50%; /* 初始圆形 */
     text-decoration: none;
     box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
-    transition: all 0.3s ease;
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); /* 平滑过渡 */
     z-index: 9999;
     border: none;
     cursor: pointer;
     font-weight: 500;
+    overflow: hidden; /* 隐藏溢出内容 */
 }
 
 .back-to-home .icon {
     font-size: 18px;
+    transition: transform 0.5s ease; /* 图标旋转动画 */
 }
 
+.back-to-home span:not(.icon) {
+    opacity: 0; /* 文字初始隐藏 */
+    width: 0; /* 文字初始宽度为0 */
+    transition: all 0.5s ease; /* 文字显示动画 */
+    white-space: nowrap; /* 防止文字换行 */
+}
+
+/* 悬停状态 - 展开成椭圆 */
 .back-to-home:hover {
-    transform: translateY(-5px) scale(1.05);
+    width: 180px; /* 展开后的宽度 */
+    height: 50px; /* 保持高度不变 */
+    border-radius: 50px; /* 椭圆效果 */
+    padding: 12px 20px; /* 展开后的内边距 */
+    gap: 8px; /* 图标与文字间距 */
+    transform: translateY(-5px); /* 轻微上浮 */
     box-shadow: 0 8px 25px rgba(79, 70, 229, 0.4);
     background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #4f46e5 100%);
 }
 
+/* 悬停时显示文字并添加滚动效果 */
+.back-to-home:hover span:not(.icon) {
+    opacity: 1; /* 显示文字 */
+    width: auto; /* 恢复文字宽度 */
+    animation: slideIn 0.5s ease forwards; /* 文字滑入动画 */
+}
+
+/* 悬停时图标旋转 */
+.back-to-home:hover .icon {
+    transform: rotate(360deg); /* 图标旋转一周 */
+}
+
 .back-to-home:active {
     transform: translateY(-2px);
+}
+
+/* 文字滑入动画 */
+@keyframes slideIn {
+    from {
+        transform: translateX(-20px); /* 从左侧进入 */
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 .bth-text {
     color: white;
