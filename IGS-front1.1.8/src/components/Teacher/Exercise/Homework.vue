@@ -461,7 +461,7 @@
                                     v-model="homework.selectedClassIds"
                                     @change="handleClassChange"
                                 />
-                                <span class="checkbox-custom"></span>
+
                                 <span class="class-info">
                                     {{ cls.name }}
                                 </span>

@@ -176,6 +176,8 @@ const currentQuestionIndex = ref(0);
 const userAnswers = ref([]);
 // 是否显示答案解析
 const showAnswers = ref(false);
+// 是否处于预览模式
+const previewMode = ref(true);
 
 // 计算属性
 const totalQuestions = computed(() => currentHomework.value.questions.length);
@@ -216,7 +218,7 @@ const isCorrectAnswer = (index) => {
 
 // 处理选项选择（单选/多选）
 const handleOptionSelect = (index) => {
-    if (showAnswers.value) return;
+    if (showAnswers.value || previewMode.value) return;
 
     // 创建新数组以确保响应式更新
     const newAnswers = [...userAnswers.value];
@@ -255,7 +257,7 @@ const handleOptionSelect = (index) => {
 
 // 处理判断题选择
 const handleJudgmentSelect = (value) => {
-    if (showAnswers.value) return;
+    if (showAnswers.value || previewMode.value) return;
 
     // 创建新数组以确保响应式更新
     const newAnswers = [...userAnswers.value];
@@ -289,6 +291,15 @@ const exitHomework = () => {
     if (confirm("确定要退出当前作业吗？未完成的部分将不会保存。")) {
         // 这里可以添加退出逻辑，比如返回上一页
         console.log("用户退出作业");
+    }
+};
+
+// 切换预览模式
+const togglePreviewMode = () => {
+    previewMode.value = !previewMode.value;
+    // 如果从预览模式切换到答题模式，重置用户答案
+    if (!previewMode.value) {
+        initializeUserAnswers();
     }
 };
 
