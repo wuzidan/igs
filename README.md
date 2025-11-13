@@ -61,7 +61,6 @@ IGS-back-end/
 ├── model_integration/        # 模型集成模块
 └── manage.py                 # Django管理脚本
 ```
-1
 **主要功能模块：**
 - **student**: 学生信息管理、认证授权
 - **question**: 题目管理、题库维护

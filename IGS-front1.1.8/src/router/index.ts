@@ -81,6 +81,11 @@ const routes = [
         component: () => import('../components/Teacher/Exercise/Bank.vue'),
       },
       {
+        path: 'exercise/homework',
+        name: 'exercise-homework',
+        component: () => import('../components/Teacher/Exercise/Homework.vue'),
+      },
+      {
         path: 'info/personal',
         name: 'teacher-personal-info',
         component: () => import('../components/Teacher/Info/PersonalInfo.vue'),

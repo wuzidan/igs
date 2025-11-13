@@ -104,6 +104,37 @@
                     </li>
                 </ul>
             </li>
+
+            <!-- 作业模块 -->
+            <li
+                class="menu-item"
+                :class="{ active: activeMenu === 'homework' }"
+                data-menu="homework"
+            >
+                <div class="menu-title" @click="toggleMenu('homework')">
+                    <span class="icon">📃</span>
+                    <span>作业模块</span>
+                    <span
+                        class="arrow"
+                        :class="{ rotate: activeMenu === 'homework' }"
+                        >▼</span
+                    >
+                </div>
+                <ul class="submenu" v-if="activeMenu === 'homework'">
+                    <li>
+                        <router-link
+                            to="/teacher/exercise/homework"
+                            :class="{
+                                'active-submenu': activeSubmenu === '发布作业',
+                            }"
+                            @click="setActiveSubmenu('发布作业')"
+                        >
+                            <span class="submenu-dot"></span>发布作业
+                        </router-link>
+                    </li>
+                </ul>
+            </li>
+
             <!-- 图谱模块 -->
             <li
                 class="menu-item"
