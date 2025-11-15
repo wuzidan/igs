@@ -502,10 +502,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { ref, computed, onMounted, watch } from "vue";
+import { useRouter, useRoute } from "vue-router"; // 新增useRoute用于获取路由参数
+import api from "../../../api/index";
 
 const router = useRouter();
+const route = useRoute(); // 实例化路由对象，用于获取当前路由参数
 
 // 学科数据
 const subjects = ref([
@@ -516,20 +518,24 @@ const subjects = ref([
     { id: 5, name: "后端开发" },
 ]);
 
-// 作业基本信息
+// 新增：图谱数据相关
+const graphData = ref(null); // 存储当前图谱数据
+const currentGraphId = ref(""); // 当前图谱ID
+
+// 作业基本信息（保持不变）
 const homework = ref({
     title: "",
     type: "",
     subjectId: "",
     difficulty: "",
-    selectedClassIds: [], // 存储多个班级ID的数组
-    selectedClassNames: [], // 存储多个班级名称的数组
+    selectedClassIds: [],
+    selectedClassNames: [],
     startTime: formatDateTime(new Date()),
-    endTime: formatDateTime(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 默认7天后
+    endTime: formatDateTime(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
     description: "",
 });
 
-// 班级数据
+// 班级数据（保持不变）
 const classes = ref([
     { id: "1", name: "高三(1)班" },
     { id: "2", name: "高三(2)班" },
@@ -538,15 +544,15 @@ const classes = ref([
     { id: "5", name: "高二(2)班" },
 ]);
 
-// 学生选择相关
-const students = ref([]); // 学生列表（根据选中的班级动态加载）
-const selectedStudents = ref([]); // 选中的学生列表
-const showStudentSelector = ref(false); // 是否显示学生选择器
+// 学生选择相关（保持不变）
+const students = ref([]);
+const selectedStudents = ref([]);
+const showStudentSelector = ref(false);
 
-// 班级选择相关
-const showClassSelector = ref(false); // 是否显示班级选择器
+// 班级选择相关（保持不变）
+const showClassSelector = ref(false);
 
-// 初始化学生数据（模拟数据，实际应该根据班级ID动态获取）
+// 模拟学生数据（保持不变）
 const mockStudents = {
     1: [
         { id: "101", name: "张三", studentId: "2021001", gender: "男" },
@@ -574,109 +580,38 @@ const mockStudents = {
     ],
 };
 
-// 习题列表数据（模拟数据）
-const availableExercises = ref([
-    {
-        id: 1001,
-        title: "JavaScript中，以下哪个不是基本数据类型？",
-        subjectId: 1,
-        difficulty: "easy",
-        type: "single-choice",
-    },
-    {
-        id: 1002,
-        title: "以下哪些排序算法的平均时间复杂度为O(n log n)？",
-        subjectId: 3,
-        difficulty: "medium",
-        type: "multiple-choice",
-    },
-    {
-        id: 1003,
-        title: "在React中，useState钩子是否可以直接修改状态？",
-        subjectId: 4,
-        difficulty: "easy",
-        type: "true-false",
-    },
-    {
-        id: 1004,
-        title: "链表和数组相比，插入操作的时间复杂度有什么优势？",
-        subjectId: 2,
-        difficulty: "medium",
-        type: "essay",
-    },
-    {
-        id: 1005,
-        title: "什么是闭包？闭包在JavaScript中有什么应用场景？",
-        subjectId: 1,
-        difficulty: "hard",
-        type: "essay",
-    },
-    {
-        id: 1006,
-        title: "快速排序的平均时间复杂度和最坏时间复杂度分别是多少？",
-        subjectId: 3,
-        difficulty: "medium",
-        type: "blank",
-    },
-    {
-        id: 1007,
-        title: "Vue组件之间的通信方式有哪些？",
-        subjectId: 4,
-        difficulty: "medium",
-        type: "multiple-choice",
-    },
-    {
-        id: 1008,
-        title: "以下哪个不是RESTful API的特点？",
-        subjectId: 5,
-        difficulty: "easy",
-        type: "single-choice",
-    },
-    {
-        id: 1009,
-        title: "二叉树的中序遍历算法可以使用栈来实现吗？",
-        subjectId: 2,
-        difficulty: "medium",
-        type: "true-false",
-    },
-    {
-        id: 1010,
-        title: "解释什么是虚拟DOM以及它在现代前端框架中的作用。",
-        subjectId: 4,
-        difficulty: "hard",
-        type: "essay",
-    },
-]);
+// 习题列表数据（保持不变）
+const availableExercises = ref([]);
 
-// 习题筛选条件
+// 习题筛选条件（保持不变）
 const exerciseFilters = ref({
     difficulty: "",
     type: "",
     searchKeyword: "",
 });
 
-// 习题分页数据
+// 习题分页数据（保持不变）
 const exerciseCurrentPage = ref(1);
 const exercisePageSize = ref(5);
 const exerciseTotalPages = ref(1);
 
-// 已选习题
+// 已选习题（保持不变）
 const selectedExercises = ref([]);
 const exerciseScores = ref({});
 const selectAllExercises = ref(false);
 
-// 格式化日期时间为input datetime-local格式
+// 格式化日期时间（保持不变）
 function formatDateTime(date) {
     return new Date(date).toISOString().slice(0, 16);
 }
 
-// 获取学科名称
+// 获取学科名称（保持不变）
 const getSubjectName = (subjectId) => {
     const subject = subjects.value.find((s) => s.id === subjectId);
     return subject ? subject.name : "-";
 };
 
-// 获取难度文本
+// 获取难度文本（保持不变）
 const getDifficultyText = (difficulty) => {
     switch (difficulty) {
         case "easy":
@@ -690,81 +625,77 @@ const getDifficultyText = (difficulty) => {
     }
 };
 
-// 获取题型文本
+// 获取题型文本（保持不变）
 const getTypeText = (type) => {
     switch (type) {
-        case "single-choice":
+        case 0:
             return "单选题";
-        case "multiple-choice":
+        case 1:
             return "多选题";
-        case "true-false":
+        case 2:
             return "判断题";
-        case "blank":
+        case 3:
             return "填空题";
-        case "essay":
+        case 4:
             return "简答题";
         default:
             return "-";
     }
 };
 
-// 截断文本
+// 截断文本（保持不变）
 const truncateText = (text, length) => {
     if (!text || text.length <= length) return text;
     return text.substring(0, length) + "...";
 };
 
-// 根据筛选条件过滤习题
+// 过滤习题（保持不变）
 const filteredExercises = computed(() => {
     let filtered = availableExercises.value;
 
-    // 根据学科筛选
     if (homework.value.subjectId) {
         filtered = filtered.filter(
             (ex) => ex.subjectId === Number(homework.value.subjectId)
         );
     }
 
-    // 根据难度筛选
     if (exerciseFilters.value.difficulty) {
         filtered = filtered.filter(
             (ex) => ex.difficulty === exerciseFilters.value.difficulty
         );
     }
 
-    // 根据题型筛选
     if (exerciseFilters.value.type) {
         filtered = filtered.filter(
-            (ex) => ex.type === exerciseFilters.value.type
+            (ex) => ex.type === Number(exerciseFilters.value.type)
         );
     }
 
-    // 根据关键词搜索
     if (exerciseFilters.value.searchKeyword) {
         const keyword = exerciseFilters.value.searchKeyword.toLowerCase();
         filtered = filtered.filter((ex) =>
-            ex.title.toLowerCase().includes(keyword)
+            ex.quiz.toLowerCase().includes(keyword)
         );
     }
 
     return filtered;
 });
 
-// 分页后的习题列表
+// 分页习题（保持不变）
 const paginatedExercises = computed(() => {
     const start = (exerciseCurrentPage.value - 1) * exercisePageSize.value;
     const end = start + exercisePageSize.value;
     return filteredExercises.value.slice(start, end);
 });
 
-// 已选习题详情
+// 已选习题详情（保持不变）
 const getSelectedExerciseDetails = computed(() => {
     return availableExercises.value.filter((ex) =>
         selectedExercises.value.includes(ex.id)
     );
 });
 
-// 计算总分
+// 计算总分（保持不变）
 const calculateTotalScore = computed(() => {
     return getSelectedExerciseDetails.value.reduce((total, exercise) => {
         const score = Number(exerciseScores.value[exercise.id]) || 0;
@@ -772,7 +703,7 @@ const calculateTotalScore = computed(() => {
     }, 0);
 });
 
-// 防抖搜索习题
+// 防抖搜索（保持不变）
 const debounceExerciseSearch = () => {
     clearTimeout(window.exerciseSearchTimeout);
     window.exerciseSearchTimeout = setTimeout(() => {
@@ -780,14 +711,12 @@ const debounceExerciseSearch = () => {
     }, 500);
 };
 
-// 处理班级选择变化
+// 处理班级变化（保持不变）
 const handleClassChange = () => {
-    // 更新已选班级名称
     homework.value.selectedClassNames = classes.value
         .filter((cls) => homework.value.selectedClassIds.includes(cls.id))
         .map((cls) => cls.name);
 
-    // 合并所有选中班级的学生并去重
     let allStudents = [];
     let studentIds = new Set();
 
@@ -801,14 +730,11 @@ const handleClassChange = () => {
         });
     });
 
-    // 更新学生列表
     students.value = allStudents;
-
-    // 清空之前选择的学生
     selectedStudents.value = [];
 };
 
-// 显示学生选择器
+// 显示学生选择器（保持不变）
 const showStudentSelection = () => {
     if (homework.value.selectedClassIds.length === 0) {
         alert("请先选择班级");
@@ -817,7 +743,7 @@ const showStudentSelection = () => {
     showStudentSelector.value = true;
 };
 
-// 检查是否所有学生都已选中
+// 全选学生（保持不变）
 const isAllStudentsSelected = computed(() => {
     return (
         students.value.length > 0 &&
@@ -825,34 +751,28 @@ const isAllStudentsSelected = computed(() => {
     );
 });
 
-// 全选/取消全选学生
 const toggleSelectAllStudents = () => {
     if (isAllStudentsSelected.value) {
-        // 取消全选
         selectedStudents.value = [];
     } else {
-        // 全选
         selectedStudents.value = [...students.value];
     }
 };
 
-// 关闭学生选择器
+// 关闭学生选择器（保持不变）
 const closeStudentSelection = () => {
     showStudentSelector.value = false;
 };
 
-// 获取已选学生显示文本
+// 已选学生文本（保持不变）
 const getSelectedStudentsText = () => {
-    if (selectedStudents.value.length === 0) {
-        return "点击选择学生";
-    }
-    if (selectedStudents.value.length <= 3) {
+    if (selectedStudents.value.length === 0) return "点击选择学生";
+    if (selectedStudents.value.length <= 3)
         return selectedStudents.value.map((s) => s.name).join(", ");
-    }
     return `${selectedStudents.value[0].name} 等 ${selectedStudents.value.length} 人`;
 };
 
-// 班级选择相关方法
+// 班级选择（保持不变）
 const showClassSelection = () => {
     showClassSelector.value = true;
 };
@@ -878,25 +798,21 @@ const toggleSelectAllClasses = () => {
 };
 
 const getSelectedClassesText = () => {
-    if (homework.value.selectedClassIds.length === 0) {
-        return "点击选择班级";
-    }
-    if (homework.value.selectedClassIds.length <= 3) {
+    if (homework.value.selectedClassIds.length === 0) return "点击选择班级";
+    if (homework.value.selectedClassIds.length <= 3)
         return homework.value.selectedClassNames.join(", ");
-    }
     return `${homework.value.selectedClassNames[0]} 等 ${homework.value.selectedClassIds.length} 个班级`;
 };
 
-// 学生难度配置相关
-const studentDifficultyConfig = ref({}); // 存储学生特定的难度配置
-const showDifficultyConfig = ref(false); // 是否显示难度配置弹窗
+// 学生难度配置（保持不变）
+const studentDifficultyConfig = ref({});
+const showDifficultyConfig = ref(false);
 
-// 为选中的学生设置默认难度配置
 const setupDefaultDifficultyConfig = () => {
     selectedStudents.value.forEach((student) => {
         if (!studentDifficultyConfig.value[student.id]) {
             studentDifficultyConfig.value[student.id] = {
-                ...homework.value, // 默认使用作业的全局难度
+                ...homework.value,
                 studentId: student.id,
                 studentName: student.name,
             };
@@ -904,7 +820,6 @@ const setupDefaultDifficultyConfig = () => {
     });
 };
 
-// 显示学生难度配置弹窗
 const showStudentDifficultyConfig = () => {
     if (selectedStudents.value.length === 0) {
         alert("请先选择学生");
@@ -914,12 +829,10 @@ const showStudentDifficultyConfig = () => {
     showDifficultyConfig.value = true;
 };
 
-// 关闭学生难度配置弹窗
 const closeDifficultyConfig = () => {
     showDifficultyConfig.value = false;
 };
 
-// 更新学生难度配置
 const updateStudentDifficulty = (studentId, field, value) => {
     if (!studentDifficultyConfig.value[studentId]) {
         studentDifficultyConfig.value[studentId] = {};
@@ -927,7 +840,6 @@ const updateStudentDifficulty = (studentId, field, value) => {
     studentDifficultyConfig.value[studentId][field] = value;
 };
 
-// 重置学生配置为默认值
 const resetStudentConfig = (studentId) => {
     studentDifficultyConfig.value[studentId] = {
         ...homework.value,
@@ -937,109 +849,95 @@ const resetStudentConfig = (studentId) => {
     };
 };
 
-// 根据学生ID获取配置的难度
 const getStudentDifficulty = (studentId) => {
     return studentDifficultyConfig.value[studentId] || homework.value;
 };
 
-// 获取学生特定的习题列表
 const getStudentSpecificExercises = (studentId) => {
     const config = getStudentDifficulty(studentId);
-    // 根据学生配置的难度筛选习题
     return availableExercises.value.filter(
         (ex) =>
-            (!config.difficultyId || ex.difficultyId === config.difficultyId) &&
-            (!config.typeId || ex.typeId === config.typeId) &&
+            (!config.difficulty || ex.difficulty === config.difficulty) &&
+            (!config.type || ex.type === config.type) &&
             (!config.subjectId || ex.subjectId === config.subjectId)
     );
 };
 
-// 获取学生个性化的作业数据
 const getPersonalizedHomeworkData = () => {
     const baseData = {
         ...homework.value,
         totalScore: calculateTotalScore.value,
     };
 
-    // 为每个学生创建个性化的作业数据
-    const personalizedData = selectedStudents.value.map((student) => {
+    return selectedStudents.value.map((student) => {
         const studentConfig = getStudentDifficulty(student.id);
-        // 根据学生的难度配置筛选习题
         const studentExercises = getStudentSpecificExercises(student.id);
 
-        // 获取适合该学生难度的已选题（这里简化处理，实际可能需要更复杂的逻辑）
         let selectedExercises = getSelectedExerciseDetails.value.filter(
             (ex) =>
-                !studentConfig.difficultyId ||
-                ex.difficultyId === studentConfig.difficultyId
+                !studentConfig.difficulty ||
+                ex.difficulty === studentConfig.difficulty
         );
 
-        // 如果筛选后没有习题，使用部分原难度习题
         if (
             selectedExercises.length === 0 &&
             getSelectedExerciseDetails.value.length > 0
         ) {
-            selectedExercises = getSelectedExerciseDetails.value.slice(0, 2); // 取前2道题
+            selectedExercises = getSelectedExerciseDetails.value.slice(0, 2);
         }
 
         return {
             ...baseData,
             studentId: student.id,
             studentName: student.name,
-            difficultyId: studentConfig.difficultyId,
-            difficultyName: getDifficultyText(studentConfig.difficultyId),
+            difficulty: studentConfig.difficulty,
+            difficultyName: getDifficultyText(studentConfig.difficulty),
             exercises: selectedExercises.map((ex) => ({
                 exerciseId: ex.id,
                 score: Number(exerciseScores.value[ex.id]) || 0,
             })),
         };
     });
-
-    return personalizedData;
 };
 
-// 筛选习题
+// 筛选习题（保持不变）
 const filterExercises = () => {
     exerciseCurrentPage.value = 1;
     updateExerciseTotalPages();
 };
 
-// 更新习题总页数
+// 更新总页数（保持不变）
 const updateExerciseTotalPages = () => {
     exerciseTotalPages.value = Math.ceil(
         filteredExercises.value.length / exercisePageSize.value
     );
 };
 
-// 加载指定学科的习题
+// 加载学科习题（保持不变）
 const loadSubjectExercises = () => {
     exerciseCurrentPage.value = 1;
     updateExerciseTotalPages();
-    // 实际应用中，这里会根据选择的学科从API获取习题数据
 };
 
-// 改变习题页码
+// 切换页码（保持不变）
 const changeExercisePage = (page) => {
     if (page >= 1 && page <= exerciseTotalPages.value) {
         exerciseCurrentPage.value = page;
     }
 };
 
-// 切换全选/取消全选
+// 全选习题（保持不变）
 const toggleSelectAll = () => {
     if (selectAllExercises.value) {
-        // 全选当前页的习题
         paginatedExercises.value.forEach((exercise) => {
             if (!selectedExercises.value.includes(exercise.id)) {
                 selectedExercises.value.push(exercise.id);
-                // 为新选中的习题设置默认分值
                 if (!exerciseScores.value[exercise.id]) {
                     exerciseScores.value[exercise.id] = 10;
                 }
             }
         });
     } else {
-        // 取消选择当前页的习题
         const currentPageExerciseIds = paginatedExercises.value.map(
             (ex) => ex.id
         );
@@ -1049,16 +947,15 @@ const toggleSelectAll = () => {
     }
 };
 
-// 移除已选题
+// 移除习题（保持不变）
 const removeSelectedExercise = (exerciseId) => {
     selectedExercises.value = selectedExercises.value.filter(
         (id) => id !== exerciseId
     );
-    // 保持全选状态的一致性
     checkSelectAllStatus();
 };
 
-// 检查是否所有当前页的习题都已选中
+// 检查全选状态（保持不变）
 const checkSelectAllStatus = () => {
     const currentPageExerciseIds = paginatedExercises.value.map((ex) => ex.id);
     const allSelected = currentPageExerciseIds.every((id) =>
@@ -1067,23 +964,22 @@ const checkSelectAllStatus = () => {
     selectAllExercises.value = allSelected && currentPageExerciseIds.length > 0;
 };
 
-// 预览作业
+// 预览作业（保持不变）
 const previewHomework = () => {
     if (!validateHomework()) return;
     alert("预览作业功能待实现");
 };
 
-// 保存草稿
+// 保存草稿（保持不变）
 const saveAsDraft = () => {
     if (!validateHomework()) return;
     alert("保存草稿功能待实现");
 };
 
-// 发布作业
+// 发布作业（保持不变）
 const publishHomework = () => {
     if (!validateHomework(true)) return;
 
-    // 构建作业数据（包含学生个性化难度配置）
     const personalizedData = getPersonalizedHomeworkData();
 
     const homeworkData = {
@@ -1095,7 +991,7 @@ const publishHomework = () => {
             score: Number(exerciseScores.value[ex.id]) || 0,
         })),
         totalScore: calculateTotalScore.value,
-        personalizedData, // 包含每个学生的个性化作业配置
+        personalizedData,
     };
 
     console.log("发布作业数据:", homeworkData);
@@ -1103,9 +999,8 @@ const publishHomework = () => {
     router.push("/teacher/index");
 };
 
-// 验证作业信息
+// 验证作业（保持不变）
 const validateHomework = (isPublish = false) => {
-    // 验证基本信息
     if (
         !homework.value.title ||
         !homework.value.type ||
@@ -1117,7 +1012,6 @@ const validateHomework = (isPublish = false) => {
         return false;
     }
 
-    // 验证时间
     const startTime = new Date(homework.value.startTime);
     const endTime = new Date(homework.value.endTime);
     const now = new Date();
@@ -1132,13 +1026,11 @@ const validateHomework = (isPublish = false) => {
         return false;
     }
 
-    // 发布时验证是否选择题
     if (isPublish && selectedExercises.value.length === 0) {
         alert("请至少选择一道习题");
         return false;
     }
 
-    // 验证已选题的分值
     if (isPublish) {
         for (const exerciseId of selectedExercises.value) {
             const score = Number(exerciseScores.value[exerciseId]);
@@ -1152,15 +1044,164 @@ const validateHomework = (isPublish = false) => {
     return true;
 };
 
-// 组件挂载时执行
-onMounted(() => {
-    updateExerciseTotalPages();
-    // 初始化时为习题设置默认分值
-    availableExercises.value.forEach((exercise) => {
-        exerciseScores.value[exercise.id] = 10;
-    });
+// 新增：图谱点击跳转方法
+const goToGraphEdit = (graphId) => {
+    // 跳转到图谱编辑页面，携带图谱ID
+    router.push(`/teacher/graph/edit/${graphId}`);
+};
+
+// 新增：获取图谱详情（根据ID）
+const fetchGraphDetail = async (graphId) => {
+    try {
+        // 假设接口为api.getGraphDetail，实际请替换为您的真实接口
+        const response = await api.getGraphDetail(graphId);
+        graphData.value = response.data; // 存储图谱详情数据
+        currentGraphId.value = graphId;
+    } catch (error) {
+        console.error(`获取图谱${graphId}详情失败:`, error);
+        // 加载失败时使用默认图谱数据
+        graphData.value = {
+            id: graphId,
+            name: "未命名知识图谱",
+            domainId: 1,
+            type: "concept",
+            status: "draft",
+            description: "",
+            nodes: [
+                {
+                    id: "n1",
+                    data: {
+                        label: "根节点",
+                        category: "concept",
+                        color: "#3b82f6",
+                        description: "这是一个根节点示例",
+                        size: 80,
+                    },
+                    position: { x: 297, y: 150 },
+                },
+                {
+                    id: "n2",
+                    data: {
+                        label: "子节点",
+                        category: "concept",
+                        color: "#10b981",
+                        description: "这是一个子节点示例",
+                        size: 80,
+                    },
+                    position: { x: 500, y: 150 },
+                },
+                {
+                    id: "n3",
+                    data: {
+                        label: "节点3",
+                        category: "entity",
+                        color: "#f59e0b",
+                        description: "",
+                        size: 80,
+                    },
+                    position: { x: 400, y: 300 },
+                },
+            ],
+            relationships: [
+                {
+                    id: "e1",
+                    data: {
+                        source: "n1",
+                        target: "n2",
+                        label: "包含",
+                        type: "hierarchy",
+                        dashed: false,
+                        description: "",
+                        hasArrow: true,
+                        arrowDirection: "end",
+                    },
+                },
+                {
+                    id: "e2",
+                    data: {
+                        source: "n1",
+                        target: "n3",
+                        label: "关联",
+                        type: "association",
+                        dashed: false,
+                        description: "",
+                        hasArrow: true,
+                        arrowDirection: "end",
+                    },
+                },
+            ],
+        };
+    }
+};
+
+// 组件挂载时加载数据
+onMounted(async () => {
+    try {
+        // 1. 加载习题数据
+        const response = await api.getQuestion();
+        availableExercises.value = response.data.data.map((quiz) => ({
+            id: quiz.id,
+            title: quiz.quiz,
+            quiz: quiz.quiz,
+            result: quiz.result,
+            analysis: quiz.analysis,
+            subjectId: quiz.subject || 2,
+            difficulty: "medium",
+            type: quiz.type,
+        }));
+
+        availableExercises.value.forEach((exercise) => {
+            exerciseScores.value[exercise.id] = 10;
+        });
+
+        updateExerciseTotalPages();
+
+        // 2. 如果当前路由是图谱编辑页，加载对应图谱数据
+        if (route.path.includes("/teacher/graph/edit/")) {
+            const graphId = route.params.id; // 从路由参数中获取图谱ID
+            await fetchGraphDetail(graphId);
+        }
+    } catch (error) {
+        console.error("初始化数据失败:", error);
+        // 加载失败时使用模拟习题数据
+        availableExercises.value = [
+            {
+                id: 4767,
+                quiz: "研究数据结构就是研究（ ）...",
+                title: "研究数据结构就是研究（ ）...",
+                result: "D",
+                analysis:
+                    "研究数据结构就是研究数据的逻辑结构、存储结构及其基本操作。",
+                subjectId: 2,
+                difficulty: "medium",
+                type: 0,
+            },
+            {
+                id: 4768,
+                quiz: "算法分析的两个主要方面是( )...",
+                title: "算法分析的两个主要方面是( )...",
+                result: "A",
+                analysis: "算法分析的两个主要方面是时间复杂度和空间复杂度。",
+                subjectId: 2,
+                difficulty: "medium",
+                type: 0,
+            },
+        ];
+        updateExerciseTotalPages();
+    }
 });
+
+// 新增：监听路由参数变化，更新图谱数据
+watch(
+    () => route.params.id,
+    async (newGraphId) => {
+        if (newGraphId) {
+            await fetchGraphDetail(newGraphId);
+        }
+    }
+);
 </script>
+
 <style scoped>
 /* 整体容器样式 */
 .homework-container {

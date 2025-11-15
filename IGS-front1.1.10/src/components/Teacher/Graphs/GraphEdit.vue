@@ -713,12 +713,49 @@ const featureTips = {
 
 // 初始化图谱
 onMounted(() => {
-    nextTick(() => {
-        initSampleData();
+    nextTick(async () => {
+        // 如果图谱ID为1001，尝试加载本地JSON文件
+        if (graphData.id === "1001") {
+            await loadGraphFromFile("1001.json");
+        } else {
+            initSampleData();
+        }
         adjustEdgesContainerSize();
         window.addEventListener("resize", adjustEdgesContainerSize);
     });
 });
+
+// 从本地JSON文件加载图谱数据
+const loadGraphFromFile = async (filename) => {
+    try {
+        // 创建一个XMLHttpRequest对象来读取本地文件
+        const xhr = new XMLHttpRequest();
+        const filePath = `/src/components/Teacher/Graphs/${filename}`;
+
+        // 使用同步请求以确保文件在继续前已加载
+        xhr.open("GET", filePath, false);
+        xhr.send(null);
+
+        if (xhr.status === 200) {
+            const graphDataContent = JSON.parse(xhr.responseText);
+
+            // 验证并加载图谱数据
+            if (validateGraphData(graphDataContent)) {
+                loadImportedGraph(graphDataContent);
+                console.log(`成功加载图谱文件: ${filename}`);
+            }
+        } else {
+            throw new Error(
+                `无法加载文件: ${filename}，HTTP状态: ${xhr.status}`
+            );
+        }
+    } catch (error) {
+        console.error(`加载图谱文件失败: ${error.message}`);
+        // 如果加载失败，使用示例数据
+        initSampleData();
+        console.warn(`无法加载图谱数据: ${error.message}\n将使用示例数据`);
+    }
+};
 
 // 初始化示例数据
 const initSampleData = () => {
@@ -901,7 +938,7 @@ const getDomainName = (domainId) => {
 const getTypeText = (type) => {
     switch (type) {
         case "concept":
-            return "概念图谱";
+            return "概念图谱：侧重概念定义与解释";
         case "relationship":
             return "关系图谱";
         case "hierarchical":

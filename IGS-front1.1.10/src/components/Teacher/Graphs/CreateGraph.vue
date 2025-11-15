@@ -64,17 +64,19 @@
                             required
                         >
                             <option value="">请选择图谱类型</option>
-                            <option value="concept">概念图谱</option>
-                            <option value="relationship">关系图谱</option>
-                            <option value="hierarchical">层级图谱</option>
-                            <option value="integrated">综合图谱</option>
+                            <option value="concept">
+                                概念图谱：侧重概念定义与解释
+                            </option>
+                            <option value="relationship">
+                                关系图谱：侧重实体间关系展示
+                            </option>
+                            <option value="hierarchical">
+                                层级图谱：侧重层级结构展示
+                            </option>
+                            <option value="integrated">
+                                综合图谱：包含多种类型特征
+                            </option>
                         </select>
-                        <p class="form-hint">
-                            概念图谱：侧重概念定义与解释<br />
-                            关系图谱：侧重实体间关系展示<br />
-                            层级图谱：侧重层级结构展示<br />
-                            综合图谱：包含多种类型特征
-                        </p>
                     </div>
 
                     <div class="form-group">
