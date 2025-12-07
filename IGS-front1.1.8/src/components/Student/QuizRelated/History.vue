@@ -518,7 +518,7 @@ const historyRecords = ref([]);
 const historyData = ref(null);
 const studentInfoData = ref(null); // 存储个人信息完整数据
 const isLoading = ref(true); // 加载状态
-const errorMsg = ref(""); // 错误信息
+const errorMsg = ref(""); // 错误信息，初始为空
 
 // 由于使用StudentHeader组件，此处不再需要重复获取个人信息
 // 个人信息由StudentHeader组件获取和管理
@@ -565,6 +565,7 @@ onMounted(() => {
     Promise.all([fetchStudentInfo(), fetchHistoryData()])
         .then(() => {
             isLoading.value = false;
+            errorMsg.value = ""; // 确保成功加载时清空错误信息
             // 数据加载完成后渲染图表
             nextTick(() => {
                 renderScoreTrendChart();
@@ -572,6 +573,7 @@ onMounted(() => {
         })
         .catch(() => {
             isLoading.value = false;
+            // 只有在实际出错时才设置错误信息
         });
 });
 
@@ -813,6 +815,7 @@ const retryLoad = () => {
     Promise.all([fetchStudentInfo(), fetchHistoryData()])
         .then(() => {
             isLoading.value = false;
+            errorMsg.value = "";
         })
         .catch(() => {
             isLoading.value = false;

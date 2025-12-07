@@ -20,11 +20,17 @@ class HistoryRecord(models.Model):
     score = models.IntegerField()  # 得分
     duration = models.CharField(max_length=20)  # 时长（如"25分钟"）
     expanded = models.BooleanField(default=False)  # 是否展开详情
+    
+    class Meta:
+        # 添加联合索引，提高get_or_create查询性能
+        indexes = [
+            models.Index(fields=['user', 'type', 'date'], name='idx_user_type_date'),
+        ]
 
     # 统计用户历史答题数据
     class UserStatistics(models.Model):
         user = models.OneToOneField(
-            settings.AUTH_USER_MODEL,  # 关键：改为引用配置的用户模型
+            settings.AUTH_USER_MODEL,  # 引用配置的用户模型
             on_delete=models.CASCADE,
             related_name='statistics',
             verbose_name="用户",

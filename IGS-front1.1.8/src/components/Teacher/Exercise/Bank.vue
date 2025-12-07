@@ -98,7 +98,17 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="exercise in exercises" :key="exercise.id">
+                        <tr v-if="loading">
+                            <td colspan="9" class="loading-message">
+                                正在加载数据...
+                            </td>
+                        </tr>
+                        <tr v-else-if="exercises.length === 0">
+                            <td colspan="9" class="empty-message">
+                                没有找到相关习题
+                            </td>
+                        </tr>
+                        <tr v-else v-for="exercise in exercises" :key="exercise.id">
                             <td>{{ exercise.id }}</td>
                             <td class="exercise-title">
                                 {{ truncateText(exercise.title, 30) }}
@@ -180,48 +190,10 @@ const pageSize = ref(10);
 const totalPages = ref(1);
 
 // 习题数据
-const exercises = ref([
-    {
-        id: 2001,
-        title: "Python中，以下哪个不是内置数据结构？",
-        subjectId: 1,
-        difficulty: "medium",
-        type: "single-choice",
-        creator: "李老师",
-        createTime: "2023-07-10T14:30:00",
-        useCount: 15,
-    },
-    {
-        id: 2002,
-        title: "简述JavaScript中的闭包概念及其应用场景。",
-        subjectId: 4,
-        difficulty: "easy",
-        type: "essay",
-        creator: "王老师",
-        createTime: "2023-07-15T09:45:00",
-        useCount: 23,
-    },
-    {
-        id: 2003,
-        title: "HTTP协议中的GET和POST请求的主要区别是什么？",
-        subjectId: 5,
-        difficulty: "medium",
-        type: "blank",
-        creator: "张老师",
-        createTime: "2023-08-01T16:20:00",
-        useCount: 8,
-    },
-    {
-        id: 2004,
-        title: "什么是二叉搜索树？它有哪些特性？",
-        subjectId: 2,
-        difficulty: "medium",
-        type: "essay",
-        creator: "刘老师",
-        createTime: "2023-08-05T10:15:00",
-        useCount: 12,
-    },
-]);
+const exercises = ref([]);
+
+// 加载中状态
+const loading = ref(false);
 
 // 格式化日期
 const formatDate = (dateString) => {
@@ -257,15 +229,13 @@ const getDifficultyText = (difficulty) => {
 // 获取题型文本
 const getTypeText = (type) => {
     switch (type) {
-        case "single-choice":
+        case 0:
             return "单选题";
-        case "multiple-choice":
+        case 1:
             return "多选题";
-        case "true-false":
+        case 2:
             return "判断题";
-        case "blank":
-            return "填空题";
-        case "essay":
+        case 3:
             return "简答题";
         default:
             return "-";
@@ -286,6 +256,24 @@ const debounceSearch = () => {
     }, 500);
 };
 
+// 获取习题数据
+const fetchExercises = async () => {
+    loading.value = true;
+    try {
+        const response = await fetch("http://localhost:8000/question/question/");
+        if (!response.ok) {
+            throw new Error("Network response was not ok");
+        }
+        const data = await response.json();
+        exercises.value = data.data;
+        totalPages.value = Math.ceil(exercises.value.length / pageSize.value);
+    } catch (error) {
+        console.error("Error fetching exercises:", error);
+    } finally {
+        loading.value = false;
+    }
+};
+
 // 搜索习题
 const searchExercises = () => {
     // 这里添加搜索逻辑
@@ -296,6 +284,8 @@ const searchExercises = () => {
         selectedType,
     });
     // 实际应用中，这里会根据筛选条件从API获取数据
+    // 目前我们只是重新获取所有数据
+    fetchExercises();
 };
 
 // 改变页码
@@ -322,9 +312,8 @@ const addExerciseToMyList = (exerciseId) => {
 
 // 组件挂载时执行
 onMounted(() => {
-    // 初始化数据
-    totalPages.value = Math.ceil(exercises.value.length / pageSize.value);
-    // 实际应用中，这里会从API获取习题数据
+    // 从API获取习题数据
+    fetchExercises();
 });
 </script>
 

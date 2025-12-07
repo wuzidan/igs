@@ -47,7 +47,7 @@ def compute_metrics(eval_preds):
     loss_kts_np, loss_tags_np, probs_kts = eval_preds.predictions
     labels_kts = eval_preds.label_ids
 
-    # 【核心修改】对 NumPy 数组使用 .mean() 方法
+    # 对 NumPy 数组使用 .mean() 方法
     loss_kts = loss_kts_np.mean()
     loss_tags = loss_tags_np.mean()
 
@@ -129,7 +129,6 @@ if __name__ == "__main__":
         for usage in ["train", "valid", "test"]
     }
 
-    # --- 【核心修改】---
     # 由于我们重构了 KTDataset，它不再有 total_num_kts 属性。
     # 这段代码仅用于打印日志，对训练无影响，我们将其简化。
     usage2nums = {"names": ['samples']}

@@ -6,6 +6,7 @@ const base = {
     visualization: "/visualization/display/",
     studentinfo: "/student/studentInfo/",
     quiz: "/question/question/", // 修改为正确的后端配置路径
+    cognitiveDiagnosis: "/model/cognitiveDiagnosis/", // 认知诊断API路径
 }
 
 export default base
