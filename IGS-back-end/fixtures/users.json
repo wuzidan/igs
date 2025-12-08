@@ -23,6 +23,7 @@
       "is_superuser": false,
       "last_login": null,
       "date_joined": "2023-09-01T00:00:00Z",
+      "created_at": "2023-09-01T00:00:00Z",
       "groups": [],
       "user_permissions": []
     }

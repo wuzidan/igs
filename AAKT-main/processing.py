@@ -1,13 +1,13 @@
-# 您提供的代码已经是正确的，我们只在其中添加保存映射文件的部分
+# 添加保存映射文件的部分
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import os
 import json
 
-# --- 配置常量 (修改为当前项目路径) ---
-INTERACTIONS_FILE = 'C:\\Users\\吴紫丹\\Desktop\\IGS\\AAKT-main\\__pycache__\\MOOPer\\interaction\\challenge_interaction.csv'
-CHALLENGE_FILE = 'C:\\Users\\吴紫丹\\Desktop\\IGS\\AAKT-main\\__pycache__\\MOOPer\\knowledgeGraph\\entity\\challenge.csv'
+# --- 配置常量  ---
+INTERACTIONS_FILE = '__pycache__\\MOOPer\\interaction\\challenge_interaction.csv'
+CHALLENGE_FILE = '__pycache__\\MOOPer\\knowledgeGraph\\entity\\challenge.csv'
 OUTPUT_DIR = 'autodl-tmp'
 TRAIN_RATIO = 0.8
 VALID_RATIO = 0.1
@@ -29,7 +29,7 @@ def main():
 
     # ...
 
-    # --- 2. 【核心修改】保存 question_map.json 时，确保键是整数转换的字符串 ---
+    # --- 2. 保存 question_map.json 时，确保键是整数转换的字符串 ---
     question_map_path = os.path.join(OUTPUT_DIR, "question_map.json")
     with open(question_map_path, 'w', encoding='utf-8') as f:
         # 先将原始ID（键）转为整数，再转为字符串，消除 ".0" 等问题

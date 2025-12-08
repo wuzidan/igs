@@ -15,12 +15,28 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from app01 import views
 
 # from app01.views import dkt_prediction
 urlpatterns = [
-
+    # 包含model_integration应用的URL路由
+    path('model_integration/', include('model_integration.urls')),
+    # 诊断相关路由
+    path('diagnosis/', include('model_integration.urls')),
+    # 认知诊断API
+    path('model/', include('model_integration.urls')),
+    # 知识结构API
+    path('knowledge/', include('knowledge.urls')),
+    # 题库API
+    path('question/', include('question.urls')),
+    # 历史记录API
+    path('historyRecord/', include('historyRecord.urls')),
+    # 学生信息API
+    path('student/', include('student.urls')),
+    # 可视化API
+    path('visualization/', include('visualization.urls')),
+    
     path('user', views.user_info_list),
     # path('user/list/', views.user_list),
     # path('dkt_prediction/', views.dkt_prediction),

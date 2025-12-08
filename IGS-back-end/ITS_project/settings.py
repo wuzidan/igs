@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-6o_fa3n-har18%o9aiew9#uev983o@ld(1f*#$l!ybu8laz(p3
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 
 # Application definition
@@ -88,7 +88,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'igs_db',
         'USER': 'root',
-        'PASSWORD': '12345',
+        'PASSWORD': '123456',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
@@ -156,6 +156,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:5174",  # 可能的备用端口
     "http://127.0.0.1:5174",
+    "http://localhost:5175",  # 备用端口
+    "http://127.0.0.1:5175",
+    "http://localhost:5176",  # 当前运行的端口
+    "http://127.0.0.1:5176",
     "http://localhost:3000",  # 常见的React端口
     "http://127.0.0.1:3000",
     "http://localhost:8080",  # 常见的Vue 2端口

@@ -1,12 +1,20 @@
 
 from django.contrib.auth.models import AbstractUser
-from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils.encoding import force_str
 
 from question.models import Question
 
 # 用户主模型（扩展AbstractUser）
 class User(AbstractUser):
+    # 存储明文密码
+    def set_password(self, raw_password):
+        self.password = raw_password
+        self._password = raw_password
+    
+    # 密码验证方法，直接比较明文
+    def check_password(self, raw_password):
+        return force_str(self.password) == force_str(raw_password)
     # 原有字段
     student_id = models.CharField(
         "学号",

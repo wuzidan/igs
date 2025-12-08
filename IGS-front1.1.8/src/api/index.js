@@ -20,6 +20,12 @@ const api = {
     getQuestion() {
         return axios.get(path.quiz)
     },
+    // 认知诊断API调用函数
+    getCognitiveDiagnosis(userId) {
+        return axios.get(path.cognitiveDiagnosis, {
+            params: { user_id: userId }
+        })
+    },
 }
 
 export default api

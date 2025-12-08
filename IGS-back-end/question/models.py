@@ -68,6 +68,58 @@ class DifficultyLevel(models.TextChoices):
     HARD = 'hard', '困难'
 
 
+# 练习题模型（新增）
+class Exercise(models.Model):
+    exercise_id = models.CharField(
+        "练习题ID",
+        max_length=100,
+        unique=True,
+        help_text="练习题的唯一标识符"
+    )
+    name = models.CharField(
+        "练习题名称",
+        max_length=200,
+        help_text="练习题的名称"
+    )
+    visits = models.IntegerField(
+        "访问次数",
+        default=0,
+        help_text="练习题的访问次数"
+    )
+    status = models.CharField(
+        "状态",
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="练习题的状态"
+    )
+    fork_from = models.CharField(
+        "来源练习题",
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="从哪个练习题复刻而来"
+    )
+    created_at = models.DateTimeField(
+        "创建时间",
+        help_text="练习题的创建时间"
+    )
+    publish_time = models.DateTimeField(
+        "发布时间",
+        blank=True,
+        null=True,
+        help_text="练习题的发布时间"
+    )
+
+    class Meta:
+        verbose_name = "练习题"
+        verbose_name_plural = "练习题"
+        ordering = ['exercise_id']
+
+    def __str__(self):
+        return self.name
+
+
 # 题目模型
 class Question(models.Model):
     record = models.ForeignKey(
@@ -76,6 +128,16 @@ class Question(models.Model):
         related_name='questions',
         verbose_name="练习记录",
         help_text="关联的练习记录"
+    )
+    # 新增：关联练习题（如果Question与Exercise有关联）
+    exercise = models.ForeignKey(
+        Exercise,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='questions',
+        verbose_name="关联练习题",
+        help_text="关联的练习题"
     )
     type = models.CharField(
         "类型",
@@ -146,4 +208,3 @@ class Question(models.Model):
         if self.correct_answer:
             return json.loads(self.correct_answer)
         return []
-
