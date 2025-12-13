@@ -79,27 +79,25 @@
                     </div>
                 </div>
 
-                <!-- 知识点分类统计卡片 -->
+                <!-- 课程统计卡片 -->
                 <div class="card">
-                    <h3>知识点分类统计</h3>
+                    <h3>课程统计</h3>
                     <div class="stats">
                         <div class="stat-item">
                             <span class="stat-value">{{
-                                categoryStats.core
+                                courseList.length
                             }}</span>
-                            <span class="stat-label">核心知识点</span>
+                            <span class="stat-label">已学课程</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-value">{{
-                                categoryStats.important
+                                getTotalChapters()
                             }}</span>
-                            <span class="stat-label">重要知识点</span>
+                            <span class="stat-label">总章节数</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-value">{{
-                                categoryStats.general
-                            }}</span>
-                            <span class="stat-label">一般知识点</span>
+                            <span class="stat-value">{{ totalCount }}</span>
+                            <span class="stat-label">总知识点</span>
                         </div>
                     </div>
                 </div>
@@ -109,29 +107,73 @@
                     <div class="section-header">
                         <h3>知识点掌握度</h3>
                         <!-- 筛选控件 -->
-                        <div class="filter-control">
-                            <label for="mastery-filter" class="filter-label"
-                                >按掌握情况筛选：</label
-                            >
-                            <select
-                                id="mastery-filter"
-                                v-model="selectedLevel"
-                                @change="updateMasteryChart"
-                                class="mastery-select"
-                            >
-                                <option value="all">全部</option>
-                                <option value="unmastered">
-                                    未掌握（<30%）
-                                </option>
-                                <option value="basic">了解（30%-50%）</option>
-                                <option value="mastered">
-                                    掌握（50%-70%）
-                                </option>
-                                <option value="proficient">
-                                    熟练（70%-90%）
-                                </option>
-                                <option value="expert">精通（≥90%）</option>
-                            </select>
+                        <div class="filter-controls">
+                            <div class="filter-control">
+                                <label for="course-filter" class="filter-label"
+                                    >按课程筛选：</label
+                                >
+                                <select
+                                    id="course-filter"
+                                    v-model="selectedCourseId"
+                                    @change="updateFilters"
+                                    class="mastery-select"
+                                >
+                                    <option value="all">全部课程</option>
+                                    <option
+                                        v-for="course in courseList"
+                                        :key="course.id"
+                                        :value="course.id"
+                                    >
+                                        {{ course.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="filter-control">
+                                <label for="chapter-filter" class="filter-label"
+                                    >按章节筛选：</label
+                                >
+                                <select
+                                    id="chapter-filter"
+                                    v-model="selectedChapterId"
+                                    @change="updateFilters"
+                                    class="mastery-select"
+                                >
+                                    <option value="all">全部章节</option>
+                                    <option
+                                        v-for="chapter in filteredChapters"
+                                        :key="chapter.id"
+                                        :value="chapter.id"
+                                    >
+                                        {{ chapter.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="filter-control">
+                                <label for="mastery-filter" class="filter-label"
+                                    >按掌握情况筛选：</label
+                                >
+                                <select
+                                    id="mastery-filter"
+                                    v-model="selectedLevel"
+                                    @change="updateFilters"
+                                    class="mastery-select"
+                                >
+                                    <option value="all">全部</option>
+                                    <option value="unmastered">
+                                        未掌握（<30%）
+                                    </option>
+                                    <option value="basic">
+                                        了解（30%-50%）
+                                    </option>
+                                    <option value="mastered">
+                                        掌握（50%-70%）
+                                    </option>
+                                    <option value="proficient">
+                                        熟练（70%-90%）
+                                    </option>
+                                    <option value="expert">精通（≥90%）</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="chart-table-wrapper">
@@ -142,7 +184,8 @@
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>编号</th>
+                                        <th>课程</th>
+                                        <th>章节</th>
                                         <th>知识点</th>
                                         <th>掌握度</th>
                                         <th>等级</th>
@@ -153,7 +196,20 @@
                                         v-for="knowledge in filteredKnowledgeList"
                                         :key="knowledge.id"
                                     >
-                                        <td>{{ knowledge.id }}</td>
+                                        <td>
+                                            {{
+                                                getCourseName(
+                                                    knowledge.courseId
+                                                )
+                                            }}
+                                        </td>
+                                        <td>
+                                            {{
+                                                getChapterName(
+                                                    knowledge.chapterId
+                                                )
+                                            }}
+                                        </td>
                                         <td>{{ knowledge.name }}</td>
                                         <td>{{ knowledge.mastery }}%</td>
                                         <td>
@@ -178,12 +234,190 @@
                                             filteredKnowledgeList.length === 0
                                         "
                                     >
-                                        <td colspan="4" class="no-data">
+                                        <td colspan="5" class="no-data">
                                             没有符合条件的知识点
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 课程章节知识点层级展示（两列布局） -->
+                <div class="content-section">
+                    <h3>课程-章节-知识点结构</h3>
+                    <!-- 核心修改：两列网格布局 -->
+                    <div class="course-structure-grid">
+                        <!-- 课程列表 -->
+                        <div
+                            v-for="course in courseList"
+                            :key="course.id"
+                            class="course-card"
+                        >
+                            <div
+                                class="course-header"
+                                @click="toggleCourse(course.id)"
+                            >
+                                <span class="expand-icon">{{
+                                    courseExpanded[course.id] ? "▼" : "▶"
+                                }}</span>
+                                <div class="course-info">
+                                    <h4>{{ course.name }}</h4>
+                                    <div class="course-meta">
+                                        <span
+                                            >{{
+                                                getChaptersByCourse(course.id)
+                                                    .length
+                                            }}
+                                            章节</span
+                                        >
+                                        <span
+                                            >{{
+                                                getKnowledgeByCourse(course.id)
+                                                    .length
+                                            }}
+                                            知识点</span
+                                        >
+                                        <span
+                                            class="mastery-badge"
+                                            :class="
+                                                getProgressColorClass(
+                                                    course.avgMastery
+                                                )
+                                            "
+                                        >
+                                            {{ course.avgMastery.toFixed(1) }}%
+                                            掌握度
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 章节列表 -->
+                            <div
+                                v-if="courseExpanded[course.id]"
+                                class="chapters-container"
+                            >
+                                <div
+                                    v-for="chapter in getChaptersByCourse(
+                                        course.id
+                                    )"
+                                    :key="chapter.id"
+                                    class="chapter-card"
+                                >
+                                    <div
+                                        class="chapter-header"
+                                        @click="toggleChapter(chapter.id)"
+                                    >
+                                        <span class="expand-icon">{{
+                                            chapterExpanded[chapter.id]
+                                                ? "▼"
+                                                : "▶"
+                                        }}</span>
+                                        <div class="chapter-info">
+                                            <h5>{{ chapter.name }}</h5>
+                                            <div class="chapter-meta">
+                                                <span
+                                                    >{{
+                                                        getKnowledgeByChapter(
+                                                            chapter.id
+                                                        ).length
+                                                    }}
+                                                    知识点</span
+                                                >
+                                                <span
+                                                    class="mastery-badge"
+                                                    :class="
+                                                        getProgressColorClass(
+                                                            chapter.avgMastery
+                                                        )
+                                                    "
+                                                >
+                                                    {{
+                                                        chapter.avgMastery.toFixed(
+                                                            1
+                                                        )
+                                                    }}% 掌握度
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 知识点列表 -->
+                                    <div
+                                        v-if="chapterExpanded[chapter.id]"
+                                        class="knowledge-list"
+                                    >
+                                        <div
+                                            class="knowledge-item"
+                                            v-for="knowledge in getKnowledgeByChapter(
+                                                chapter.id
+                                            )"
+                                            :key="knowledge.id"
+                                            @click="
+                                                showKnowledgeDetail(knowledge)
+                                            "
+                                        >
+                                            <div class="knowledge-icon">
+                                                {{
+                                                    getCategoryIcon(
+                                                        knowledge.category
+                                                    )
+                                                }}
+                                            </div>
+                                            <div class="knowledge-content">
+                                                <div class="knowledge-name">
+                                                    {{ knowledge.name }}
+                                                </div>
+                                                <div
+                                                    class="knowledge-progress-container"
+                                                >
+                                                    <div
+                                                        class="knowledge-progress"
+                                                        :style="{
+                                                            width:
+                                                                knowledge.mastery +
+                                                                '%',
+                                                        }"
+                                                        :class="
+                                                            getMasteryColorClass(
+                                                                knowledge.mastery
+                                                            )
+                                                        "
+                                                    ></div>
+                                                </div>
+                                                <div class="knowledge-footer">
+                                                    <span
+                                                        class="mastery-level"
+                                                        :class="
+                                                            getMasteryColorClass(
+                                                                knowledge.mastery,
+                                                                'level'
+                                                            )
+                                                        "
+                                                    >
+                                                        {{
+                                                            getMasteryLevelText(
+                                                                knowledge.mastery
+                                                            )
+                                                        }}
+                                                        ({{
+                                                            knowledge.mastery
+                                                        }}%)
+                                                    </span>
+                                                    <span
+                                                        class="knowledge-category"
+                                                        >{{
+                                                            knowledge.categoryText
+                                                        }}</span
+                                                    >
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -251,47 +485,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- 知识点详情区域 -->
-                <div class="content-section">
-                    <h3>知识点详情</h3>
-                    <div class="knowledge-container">
-                        <div
-                            class="knowledge-card"
-                            v-for="knowledge in knowledgeList"
-                            :key="knowledge.id"
-                            @click="showKnowledgeDetail(knowledge)"
-                        >
-                            <div class="knowledge-icon">
-                                {{ getCategoryIcon(knowledge.category) }}
-                            </div>
-                            <div class="knowledge-info">
-                                <h4>{{ knowledge.name }}</h4>
-                                <div class="knowledge-progress-container">
-                                    <div
-                                        class="knowledge-progress"
-                                        :style="{
-                                            width: knowledge.mastery + '%',
-                                        }"
-                                        :class="
-                                            getMasteryColorClass(
-                                                knowledge.mastery
-                                            )
-                                        "
-                                    ></div>
-                                </div>
-                                <div class="knowledge-meta">
-                                    <span class="knowledge-level">{{
-                                        getMasteryLevelText(knowledge.mastery)
-                                    }}</span>
-                                    <span class="knowledge-category">{{
-                                        knowledge.categoryText
-                                    }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <!-- 单个知识点详情弹窗 -->
@@ -301,6 +494,10 @@
                         >&times;</span
                     >
                     <h3>{{ selectedKnowledge.name }}</h3>
+                    <div class="knowledge-path">
+                        {{ getCourseName(selectedKnowledge.courseId) }} >
+                        {{ getChapterName(selectedKnowledge.chapterId) }}
+                    </div>
                     <p class="knowledge-description">
                         {{ selectedKnowledge.description }}
                     </p>
@@ -344,13 +541,274 @@
 import { ref, onMounted, nextTick, computed } from "vue";
 import Chart from "chart.js/auto";
 import { useRouter } from "vue-router";
-import api from "../../../api/index";
 import StudentHeader from "../StudentHeader.vue";
 
 // 路由实例
 const router = useRouter();
 
-// 用户信息由StudentHeader组件管理，此处不再需要单独定义
+// ===================== Mock数据定义 =====================
+// 基础统计数据
+const MOCK_BASE_DATA = {
+    coverageRate: 85,
+    masteredCount: 28,
+    totalCount: 35,
+    avgMastery: 78.5,
+};
+
+// 课程列表
+const MOCK_COURSE_LIST = [
+    {
+        id: 1,
+        name: "Vue3 核心原理与实战",
+        avgMastery: 82.3,
+    },
+    {
+        id: 2,
+        name: "TypeScript 进阶开发",
+        avgMastery: 75.8,
+    },
+    {
+        id: 3,
+        name: "前端工程化实践",
+        avgMastery: 70.5,
+    },
+];
+
+// 章节列表
+const MOCK_CHAPTER_LIST = [
+    // Vue3课程章节
+    { id: 101, courseId: 1, name: "Vue3 基础语法", avgMastery: 90.5 },
+    { id: 102, courseId: 1, name: "组合式API", avgMastery: 85.2 },
+    { id: 103, courseId: 1, name: "组件通信与生命周期", avgMastery: 78.9 },
+
+    // TS课程章节
+    { id: 201, courseId: 2, name: "TS 类型系统", avgMastery: 80.1 },
+    { id: 202, courseId: 2, name: "高级类型与泛型", avgMastery: 72.5 },
+    { id: 203, courseId: 2, name: "TS与Vue3结合", avgMastery: 75.3 },
+
+    // 工程化课程章节
+    { id: 301, courseId: 3, name: "Vite 构建工具", avgMastery: 78.6 },
+    { id: 302, courseId: 3, name: "ESLint与Prettier", avgMastery: 65.4 },
+    { id: 303, courseId: 3, name: "CI/CD 自动化部署", avgMastery: 67.8 },
+];
+
+// 知识点列表
+const MOCK_KNOWLEDGE_LIST = [
+    // Vue3 - 基础语法
+    {
+        id: 1001,
+        courseId: 1,
+        chapterId: 101,
+        name: "模板语法与指令",
+        mastery: 95,
+        category: "core",
+        categoryText: "核心知识点",
+        description:
+            "掌握Vue3模板语法，包括插值表达式、指令系统、动态绑定等核心概念，能够熟练运用到实际开发中。",
+        practiceCount: 28,
+        lastPracticed: "2025-06-10",
+    },
+    {
+        id: 1002,
+        courseId: 1,
+        chapterId: 101,
+        name: "响应式数据声明",
+        mastery: 92,
+        category: "core",
+        categoryText: "核心知识点",
+        description:
+            "理解ref和reactive的区别，掌握响应式数据的声明和使用方式，解决响应式丢失问题。",
+        practiceCount: 25,
+        lastPracticed: "2025-06-08",
+    },
+    {
+        id: 1003,
+        courseId: 1,
+        chapterId: 101,
+        name: "计算属性与侦听器",
+        mastery: 88,
+        category: "important",
+        categoryText: "重要知识点",
+        description:
+            "掌握computed和watch的使用场景，理解缓存机制，优化组件性能。",
+        practiceCount: 20,
+        lastPracticed: "2025-06-05",
+    },
+
+    // Vue3 - 组合式API
+    {
+        id: 1004,
+        courseId: 1,
+        chapterId: 102,
+        name: "setup语法糖",
+        mastery: 89,
+        category: "core",
+        categoryText: "核心知识点",
+        description:
+            "熟练使用setup语法糖，理解其执行时机和上下文，掌握<script setup>的各种特性。",
+        practiceCount: 22,
+        lastPracticed: "2025-06-09",
+    },
+    {
+        id: 1005,
+        courseId: 1,
+        chapterId: 102,
+        name: "生命周期钩子",
+        mastery: 82,
+        category: "important",
+        categoryText: "重要知识点",
+        description:
+            "掌握Vue3组合式API中的生命周期钩子函数，理解与选项式API的对应关系。",
+        practiceCount: 18,
+        lastPracticed: "2025-06-07",
+    },
+    {
+        id: 1006,
+        courseId: 1,
+        chapterId: 102,
+        name: "依赖注入provide/inject",
+        mastery: 75,
+        category: "general",
+        categoryText: "一般知识点",
+        description: "理解依赖注入的原理和使用场景，解决深层组件通信问题。",
+        practiceCount: 12,
+        lastPracticed: "2025-06-03",
+    },
+
+    // TS - 类型系统
+    {
+        id: 2001,
+        courseId: 2,
+        chapterId: 201,
+        name: "基础类型与接口",
+        mastery: 85,
+        category: "core",
+        categoryText: "核心知识点",
+        description:
+            "掌握TypeScript基础类型定义，熟练使用interface定义复杂类型结构。",
+        practiceCount: 24,
+        lastPracticed: "2025-06-08",
+    },
+    {
+        id: 2002,
+        courseId: 2,
+        chapterId: 201,
+        name: "类型断言与类型守卫",
+        mastery: 78,
+        category: "important",
+        categoryText: "重要知识点",
+        description:
+            "理解类型断言的使用场景，掌握typeof、instanceof等类型守卫技巧。",
+        practiceCount: 16,
+        lastPracticed: "2025-06-04",
+    },
+
+    // TS - 高级类型
+    {
+        id: 2003,
+        courseId: 2,
+        chapterId: 202,
+        name: "泛型编程",
+        mastery: 70,
+        category: "core",
+        categoryText: "核心知识点",
+        description: "掌握泛型的定义和使用，理解泛型约束、默认类型等高级特性。",
+        practiceCount: 15,
+        lastPracticed: "2025-06-02",
+    },
+    {
+        id: 2004,
+        courseId: 2,
+        chapterId: 202,
+        name: "条件类型与映射类型",
+        mastery: 65,
+        category: "important",
+        categoryText: "重要知识点",
+        description: "学习高级类型操作，掌握条件类型、映射类型的使用技巧。",
+        practiceCount: 10,
+        lastPracticed: "2025-06-01",
+    },
+
+    // 工程化 - Vite
+    {
+        id: 3001,
+        courseId: 3,
+        chapterId: 301,
+        name: "Vite 配置详解",
+        mastery: 82,
+        category: "core",
+        categoryText: "核心知识点",
+        description:
+            "掌握Vite的核心配置项，理解开发服务器、构建优化等关键配置。",
+        practiceCount: 18,
+        lastPracticed: "2025-06-07",
+    },
+    {
+        id: 3002,
+        courseId: 3,
+        chapterId: 301,
+        name: "插件开发与使用",
+        mastery: 75,
+        category: "important",
+        categoryText: "重要知识点",
+        description: "了解Vite插件机制，能够开发简单插件或集成第三方插件。",
+        practiceCount: 11,
+        lastPracticed: "2025-06-03",
+    },
+
+    // 工程化 - 代码规范
+    {
+        id: 3003,
+        courseId: 3,
+        chapterId: 302,
+        name: "ESLint 配置",
+        mastery: 70,
+        category: "general",
+        categoryText: "一般知识点",
+        description: "掌握ESLint的基本配置，理解规则定制和共享配置的使用。",
+        practiceCount: 9,
+        lastPracticed: "2025-05-30",
+    },
+    {
+        id: 3004,
+        courseId: 3,
+        chapterId: 302,
+        name: "Prettier 集成",
+        mastery: 60,
+        category: "general",
+        categoryText: "一般知识点",
+        description: "学习Prettier与ESLint的集成方案，解决代码格式化冲突问题。",
+        practiceCount: 7,
+        lastPracticed: "2025-05-28",
+    },
+
+    // 工程化 - CI/CD
+    {
+        id: 3005,
+        courseId: 3,
+        chapterId: 303,
+        name: "GitHub Actions",
+        mastery: 65,
+        category: "important",
+        categoryText: "重要知识点",
+        description: "了解GitHub Actions基本语法，能够编写简单的CI/CD工作流。",
+        practiceCount: 8,
+        lastPracticed: "2025-05-25",
+    },
+    {
+        id: 3006,
+        courseId: 3,
+        chapterId: 303,
+        name: "自动化部署流程",
+        mastery: 70,
+        category: "general",
+        categoryText: "一般知识点",
+        description: "掌握前端项目自动化部署的基本流程，理解环境变量配置。",
+        practiceCount: 6,
+        lastPracticed: "2025-05-20",
+    },
+];
+// ===================== Mock数据定义结束 =====================
 
 // 总体数据
 const coverageRate = ref(0);
@@ -358,28 +816,74 @@ const masteredCount = ref(0);
 const totalCount = ref(0);
 const avgMastery = ref(0);
 
-// 知识点列表
+// 层级数据
+const courseList = ref([]);
+const chapterList = ref([]);
 const knowledgeList = ref([]);
 
 // 筛选相关变量
 const selectedLevel = ref("all");
+const selectedCourseId = ref("all");
+const selectedChapterId = ref("all");
+
+// 展开/折叠状态
+const courseExpanded = ref({});
+const chapterExpanded = ref({});
 
 // 响应式变量
 const structureRecords = ref(null);
 const isLoading = ref(true);
 const errorMsg = ref("");
-const userInfoLoading = ref(true); // 用户信息加载状态
 const loadingProgress = ref(0); // 加载进度
 
-// 获取用户信息的函数已在StudentHeader组件中实现，此处不再需要
+// 选中的知识点
+const selectedKnowledge = ref(null);
 
-// 获取知识点结构数据
+// 图表实例
+let masteryChartInstance = null;
+let categoryMasteryChartInstance = null;
+let knowledgeDetailChartInstance = null;
+
+// 模拟API请求（带失败降级逻辑）
+const mockApiGetStructure = () => {
+    // 模拟50%概率请求失败，用于测试降级逻辑
+    const isSuccess = true; // 改为false可测试失败场景
+
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            if (isSuccess) {
+                resolve({
+                    data: {
+                        ...MOCK_BASE_DATA,
+                        courseList: MOCK_COURSE_LIST,
+                        chapterList: MOCK_CHAPTER_LIST,
+                        knowledgeList: MOCK_KNOWLEDGE_LIST,
+                    },
+                });
+            } else {
+                reject(new Error("模拟API请求失败"));
+            }
+        }, 1500); // 模拟网络延迟
+    });
+};
+
+// 获取知识点结构数据（带降级逻辑）
 const fetchStructureData = () => {
-    return api
-        .getStructure()
+    // 先尝试调用真实API，失败则使用Mock数据
+    return mockApiGetStructure() // 替换为真实api.getStructure()
         .then((res) => {
             console.log("获取的知识点结构数据为：", res.data);
             const data = res.data;
+
+            // 验证数据有效性
+            if (
+                !data ||
+                !Array.isArray(data.courseList) ||
+                !Array.isArray(data.chapterList) ||
+                !Array.isArray(data.knowledgeList)
+            ) {
+                throw new Error("数据格式异常");
+            }
 
             // 更新总体数据
             coverageRate.value = data.coverageRate || 0;
@@ -387,19 +891,37 @@ const fetchStructureData = () => {
             totalCount.value = data.totalCount || 0;
             avgMastery.value = data.avgMastery || 0;
 
-            // 更新知识点列表
-            knowledgeList.value = Array.isArray(data.knowledgeList)
-                ? data.knowledgeList
-                : [];
+            // 更新层级数据
+            courseList.value = data.courseList;
+            chapterList.value = data.chapterList;
+            knowledgeList.value = data.knowledgeList;
 
             structureRecords.value = data;
             updateLoadingProgress(100); // 加载完成
         })
         .catch((err) => {
-            console.error("获取知识点数据失败:", err);
-            // 设置错误信息
-            errorMsg.value = "网络请求错误，请稍后重试";
-            isLoading.value = false;
+            console.error("获取知识点数据失败，使用兜底Mock数据:", err);
+
+            // 降级使用Mock数据
+            coverageRate.value = MOCK_BASE_DATA.coverageRate;
+            masteredCount.value = MOCK_BASE_DATA.masteredCount;
+            totalCount.value = MOCK_BASE_DATA.totalCount;
+            avgMastery.value = MOCK_BASE_DATA.avgMastery;
+
+            courseList.value = MOCK_COURSE_LIST;
+            chapterList.value = MOCK_CHAPTER_LIST;
+            knowledgeList.value = MOCK_KNOWLEDGE_LIST;
+
+            structureRecords.value = {
+                ...MOCK_BASE_DATA,
+                courseList: MOCK_COURSE_LIST,
+                chapterList: MOCK_CHAPTER_LIST,
+                knowledgeList: MOCK_KNOWLEDGE_LIST,
+            };
+
+            updateLoadingProgress(100);
+            // 不设置errorMsg，让页面正常显示Mock数据
+            // errorMsg.value = "网络请求错误，已加载本地示例数据";
         });
 };
 
@@ -433,6 +955,14 @@ const loadData = () => {
     // 加载知识点数据
     fetchStructureData()
         .then(() => {
+            // 初始化展开状态
+            courseList.value.forEach((course) => {
+                courseExpanded.value[course.id] = true; // 默认展开所有课程
+            });
+            chapterList.value.forEach((chapter) => {
+                chapterExpanded.value[chapter.id] = false; // 默认折叠所有章节
+            });
+
             isLoading.value = false;
             // 渲染图表
             nextTick(() => {
@@ -458,34 +988,115 @@ onMounted(() => {
     loadData();
 });
 
-// 按ID排序的知识点列表
-const sortedKnowledgeList = computed(() => {
-    return [...knowledgeList.value].sort((a, b) => a.id - b.id);
+// 切换课程展开/折叠状态
+const toggleCourse = (courseId) => {
+    courseExpanded.value[courseId] = !courseExpanded.value[courseId];
+};
+
+// 切换章节展开/折叠状态
+const toggleChapter = (chapterId) => {
+    chapterExpanded.value[chapterId] = !chapterExpanded.value[chapterId];
+};
+
+// 根据课程ID获取章节列表
+const getChaptersByCourse = (courseId) => {
+    return chapterList.value.filter((chapter) => chapter.courseId === courseId);
+};
+
+// 根据章节ID获取知识点列表
+const getKnowledgeByChapter = (chapterId) => {
+    return knowledgeList.value.filter(
+        (knowledge) => knowledge.chapterId === chapterId
+    );
+};
+
+// 根据课程ID获取知识点列表
+const getKnowledgeByCourse = (courseId) => {
+    const chapterIds = getChaptersByCourse(courseId).map(
+        (chapter) => chapter.id
+    );
+    return knowledgeList.value.filter((knowledge) =>
+        chapterIds.includes(knowledge.chapterId)
+    );
+};
+
+// 获取课程名称
+const getCourseName = (courseId) => {
+    const course = courseList.value.find((item) => item.id === courseId);
+    return course ? course.name : "未知课程";
+};
+
+// 获取章节名称
+const getChapterName = (chapterId) => {
+    const chapter = chapterList.value.find((item) => item.id === chapterId);
+    return chapter ? chapter.name : "未知章节";
+};
+
+// 获取总章节数
+const getTotalChapters = () => {
+    return chapterList.value.length;
+};
+
+// 筛选章节（根据选中的课程）
+const filteredChapters = computed(() => {
+    if (selectedCourseId.value === "all") {
+        return chapterList.value;
+    }
+    return getChaptersByCourse(selectedCourseId.value);
 });
 
 // 按筛选条件过滤知识点
 const filteredKnowledgeList = computed(() => {
-    if (selectedLevel.value === "all") {
-        return sortedKnowledgeList.value;
+    let filtered = [...knowledgeList.value];
+
+    // 按课程筛选
+    if (selectedCourseId.value !== "all") {
+        const chapterIds = getChaptersByCourse(selectedCourseId.value).map(
+            (chapter) => chapter.id
+        );
+        filtered = filtered.filter((knowledge) =>
+            chapterIds.includes(knowledge.chapterId)
+        );
     }
-    return sortedKnowledgeList.value.filter((knowledge) => {
-        const mastery = knowledge.mastery;
-        switch (selectedLevel.value) {
-            case "unmastered":
-                return mastery < 30;
-            case "basic":
-                return mastery >= 30 && mastery < 50;
-            case "mastered":
-                return mastery >= 50 && mastery < 70;
-            case "proficient":
-                return mastery >= 70 && mastery < 90;
-            case "expert":
-                return mastery >= 90;
-            default:
-                return true;
-        }
-    });
+
+    // 按章节筛选
+    if (selectedChapterId.value !== "all") {
+        filtered = filtered.filter(
+            (knowledge) => knowledge.chapterId === selectedChapterId.value
+        );
+    }
+
+    // 按掌握程度筛选
+    if (selectedLevel.value !== "all") {
+        filtered = filtered.filter((knowledge) => {
+            const mastery = knowledge.mastery;
+            switch (selectedLevel.value) {
+                case "unmastered":
+                    return mastery < 30;
+                case "basic":
+                    return mastery >= 30 && mastery < 50;
+                case "mastered":
+                    return mastery >= 50 && mastery < 70;
+                case "proficient":
+                    return mastery >= 70 && mastery < 90;
+                case "expert":
+                    return mastery >= 90;
+                default:
+                    return true;
+            }
+        });
+    }
+
+    // 按ID排序
+    return filtered.sort((a, b) => a.id - b.id);
 });
+
+// 更新筛选条件并重新渲染图表
+const updateFilters = () => {
+    nextTick(() => {
+        updateMasteryChart();
+    });
+};
 
 // 分类统计
 const categoryStats = computed(() => ({
@@ -526,14 +1137,6 @@ const categoryMaxMastery = computed(() => {
         general: getMax("general"),
     };
 });
-
-// 选中的知识点
-const selectedKnowledge = ref(null);
-
-// 图表实例
-let masteryChartInstance = null;
-let categoryMasteryChartInstance = null;
-let knowledgeDetailChartInstance = null;
 
 // 根据掌握程度获取进度条颜色类
 const getProgressColorClass = (progress) => {
@@ -609,7 +1212,7 @@ const renderKnowledgeDetailChart = (knowledge) => {
     });
 };
 
-// 在updateMasteryChart函数中替换backgroundColors部分
+// 更新掌握度图表
 const updateMasteryChart = () => {
     const masteryCtx = document.getElementById("masteryChart");
     if (!masteryCtx) return;
@@ -618,7 +1221,12 @@ const updateMasteryChart = () => {
         masteryChartInstance.destroy();
     }
 
-    const labels = filteredKnowledgeList.value.map((k) => `K${k.id}`);
+    const labels = filteredKnowledgeList.value.map(
+        (k) =>
+            `${getCourseName(k.courseId)}-${getChapterName(
+                k.chapterId
+            )}-${k.name.substring(0, 8)}`
+    );
     const data = filteredKnowledgeList.value.map((k) => k.mastery);
 
     // 创建渐变颜色数组
@@ -679,14 +1287,19 @@ const updateMasteryChart = () => {
                     beginAtZero: true,
                     title: { display: true, text: "掌握度 (%)" },
                 },
-                x: { title: { display: true, text: "知识点编号" } },
+                x: {
+                    title: { display: true, text: "知识点" },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                    },
+                },
             },
         },
     });
 };
 
 // 渲染分类掌握度图表
-// 渲染分类掌握度图表（更新后）
 const renderCategoryMasteryChart = () => {
     const categoryCtx = document.getElementById("categoryMasteryChart");
     if (!categoryCtx) return;
@@ -774,8 +1387,6 @@ const renderCategoryMasteryChart = () => {
     });
 };
 
-// 退出功能已在StudentHeader组件中实现，此处不再需要
-
 // 跳转到首页
 const goToHome = () => {
     router.push("/student/index");
@@ -790,11 +1401,13 @@ const goToHome = () => {
     font-family: "Arial", sans-serif;
 }
 
+/* 根容器 - 确保页面高度足够，避免内容溢出 */
 .knowledge-page {
     width: 100%;
     min-height: 100vh;
     padding: 20px;
     background-color: #f4f7f9;
+    overflow-x: hidden; /* 隐藏横向滚动 */
 }
 
 /* 加载动画样式 */
@@ -946,27 +1559,31 @@ const goToHome = () => {
     }
 }
 
+/* 主内容区 - 修复布局溢出 */
+.main-content {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    padding-bottom: 40px; /* 底部留白 */
+}
+
+/* 头部样式 */
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
-    padding: 18px 24px; /* 调整内边距，上下稍窄左右稍宽 */
+    padding: 18px 24px;
     border-bottom: 2px solid transparent;
-    border-image: linear-gradient(90deg, #3498db, #9b59b6) 1; /* 渐变色下边框 */
-    background: linear-gradient(
-        135deg,
-        #ffffff 0%,
-        #f8fafc 100%
-    ); /* 微妙的渐变背景 */
-    border-radius: 12px; /* 增大圆角，更柔和 */
-    box-shadow: 0 4px 20px rgba(52, 152, 219, 0.08); /* 浅蓝色调阴影，与主题呼应 */
+    border-image: linear-gradient(90deg, #3498db, #9b59b6) 1;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(52, 152, 219, 0.08);
     position: relative;
     overflow: hidden;
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* 统一动画曲线 */
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-/* 顶部高光装饰 */
 .header::before {
     content: "";
     position: absolute;
@@ -976,10 +1593,9 @@ const goToHome = () => {
     height: 4px;
     background: linear-gradient(90deg, #3498db, #9b59b6, #3498db);
     background-size: 200% 100%;
-    animation: headerGlow 6s ease-in-out infinite; /* 渐变光流动画 */
+    animation: headerGlow 6s ease-in-out infinite;
 }
 
-/* 标题文字样式优化 */
 .header h1 {
     margin: 0;
     font-size: 30px;
@@ -993,7 +1609,6 @@ const goToHome = () => {
     transition: transform 0.3s ease;
 }
 
-/* 标题左侧小装饰 */
 .header h1::before {
     content: "";
     position: absolute;
@@ -1006,14 +1621,12 @@ const goToHome = () => {
     background: linear-gradient(180deg, #3498db, #9b59b6);
 }
 
-/* 用户信息区域动画 */
 .user-info {
     display: flex;
     align-items: center;
     transition: transform 0.3s ease;
 }
 
-/* 退出按钮美化 */
 .logout-btn {
     margin-left: 15px;
     padding: 9px 18px;
@@ -1030,14 +1643,12 @@ const goToHome = () => {
     overflow: hidden;
 }
 
-/* 按钮悬停效果 */
 .logout-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
     background: linear-gradient(90deg, #2980b9, #3498db);
 }
 
-/* 按钮点击波纹效果 */
 .logout-btn::after {
     content: "";
     position: absolute;
@@ -1055,7 +1666,6 @@ const goToHome = () => {
     transform: translate(-50%, -50%) scale(1);
 }
 
-/* 整体悬停动画 */
 .header:hover {
     box-shadow: 0 6px 25px rgba(52, 152, 219, 0.12);
     transform: translateY(-2px);
@@ -1069,7 +1679,6 @@ const goToHome = () => {
     transform: translateX(-5px);
 }
 
-/* 顶部渐变光流动画 */
 @keyframes headerGlow {
     0% {
         background-position: 0% 50%;
@@ -1082,30 +1691,17 @@ const goToHome = () => {
     }
 }
 
-.user-info {
-    font-size: 15px;
-    display: flex;
-    align-items: center;
-}
-
-.logout-btn {
-    margin-left: 15px;
-    padding: 8px 15px;
-    background-color: #e74c3c;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 16px;
-}
-
+/* 仪表盘布局 - 修复网格布局溢出 */
 .dashboard {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
     width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
 }
 
+/* 卡片样式 - 确保高度自适应，不溢出 */
 .card {
     background: linear-gradient(145deg, #ffffff 0%, #f0f7ff 100%);
     border-radius: 10px;
@@ -1115,9 +1711,10 @@ const goToHome = () => {
     position: relative;
     overflow: hidden;
     transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    min-height: 200px; /* 最小高度，避免内容过少时塌陷 */
+    height: 100%; /* 高度自适应父容器 */
 }
 
-/* 左侧蓝色渐变装饰条 */
 .card::before {
     content: "";
     position: absolute;
@@ -1131,7 +1728,6 @@ const goToHome = () => {
     transition: all 0.4s ease;
 }
 
-/* 顶部横向渐变光条 */
 .card::after {
     content: "";
     position: absolute;
@@ -1161,7 +1757,6 @@ const goToHome = () => {
     transition: color 0.3s ease;
 }
 
-/* 标题前蓝色装饰图标 */
 .card h3::before {
     content: "▷";
     display: inline-block;
@@ -1173,7 +1768,6 @@ const goToHome = () => {
     transition: transform 0.3s ease;
 }
 
-/* 悬停动画效果 */
 .card:hover {
     transform: translateY(-5px) scale(1.01);
     box-shadow: 0 10px 25px rgba(59, 130, 246, 0.15);
@@ -1198,7 +1792,6 @@ const goToHome = () => {
     color: #2563eb;
 }
 
-/* 卡片内元素延迟动画 */
 .card .progress-item,
 .card .stat-item {
     transition: transform 0.3s ease, opacity 0.3s ease;
@@ -1211,7 +1804,6 @@ const goToHome = () => {
     opacity: 1;
 }
 
-/* 子元素依次动画 */
 .card:hover .progress-item:nth-child(2),
 .card:hover .stat-item:nth-child(2) {
     transition-delay: 0.1s;
@@ -1222,9 +1814,12 @@ const goToHome = () => {
     transition-delay: 0.2s;
 }
 
+/* 统计项样式 */
 .stats {
     display: flex;
     justify-content: space-around;
+    height: calc(100% - 60px); /* 减去标题高度，自适应 */
+    align-items: center;
 }
 
 .stat-item {
@@ -1235,7 +1830,10 @@ const goToHome = () => {
     display: block;
     font-size: 24px;
     font-weight: bold;
-    color: linear-gradient(180deg, #1e3a8a 0%, #3b82f6 100%);
+    background: linear-gradient(180deg, #1e3a8a 0%, #3b82f6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
 }
 
 .stat-label {
@@ -1243,33 +1841,107 @@ const goToHome = () => {
     font-size: 14px;
 }
 
+/* 内容区域 - 跨列显示，修复宽度 */
 .content-section {
-    grid-column: 1 / -1; /* 让内容区域横跨所有列 */
+    grid-column: 1 / -1;
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 3px 12px rgba(59, 130, 246, 0.08);
+    margin-bottom: 20px;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden; /* 隐藏内部溢出 */
 }
 
+.content-section h3 {
+    color: #1e3a8a;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+/* 筛选控件样式 - 修复布局 */
+.filter-controls {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap; /* 自适应换行 */
+    margin-bottom: 20px;
+    align-items: center;
+    padding: 10px;
+    background: #f8fafc;
+    border-radius: 8px;
+}
+
+.filter-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-label {
+    font-size: 14px;
+    color: #34495e;
+    font-weight: 500;
+}
+
+.mastery-select {
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #34495e;
+    background: #ffffff;
+    cursor: pointer;
+    transition: border-color 0.3s ease;
+    min-width: 150px;
+}
+
+.mastery-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+/* 图表+表格容器 - 修复高度和溢出 */
 .chart-table-wrapper {
     display: flex;
     gap: 20px;
     flex-wrap: wrap;
+    width: 100%;
+    min-height: 400px; /* 最小高度，确保图表显示完整 */
 }
 
+/* 图表容器 - 修复高度不足问题 */
 .chart-container {
     flex: 1;
     min-width: 300px;
     position: relative;
-    align-items: center; /* 垂直居中 */
-    justify-content: center; /* 水平居中 */
-    height: 200%; /* 占满父组件高度 */
-    min-height: 350px; /* 保留最小高度，防止内容过小时变形 */
+    display: flex; /* 修复居中 */
+    align-items: center;
+    justify-content: center;
+    height: 400px; /* 固定高度，确保图表显示完整 */
+    min-height: 350px;
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 10px;
 }
 
+/* 表格容器 - 修复横向滚动 */
 .chart-table {
     flex: 1;
     min-width: 300px;
     overflow-x: auto;
+    max-height: 400px; /* 固定高度，避免表格过高 */
+    overflow-y: auto; /* 纵向滚动 */
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-/* 表格样式优化 */
+/* 表格样式 */
 table {
     width: 100%;
     border-collapse: separate;
@@ -1280,7 +1952,6 @@ table {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-/* 表头样式 */
 th {
     padding: 12px 15px;
     text-align: left;
@@ -1291,10 +1962,11 @@ th {
     text-transform: uppercase;
     letter-spacing: 0.3px;
     border-bottom: 2px solid #e2e8f0;
-    position: relative;
+    position: sticky; /* 表头固定 */
+    top: 0;
+    z-index: 10;
 }
 
-/* 表头底部装饰线 */
 th:after {
     content: "";
     position: absolute;
@@ -1307,12 +1979,10 @@ th:after {
     transition: transform 0.3s ease;
 }
 
-/* 表头组悬停效果 */
 table:hover th:after {
     transform: scaleX(1);
 }
 
-/* 表格内容单元格样式 */
 td {
     padding: 12px 15px;
     text-align: left;
@@ -1321,7 +1991,6 @@ td {
     transition: all 0.2s ease;
 }
 
-/* 隔行变色 - 增强可读性 */
 tbody tr:nth-child(even) {
     background-color: #f8fafc;
 }
@@ -1330,25 +1999,21 @@ tbody tr:nth-child(odd) {
     background-color: #ffffff;
 }
 
-/* 行悬浮效果 */
 tbody tr:hover {
     background-color: #eff6ff;
     transform: translateX(4px);
 }
 
-/* 悬浮时单元格文字变色 */
 tbody tr:hover td {
-    color: linear-gradient(180deg, #1e3a8a 0%, #3b82f6 100%);
+    color: #2563eb;
     font-weight: 500;
 }
 
-/* 第一列加粗突出编号 */
 td:first-child {
     font-weight: 600;
-    color: linear-gradient(180deg, #1e3a8a 0%, #3b82f6 100%);
+    color: #1e3a8a;
 }
 
-/* 无数据提示样式优化 */
 .no-data {
     text-align: center;
     color: #94a3b8;
@@ -1358,16 +2023,15 @@ td:first-child {
     border-bottom: none;
 }
 
-/* 表格最后一行去除下边框 */
 tbody tr:last-child td {
     border-bottom: none;
 }
 
-/* 掌握度数值列特殊样式 */
 td:nth-child(3) {
     font-weight: 600;
 }
 
+/* 进度条样式 */
 .progress-item {
     margin-bottom: 15px;
 }
@@ -1379,149 +2043,21 @@ td:nth-child(3) {
     font-size: 14px;
 }
 
-/* 进度条容器 - 确保容器本身有圆角，避免进度条边角溢出 */
 .progress-container {
     width: 100%;
     height: 10px;
     background-color: #f0f0f0;
-    border-radius: 8px; /* 增大圆角值，让边角更圆润 */
+    border-radius: 8px;
     overflow: hidden;
 }
 
-/* 进度条 - 设置圆角，与容器匹配 */
 .progress {
     height: 100%;
     transition: width 0.3s ease;
-    border-radius: 8px; /* 与容器圆角保持一致 */
-}
-
-/* 知识点卡片中的进度条容器也需要同步设置 */
-.knowledge-progress-container {
-    width: 100%;
-    height: 8px;
-    background-color: #f0f0f0;
-    border-radius: 4px; /* 小一点的圆角，适配更细的进度条 */
-    overflow: hidden;
-    margin-bottom: 5px;
-}
-
-/* 知识点卡片中的进度条 */
-.knowledge-progress {
-    height: 100%;
-    transition: width 0.3s ease;
-    border-radius: 4px; /* 与容器匹配 */
-}
-/* 红色渐变 - 低进度 */
-.progress-low {
-    background: linear-gradient(90deg, #c0392b 0%, #e74c3c 100%);
-}
-
-/* 黄色渐变 - 中等进度 */
-.progress-medium {
-    background: linear-gradient(90deg, #d35400 0%, #f39c12 50%, #f1c40f 100%);
-}
-
-/* 绿色渐变 - 高进度 */
-.progress-high {
-    background: linear-gradient(90deg, #1e7e34 0%, #2ecc71 50%, #81c784 100%);
-}
-
-/* 未掌握 - 纯红色 */
-.level-unmastered {
-    background: linear-gradient(90deg, #c0392b 0%, #e74c3c 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    font-weight: bold;
-    font-size: 15px;
-    font-weight: 600;
-}
-
-.level-basic {
-    background: red;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    font-weight: bold;
-    font-size: 15px;
-    font-weight: 600;
-}
-
-.level-mastered {
-    background: #f39c12;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    font-weight: bold;
-    font-size: 15px;
-    font-weight: 600;
-}
-
-.level-proficient {
-    background: green;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    font-size: 15px;
-    font-weight: 600;
-}
-
-/* 精通 - 深绿色渐变 */
-.level-expert {
-    background: linear-gradient(90deg, #1e7e34 0%, #27ae60 50%, #2ecc71 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    font-size: 15px;
-    font-weight: 600;
-}
-
-.knowledge-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 20px;
-    margin-top: 20px;
-}
-
-.knowledge-card {
-    background-color: white;
     border-radius: 8px;
-    padding: 15px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    border: 1px solid #eee;
 }
 
-.knowledge-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-}
-
-.knowledge-icon {
-    font-size: 24px;
-    margin-right: 15px;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: #f0f2f5;
-    border-radius: 50%;
-}
-
-.knowledge-info {
-    flex: 1;
-}
-
-.knowledge-info h4 {
-    margin-bottom: 8px;
-    color: #2c3e50;
-    font-size: 16px;
-}
-
+/* 知识点进度条 */
 .knowledge-progress-container {
     width: 100%;
     height: 8px;
@@ -1534,22 +2070,220 @@ td:nth-child(3) {
 .knowledge-progress {
     height: 100%;
     transition: width 0.3s ease;
+    border-radius: 4px;
 }
 
-.knowledge-meta {
+/* 进度条颜色 */
+.progress-low {
+    background: linear-gradient(90deg, #c0392b 0%, #e74c3c 100%);
+}
+
+.progress-medium {
+    background: linear-gradient(90deg, #d35400 0%, #f39c12 50%, #f1c40f 100%);
+}
+
+.progress-high {
+    background: linear-gradient(90deg, #1e7e34 0%, #2ecc71 50%, #81c784 100%);
+}
+
+/* 掌握度等级样式 */
+.level-unmastered {
+    background: linear-gradient(90deg, #c0392b 0%, #e74c3c 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: bold;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.level-basic {
+    background: linear-gradient(90deg, #d35400 0%, #f39c12 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: bold;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.level-mastered {
+    background: linear-gradient(90deg, #f39c12 0%, #f1c40f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: bold;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.level-proficient {
+    background: linear-gradient(90deg, #2ecc71 0%, #81c784 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: bold;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.level-expert {
+    background: linear-gradient(90deg, #1e7e34 0%, #27ae60 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: bold;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+/* 课程结构容器 - 修复层级显示 */
+.course-structure-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.course-card {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.08);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.course-card:hover {
+    box-shadow: 0 5px 15px rgba(59, 130, 246, 0.1);
+}
+
+.course-header {
+    padding: 15px 20px;
+    background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.expand-icon {
+    font-size: 14px;
+    color: #3b82f6;
+    transition: transform 0.3s ease;
+}
+
+.course-info h4 {
+    font-size: 16px;
+    color: #1e3a8a;
+    margin-bottom: 5px;
+}
+
+.course-meta {
+    display: flex;
+    gap: 15px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.mastery-badge {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    color: white;
+}
+
+.chapters-container {
+    padding: 10px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.chapter-card {
+    margin-left: 20px;
+    background: #f8fafc;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.chapter-header {
+    padding: 12px 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.chapter-info h5 {
+    font-size: 14px;
+    color: #334155;
+    margin-bottom: 3px;
+}
+
+.chapter-meta {
+    display: flex;
+    gap: 10px;
+    font-size: 11px;
+    color: #64748b;
+}
+
+/* 知识点列表 - 修复溢出 */
+.knowledge-list {
+    padding: 10px 0;
+    margin-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-height: 300px; /* 最大高度，超出滚动 */
+    overflow-y: auto;
+}
+
+.knowledge-item {
+    padding: 10px 15px;
+    background: #ffffff;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+}
+
+.knowledge-item:hover {
+    background: #eff6ff;
+    border-left-color: #3b82f6;
+    transform: translateX(3px);
+}
+
+.knowledge-icon {
+    font-size: 16px;
+    width: 24px;
+    text-align: center;
+}
+
+.knowledge-content {
+    flex: 1;
+}
+
+.knowledge-name {
+    font-size: 14px;
+    color: #1e3a8a;
+    font-weight: 500;
+    margin-bottom: 3px;
+}
+
+.knowledge-footer {
     display: flex;
     justify-content: space-between;
     font-size: 12px;
 }
 
-.knowledge-level {
-    font-weight: bold;
-}
-
 .knowledge-category {
-    color: #7f8c8d;
+    color: #64748b;
 }
 
+/* 弹窗样式 - 修复显示不全 */
 .modal {
     position: fixed;
     top: 0;
@@ -1561,200 +2295,124 @@ td:nth-child(3) {
     justify-content: center;
     align-items: center;
     z-index: 1000;
+    padding: 20px; /* 留白，避免边缘溢出 */
 }
 
 .modal-content {
-    background-color: white;
-    padding: 25px;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 700px;
-    max-height: 90vh;
-    overflow-y: auto;
+    background-color: #ffffff;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 800px; /* 最大宽度 */
+    max-height: 90vh; /* 最大高度，避免超出视口 */
+    overflow-y: auto; /* 内容溢出滚动 */
+    padding: 30px;
     position: relative;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
 }
 
 .close {
     position: absolute;
-    top: 15px;
-    right: 15px;
+    top: 20px;
+    right: 20px;
     font-size: 24px;
     cursor: pointer;
-    color: #7f8c8d;
+    color: #64748b;
+    transition: color 0.3s ease;
+}
+
+.close:hover {
+    color: #e74c3c;
+}
+
+.knowledge-path {
+    font-size: 12px;
+    color: #64748b;
+    margin: 10px 0 20px;
+    font-style: italic;
 }
 
 .knowledge-description {
-    margin: 15px 0;
-    color: #34495e;
     line-height: 1.6;
+    color: #34495e;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e2e8f0;
 }
 
 .knowledge-detail-chart {
-    height: 250px;
-    margin: 20px 0;
+    height: 300px; /* 固定高度 */
+    margin-bottom: 20px;
 }
 
 .knowledge-stats {
     display: flex;
     justify-content: space-around;
-    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
 }
 
-.avatar-container {
-    display: flex;
-    align-items: center;
-}
-
-.avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    margin-right: 10px;
-}
-
-.avatar-default {
-    background-color: #3498db;
-    color: white;
-}
-
-.user-basic h2 {
-    font-size: 16px;
-    margin: 0;
-    color: #2c3e50;
-}
-
-.user-id {
-    font-size: 12px;
-    color: #7f8c8d;
-    margin: 0;
-}
-
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.filter-control {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 15px;
-    background-color: #f8fafc;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.filter-control label {
-    font-weight: 500;
-    color: #334155;
-    font-size: 0.95em;
-    white-space: nowrap;
-}
-
-.filter-control select {
-    padding: 8px 30px 8px 14px;
-    border-radius: 6px;
-    border: 1px solid #e2e8f0;
-    background-color: #fff;
-    font-size: 0.9em;
-    color: #1e293b;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.filter-control select:hover {
-    border-color: #94a3b8;
-}
-
-.filter-control select:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-}
-
-/* 选项样式优化 */
-.filter-control select option {
-    padding: 8px;
-    background-color: #fff;
-    color: #1e293b;
-}
-
-.filter-control select option:hover {
-    background-color: #f1f5f9;
-}
-
-@media (max-width: 768px) {
-    .dashboard {
-        grid-template-columns: 1fr;
-    }
-
-    .chart-table-wrapper {
-        flex-direction: column;
-    }
-
-    .section-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-    }
-
-    .loading-progress {
-        width: 80%;
-    }
-
-    .error-message {
-        font-size: 16px;
-    }
-
-    .retry-btn,
-    .home-btn {
-        width: 80%;
-        margin: 10px 0;
-    }
-}
-
-/* 返回首页按钮样式 */
+/* 返回首页按钮 */
 .back-to-home {
     position: fixed;
-    right: 30px;
     bottom: 30px;
+    right: 30px;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 20px;
-    background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #3b82f6 100%);
+    padding: 10px 20px;
+    background: linear-gradient(90deg, #3498db, #2980b9);
     color: white;
-    border-radius: 50px;
+    border-radius: 30px;
     text-decoration: none;
-    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
     transition: all 0.3s ease;
-    z-index: 9999;
-    border: none;
-    cursor: pointer;
-    font-weight: 500;
+    z-index: 999;
+}
+
+.back-to-home:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
+    background: linear-gradient(90deg, #2980b9, #3498db);
 }
 
 .back-to-home .icon {
     font-size: 18px;
 }
 
-.back-to-home:hover {
-    transform: translateY(-5px) scale(1.05);
-    box-shadow: 0 8px 25px rgba(79, 70, 229, 0.4);
-    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #4f46e5 100%);
+/* 响应式适配 - 修复小屏幕显示 */
+@media (max-width: 768px) {
+    .dashboard {
+        grid-template-columns: 1fr; /* 小屏幕单列 */
+    }
+
+    .chart-table-wrapper {
+        flex-direction: column; /* 图表和表格上下排列 */
+    }
+
+    .chart-container {
+        height: 300px; /* 减小图表高度 */
+    }
+
+    .filter-controls {
+        flex-direction: column; /* 筛选控件垂直排列 */
+        align-items: flex-start;
+    }
+
+    .course-meta,
+    .chapter-meta {
+        flex-direction: column; /* 元信息垂直排列 */
+        gap: 5px;
+    }
+
+    .modal-content {
+        padding: 20px;
+        max-width: 95%; /* 占满屏幕宽度 */
+    }
 }
 
-.back-to-home:active {
-    transform: translateY(-2px);
+/* 修复Chart.js canvas高度问题 */
+canvas {
+    width: 100% !important;
+    height: 100% !important;
 }
 </style>
