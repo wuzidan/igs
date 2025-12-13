@@ -16,7 +16,7 @@ class PracticeType(models.TextChoices):
 # 练习记录模型
 class PracticeRecord(models.Model):
     student = models.ForeignKey(
-        settings.AUTH_USER_MODEL,  # 改为引用配置的用户模型
+        settings.AUTH_USER_MODEL,  # 引用配置的用户模型
         on_delete=models.CASCADE,
         related_name='practice_records',
         verbose_name="用户",
@@ -68,7 +68,7 @@ class DifficultyLevel(models.TextChoices):
     HARD = 'hard', '困难'
 
 
-# 练习题模型（新增）
+# 练习题模型
 class Exercise(models.Model):
     exercise_id = models.CharField(
         "练习题ID",
@@ -197,14 +197,78 @@ class Question(models.Model):
             return json.loads(self.options)
         return []
 
-    def get_user_answer_list(self):
-        """将JSON用户答案转换为列表"""
-        if self.user_answer:
-            return json.loads(self.user_answer)
-        return []
 
-    def get_correct_answer_list(self):
-        """将JSON正确答案转换为列表"""
-        if self.correct_answer:
-            return json.loads(self.correct_answer)
-        return []
+# 挑战题模型
+class Challenge(models.Model):
+    """挑战题模型"""
+    challenge_id = models.CharField(
+        "挑战题ID",
+        max_length=100,
+        unique=True,
+        help_text="挑战题的唯一标识符"
+    )
+    name = models.CharField(
+        "题目名称",
+        max_length=200,
+        help_text="题目的名称"
+    )
+    task_pass = models.TextField(
+        "任务说明",
+        default="",
+        help_text="题目的任务说明和内容"
+    )
+    answer = models.TextField(
+        "答案",
+        help_text="题目的答案"
+    )
+    score = models.IntegerField(
+        "分数",
+        default=0,
+        help_text="题目分数"
+    )
+    difficulty = models.CharField(
+        "难度级别",
+        max_length=10,
+        choices=DifficultyLevel.choices,
+        help_text="题目的难度级别"
+    )
+    praises_count = models.IntegerField(
+        "点赞数",
+        default=0,
+        help_text="题目点赞数"
+    )
+
+    class Meta:
+        verbose_name = "挑战题"
+        verbose_name_plural = "挑战题"
+        ordering = ['challenge_id']
+
+    def __str__(self):
+        return self.name
+
+
+# 练习题与挑战题的关系模型
+class ExerciseChallenge(models.Model):
+    exercise = models.ForeignKey(
+        Exercise,
+        on_delete=models.CASCADE,
+        related_name='exercise_challenges',
+        verbose_name="练习题",
+        help_text="关联的练习题"
+    )
+    challenge = models.ForeignKey(
+        Challenge,
+        on_delete=models.CASCADE,
+        related_name='exercise_challenges',
+        verbose_name="挑战题",
+        help_text="关联的挑战题"
+    )
+
+    class Meta:
+        verbose_name = "练习题与挑战题关联"
+        verbose_name_plural = "练习题与挑战题关联"
+        db_table = 'exercise_challenge'  #与CSV文件名对应
+        unique_together = ('exercise', 'challenge')  #确保每个练习题与挑战题的组合唯一
+
+    def __str__(self):
+        return f"{self.exercise.name} - {self.challenge.name}"
