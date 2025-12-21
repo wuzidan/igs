@@ -10,6 +10,42 @@
             <p>查看和管理班级基本信息和学生列表</p>
         </div>
 
+        <div class="card class-detail-card" v-if="classes.length > 0">
+            <h3>选择班级</h3>
+            <div class="card-body">
+                <div class="info-row">
+                    <div class="info-label">当前班级:</div>
+                    <div class="info-value">
+                        <select class="input-field" v-model="selectedClassId" @change="onClassChange">
+                            <option v-for="c in classes" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button class="btn btn-add-student" @click="createClass">
+                    新增班级
+                </button>
+                <button class="btn btn-remove" :disabled="!selectedClassId" @click="deleteClass">
+                    删除班级
+                </button>
+            </div>
+        </div>
+
+        <div class="card class-detail-card" v-else>
+            <h3>选择班级</h3>
+            <div class="card-body">
+                <div class="info-row">
+                    <div class="info-value">暂无可管理的班级</div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button class="btn btn-add-student" @click="createClass">
+                    新增班级
+                </button>
+            </div>
+        </div>
+
         <!-- 班级详情卡片 - 使用统一的card样式 -->
         <div class="card class-detail-card">
             <h3>班级详情</h3>
@@ -45,6 +81,9 @@
                 </button>
                 <button class="btn btn-add-student" @click="addStudent">
                     添加学生
+                </button>
+                <button class="btn btn-remove" :disabled="!selectedClassId" @click="deleteClass">
+                    删除班级
                 </button>
             </div>
         </div>
@@ -132,72 +171,176 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
+import request from "../../../utils/request";
 
 const router = useRouter();
+const route = useRoute();
+
+const isLoggedIn = ref(
+    !!(window.localStorage && window.localStorage.getItem("token"))
+);
+
+const handleAuthFailure = async (e) => {
+    console.error("请求失败", e);
+    isLoggedIn.value = false;
+    try {
+        window.localStorage && window.localStorage.removeItem("token");
+    } catch (err) {
+        console.error("清理登录状态失败", err);
+    }
+    try {
+        router.push("/login");
+    } catch (err) {
+        console.error("路由跳转失败", err);
+    }
+};
+
+const createClass = async () => {
+    if (!isLoggedIn.value) return;
+    const nextName = window.prompt("班级名称");
+    if (!nextName) return;
+    const nextCode = window.prompt("班级代码");
+    if (!nextCode) return;
+    const nextCourse = window.prompt("课程名称", "");
+    if (nextCourse === null) return;
+    try {
+        const resp = await request.post("/classInfo/classes/", {
+            name: nextName,
+            code: nextCode,
+            course_name: nextCourse,
+        });
+        const newId = resp?.data?.id;
+        await fetchClassList();
+        if (newId) {
+            selectedClassId.value = String(newId);
+        } else if (!selectedClassId.value && classes.value.length > 0) {
+            selectedClassId.value = String(classes.value[0].id);
+        }
+        await fetchClassDetail();
+        await fetchStudents();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
+};
+
+const deleteClass = async () => {
+    if (!isLoggedIn.value) return;
+    if (!selectedClassId.value) return;
+    if (!confirm("确定要删除当前班级吗？删除后该班级学生将被移出班级。")) return;
+    try {
+        await request.delete(`/classInfo/classes/${selectedClassId.value}/`);
+        selectedClassId.value = "";
+        className.value = "";
+        classCode.value = "";
+        createTime.value = "";
+        studentCount.value = 0;
+        courseName.value = "";
+        headTeacher.value = "";
+        students.value = [];
+        totalPages.value = 0;
+
+        await fetchClassList();
+        if (classes.value.length > 0) {
+            selectedClassId.value = String(classes.value[0].id);
+            await fetchClassDetail();
+            await fetchStudents();
+        }
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
+};
+
+// 班级列表与当前班级
+const classes = ref([]);
+const selectedClassId = ref("");
 
 // 班级信息
-const className = ref("编程基础班");
-const classCode = ref("PROG-2023-001");
-const createTime = ref("2023-09-01");
-const studentCount = ref(45);
-const courseName = ref("计算机编程基础");
-const headTeacher = ref("李老师");
+const className = ref("");
+const classCode = ref("");
+const createTime = ref("");
+const studentCount = ref(0);
+const courseName = ref("");
+const headTeacher = ref("");
 
 // 学生数据
-const students = ref([
-    {
-        id: 1,
-        name: "张明",
-        studentId: "PROG2023001",
-        gender: "男",
-        phone: "13800138000",
-        email: "zhangming@example.com",
-        joinTime: "2023-09-01",
-    },
-    {
-        id: 2,
-        name: "李华",
-        studentId: "PROG2023002",
-        gender: "女",
-        phone: "13900139000",
-        email: "lihua@example.com",
-        joinTime: "2023-09-01",
-    },
-    {
-        id: 3,
-        name: "王强",
-        studentId: "PROG2023003",
-        gender: "男",
-        phone: "13700137000",
-        email: "wangqiang@example.com",
-        joinTime: "2023-09-01",
-    },
-    {
-        id: 4,
-        name: "刘芳",
-        studentId: "PROG2023004",
-        gender: "女",
-        phone: "13600136000",
-        email: "liufang@example.com",
-        joinTime: "2023-09-01",
-    },
-    {
-        id: 5,
-        name: "陈宇",
-        studentId: "PROG2023005",
-        gender: "男",
-        phone: "13500135000",
-        email: "chenyu@example.com",
-        joinTime: "2023-09-01",
-    },
-]);
+const students = ref([]);
 
 // 搜索和分页
 const searchKeyword = ref("");
 const currentPage = ref(1);
 const pageSize = ref(10);
-const totalPages = ref(Math.ceil(students.value.length / pageSize.value));
+const totalPages = ref(0);
+
+const fetchClassList = async () => {
+    if (!isLoggedIn.value) return;
+    const resp = await request.get("/classInfo/class-chart/class-list/");
+    classes.value = Array.isArray(resp?.data) ? resp.data : [];
+
+    if (!selectedClassId.value) {
+        const fromQuery = route.query && route.query.classId;
+        if (fromQuery) {
+            selectedClassId.value = String(fromQuery);
+        } else if (classes.value.length > 0) {
+            selectedClassId.value = String(classes.value[0].id);
+        }
+    }
+};
+
+const fetchClassDetail = async () => {
+    if (!isLoggedIn.value) return;
+    if (!selectedClassId.value) return;
+    const resp = await request.get(`/classInfo/classes/${selectedClassId.value}/`);
+    const data = resp?.data || {};
+    className.value = data.name || "";
+    classCode.value = data.code || "";
+    createTime.value = data.create_time || data.createTime || "";
+    courseName.value = data.course_name || data.courseName || "";
+    studentCount.value = typeof data.student_count === "number" ? data.student_count : data.studentCount || 0;
+    headTeacher.value =
+        (data.head_teacher_info && data.head_teacher_info.teacherName) ||
+        data.headTeacher ||
+        "未设置";
+};
+
+const normalizeStudent = (s) => {
+    const joinTime = s.joinTime || s.join_time || s.created_at || "";
+    return {
+        id: s.id,
+        name: s.name || "",
+        studentId: s.studentId || s.student_id || "",
+        gender: s.gender || "-",
+        phone: s.phone || "",
+        email: s.email || "",
+        joinTime: joinTime,
+    };
+};
+
+const fetchStudents = async () => {
+    if (!isLoggedIn.value) return;
+    if (!selectedClassId.value) {
+        students.value = [];
+        totalPages.value = 0;
+        return;
+    }
+    const resp = await request.get(`/classInfo/classes/${selectedClassId.value}/students/`, {
+        params: {
+            page: currentPage.value,
+            page_size: pageSize.value,
+            search: searchKeyword.value || "",
+        },
+    });
+    const data = resp?.data || {};
+    const payload = data.results || data;
+    const list = payload.students || payload.results || [];
+    students.value = Array.isArray(list) ? list.map(normalizeStudent) : [];
+
+    const p = payload.pagination || {};
+    totalPages.value = typeof p.total_pages === "number" ? p.total_pages : 0;
+    if (!totalPages.value && typeof data.count === "number") {
+        totalPages.value = Math.ceil(data.count / pageSize.value);
+    }
+};
 
 // 防抖搜索
 const debounceSearch = () => {
@@ -208,32 +351,70 @@ const debounceSearch = () => {
 };
 
 // 搜索学生
-const searchStudents = () => {
-    // 这里添加搜索逻辑
+const searchStudents = async () => {
     console.log("搜索学生:", searchKeyword.value);
-    // 实际应用中，这里会根据关键词过滤学生数据
+    currentPage.value = 1;
+    try {
+        await fetchStudents();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 };
 
 // 改变页码
-const changePage = (page) => {
+const changePage = async (page) => {
     if (page >= 1 && page <= totalPages.value) {
         currentPage.value = page;
-        // 实际应用中，这里会加载对应页的学生数据
+        try {
+            await fetchStudents();
+        } catch (e) {
+            await handleAuthFailure(e);
+        }
     }
 };
 
 // 编辑班级信息
-const editClassInfo = () => {
-    // 这里添加编辑班级信息的逻辑
-    console.log("编辑班级信息");
-    // 实际应用中，这里会打开编辑对话框
+const editClassInfo = async () => {
+    if (!selectedClassId.value) return;
+    const nextName = window.prompt("班级名称", className.value || "");
+    if (nextName === null) return;
+    const nextCode = window.prompt("班级代码", classCode.value || "");
+    if (nextCode === null) return;
+    const nextCourse = window.prompt("课程名称", courseName.value || "");
+    if (nextCourse === null) return;
+    try {
+        await request.patch(`/classInfo/classes/${selectedClassId.value}/`, {
+            name: nextName,
+            code: nextCode,
+            course_name: nextCourse,
+        });
+        await fetchClassDetail();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 };
 
 // 添加学生
-const addStudent = () => {
-    // 这里添加添加学生的逻辑
-    console.log("添加学生");
-    // 实际应用中，这里会打开添加学生对话框
+const addStudent = async () => {
+    if (!selectedClassId.value) return;
+    const studentId = window.prompt("学号");
+    if (!studentId) return;
+    const name = window.prompt("姓名");
+    if (!name) return;
+    const phone = window.prompt("手机号(可选)") || "";
+    const email = window.prompt("邮箱(可选)") || "";
+    try {
+        await request.post(`/classInfo/classes/${selectedClassId.value}/students/`, {
+            student_id: studentId,
+            name,
+            phone,
+            email,
+        });
+        await fetchClassDetail();
+        await fetchStudents();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 };
 
 // 查看学生
@@ -242,24 +423,39 @@ const viewStudent = (studentId) => {
 };
 
 // 移除学生
-const removeStudent = (studentId) => {
-    // 这里添加移除学生的逻辑
-    if (confirm("确定要移除这名学生吗？")) {
-        students.value = students.value.filter(
-            (student) => student.id !== studentId
+const removeStudent = async (studentId) => {
+    if (!selectedClassId.value) return;
+    if (!confirm("确定要移除这名学生吗？")) return;
+    try {
+        await request.delete(
+            `/classInfo/classes/${selectedClassId.value}/students/${studentId}/`
         );
-        studentCount.value = students.value.length;
-        totalPages.value = Math.ceil(students.value.length / pageSize.value);
-        if (currentPage.value > totalPages.value && totalPages.value > 0) {
-            currentPage.value = totalPages.value;
-        }
+        await fetchClassDetail();
+        await fetchStudents();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
+};
+
+const onClassChange = async () => {
+    currentPage.value = 1;
+    try {
+        await fetchClassDetail();
+        await fetchStudents();
+    } catch (e) {
+        await handleAuthFailure(e);
     }
 };
 
 // 组件挂载时执行
-onMounted(() => {
-    // 初始化数据
-    // 实际应用中，这里会从API获取班级信息和学生数据
+onMounted(async () => {
+    try {
+        await fetchClassList();
+        await fetchClassDetail();
+        await fetchStudents();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 });
 </script>
 

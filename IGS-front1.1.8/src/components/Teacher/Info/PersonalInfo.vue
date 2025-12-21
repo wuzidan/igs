@@ -220,7 +220,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import request from "../../../utils/request";
 
@@ -229,28 +229,22 @@ const router = useRouter();
 // 编辑模式状态
 const isEditing = ref(false);
 
+const loading = ref(false);
+const errorMessage = ref("");
+
 // 教师信息数据
-const teacherName = ref("李老师");
-const teacherId = ref("DEV_TEACHER_2023001");
-const title = ref("教授");
-const department = ref("计算机学院");
-const birthDate = ref("1982-08-20");
-const hometown = ref("上海市");
-const politicalStatus = ref("群众");
-const email = ref("li.program@smartedu.com");
-const phone = ref("13900139000");
-const officeAddress = ref("创新楼A503");
-const bio = ref(
-    "计算机学院高级讲师，拥有15年编程教学经验，专注于Web开发、算法设计与数据结构教学。曾在知名科技企业担任技术主管，参与过多个大型软件项目开发。现致力于将行业实践经验融入教学，培养实用型编程人才。"
-);
-const subjects = ref([
-    "Web前端开发",
-    "JavaScript/TypeScript",
-    "算法与数据结构",
-    "后端开发",
-    "编程思维训练",
-    "软件工程实践",
-]);
+const teacherName = ref("");
+const teacherId = ref("");
+const title = ref("");
+const department = ref("");
+const birthDate = ref("");
+const hometown = ref("");
+const politicalStatus = ref("");
+const email = ref("");
+const phone = ref("");
+const officeAddress = ref("");
+const bio = ref("");
+const subjects = ref([]);
 const newSubject = ref("");
 
 // 头像相关
@@ -270,26 +264,46 @@ const toggleEditMode = () => {
 };
 
 // 保存教师信息
-const saveTeacherInfo = () => {
-    // 这里应该发送请求到后端保存数据
-    // 为了演示，这里只打印信息
-    console.log("保存教师信息:", {
-        teacherName: teacherName.value,
-        teacherId: teacherId.value,
-        title: title.value,
-        department: department.value,
-        birthDate: birthDate.value,
-        hometown: hometown.value,
-        politicalStatus: politicalStatus.value,
-        email: email.value,
-        phone: phone.value,
-        officeAddress: officeAddress.value,
-        bio: bio.value,
-        subjects: subjects.value,
-    });
-
-    // 模拟保存成功
-    alert("信息保存成功！");
+const saveTeacherInfo = async () => {
+    loading.value = true;
+    errorMessage.value = "";
+    try {
+        const payload = {
+            teacherName: teacherName.value,
+            email: email.value,
+            phone: phone.value,
+            title: title.value,
+            department: department.value,
+            birthDate: birthDate.value,
+            hometown: hometown.value,
+            politicalStatus: politicalStatus.value,
+            officeAddress: officeAddress.value,
+            bio: bio.value,
+            subjects: subjects.value,
+        };
+        const res = await request.patch("/teacher/profile/", payload);
+        const data = res?.data?.data || res?.data;
+        if (data) {
+            teacherName.value = data.teacherName ?? teacherName.value;
+            teacherId.value = data.teacherId ?? teacherId.value;
+            title.value = data.title ?? title.value;
+            department.value = data.department ?? department.value;
+            birthDate.value = data.birthDate ?? birthDate.value;
+            hometown.value = data.hometown ?? hometown.value;
+            politicalStatus.value = data.politicalStatus ?? politicalStatus.value;
+            email.value = data.email ?? email.value;
+            phone.value = data.phone ?? phone.value;
+            officeAddress.value = data.officeAddress ?? officeAddress.value;
+            bio.value = data.bio ?? bio.value;
+            subjects.value = Array.isArray(data.subjects) ? data.subjects : subjects.value;
+        }
+        alert("信息保存成功！");
+    } catch (e) {
+        errorMessage.value = e?.message || "保存失败";
+        alert(errorMessage.value);
+    } finally {
+        loading.value = false;
+    }
 };
 
 // 头像上传相关
@@ -300,13 +314,7 @@ const triggerUpload = () => {
 const handleAvatarUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-        // 这里应该上传文件到服务器
-        // 为了演示，这里只使用本地URL
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            teacherAvatarUrl.value = e.target.result;
-        };
-        reader.readAsDataURL(file);
+        uploadAvatar(file);
     }
 };
 
@@ -325,6 +333,53 @@ const addSubject = () => {
 const removeSubject = (index) => {
     subjects.value.splice(index, 1);
 };
+
+const loadTeacherProfile = async () => {
+    loading.value = true;
+    errorMessage.value = "";
+    try {
+        const res = await request.get("/teacher/profile/");
+        const data = res?.data;
+        teacherName.value = data?.teacherName || "";
+        teacherId.value = data?.teacherId || "";
+        title.value = data?.title || "";
+        department.value = data?.department || "";
+        birthDate.value = data?.birthDate || "";
+        hometown.value = data?.hometown || "";
+        politicalStatus.value = data?.politicalStatus || "";
+        email.value = data?.email || "";
+        phone.value = data?.phone || "";
+        officeAddress.value = data?.officeAddress || "";
+        bio.value = data?.bio || "";
+        subjects.value = Array.isArray(data?.subjects) ? data.subjects : [];
+        teacherAvatarUrl.value = data?.avatarUrl || "";
+    } catch (e) {
+        errorMessage.value = e?.message || "获取教师信息失败";
+    } finally {
+        loading.value = false;
+    }
+};
+
+const uploadAvatar = async (file) => {
+    loading.value = true;
+    errorMessage.value = "";
+    try {
+        const formData = new FormData();
+        formData.append("avatar", file);
+        const res = await request.post("/teacher/profile/upload-avatar/", formData);
+        teacherAvatarUrl.value = res?.data?.avatarUrl || teacherAvatarUrl.value;
+        alert("头像上传成功！");
+    } catch (e) {
+        errorMessage.value = e?.message || "头像上传失败";
+        alert(errorMessage.value);
+    } finally {
+        loading.value = false;
+    }
+};
+
+onMounted(() => {
+    loadTeacherProfile();
+});
 </script>
 
 <style scoped>

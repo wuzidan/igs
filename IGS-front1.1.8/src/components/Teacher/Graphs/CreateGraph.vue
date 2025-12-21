@@ -164,19 +164,39 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import request from "../../../utils/request";
 
 const router = useRouter();
 
+const isLoggedIn = ref(
+    !!(window.localStorage && window.localStorage.getItem("token"))
+);
+
+const handleAuthFailure = async (e) => {
+    console.error("请求失败", e);
+    isLoggedIn.value = false;
+    try {
+        window.localStorage && window.localStorage.removeItem("token");
+    } catch (err) {
+        console.error("清理登录状态失败", err);
+    }
+    try {
+        router.push("/login");
+    } catch (err) {
+        console.error("路由跳转失败", err);
+    }
+};
+
 // 知识领域数据
-const domains = ref([
-    { id: 1, name: "计算机科学" },
-    { id: 2, name: "数学" },
-    { id: 3, name: "物理学" },
-    { id: 4, name: "生物学" },
-    { id: 5, name: "工程技术" },
-]);
+const domains = ref([]);
+
+const fetchDomains = async () => {
+    const resp = await request.get("/graphs/domains/");
+    const list = resp?.data;
+    domains.value = Array.isArray(list) ? list : [];
+};
 
 // 图谱模板数据
 const templates = ref([
@@ -223,7 +243,7 @@ const graphForm = ref({
 });
 
 // 提交表单
-const submitGraph = () => {
+const submitGraph = async () => {
     // 验证表单
     if (
         !graphForm.value.name ||
@@ -234,17 +254,38 @@ const submitGraph = () => {
         return;
     }
 
-    // 这里添加创建图谱的逻辑
-    console.log("创建知识图谱:", graphForm.value);
-
-    // 实际应用中，这里会调用API创建图谱
-    // 创建成功后跳转到编辑页面
-    // alert("图谱创建成功，即将进入编辑页面");
-    router.push(`/teacher/graphs/edit/new`);
+    try {
+        const resp = await request.post(
+            "/graphs/",
+            {
+                name: graphForm.value.name,
+                domainId: graphForm.value.domainId,
+                type: graphForm.value.type,
+                status: graphForm.value.status || "draft",
+                description: graphForm.value.description || "",
+                tags: graphForm.value.tags || "",
+                nodes: [],
+                relationships: [],
+            },
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+        const id = resp?.data?.id;
+        if (!id) {
+            alert("图谱创建失败：未返回ID");
+            return;
+        }
+        router.push(`/teacher/graphs/edit/${id}`);
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 };
 
 // 保存为草稿
-const saveAsDraft = () => {
+const saveAsDraft = async () => {
     // 验证必要字段
     if (
         !graphForm.value.name ||
@@ -258,18 +299,41 @@ const saveAsDraft = () => {
     // 设置状态为草稿
     graphForm.value.status = "draft";
 
-    // 这里添加保存为草稿的逻辑
-    console.log("保存为草稿:", graphForm.value);
-
-    // 实际应用中，这里会调用API保存
-    alert("已保存为草稿");
-    router.push(`/teacher/graph`);
+    try {
+        const resp = await request.post(
+            "/graphs/",
+            {
+                name: graphForm.value.name,
+                domainId: graphForm.value.domainId,
+                type: graphForm.value.type,
+                status: "draft",
+                description: graphForm.value.description || "",
+                tags: graphForm.value.tags || "",
+                nodes: [],
+                relationships: [],
+            },
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+        const id = resp?.data?.id;
+        if (!id) {
+            alert("草稿保存失败：未返回ID");
+            return;
+        }
+        alert("已保存为草稿");
+        router.push(`/teacher/graphs/graph`);
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 };
 
 // 取消创建
 const cancelCreate = () => {
     if (confirm("确定要取消创建吗？已填写的内容将不会保存")) {
-        router.push(`/teacher/graph`);
+        router.push(`/teacher/graphs/graph`);
     }
 };
 
@@ -285,6 +349,23 @@ const useTemplate = (templateId) => {
         alert(`已选择"${template.name}"模板，表单已自动填充相关信息`);
     }
 };
+
+onMounted(async () => {
+    if (!isLoggedIn.value) {
+        try {
+            router.push("/login");
+        } catch (err) {
+            console.error("路由跳转失败", err);
+        }
+        return;
+    }
+
+    try {
+        await fetchDomains();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
+});
 </script>
 
 <style scoped>

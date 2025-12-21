@@ -319,11 +319,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import TeacherSidebar from "./TeacherSidebar.vue";
-
-// 确保组件加载时初始化
-onMounted(() => {
-    console.log("TeacherIndex mounted");
-});
+import request from "../../utils/request";
 
 const router = useRouter();
 
@@ -336,8 +332,49 @@ const pageDescription = ref(
 // 用户信息 - 新增账号信息
 const userAvatar = ref("👨🏫");
 const userAvatarUrl = ref("");
-const userName = ref("张老师");
-const userAccount = ref("teacher001"); // 新增教师账号信息
+const userName = ref("");
+const userAccount = ref(""); // 新增教师账号信息
+
+const isLoggedIn = ref(
+    !!(window.localStorage && window.localStorage.getItem("token"))
+);
+
+const fetchTeacherInfo = async () => {
+    if (!isLoggedIn.value) {
+        return;
+    }
+    try {
+        const resp = await request.get("/teacher/profile/");
+        const data = resp?.data || {};
+
+        if (typeof data.teacherName === "string" && data.teacherName) {
+            userName.value = data.teacherName;
+        }
+        if (typeof data.teacherId === "string" && data.teacherId) {
+            userAccount.value = data.teacherId;
+        }
+        if (typeof data.avatarUrl === "string" && data.avatarUrl) {
+            userAvatarUrl.value = data.avatarUrl;
+        }
+    } catch (e) {
+        console.error("获取教师信息失败", e);
+        isLoggedIn.value = false;
+        try {
+            window.localStorage && window.localStorage.removeItem("token");
+        } catch (err) {
+            console.error("清理登录状态失败", err);
+        }
+        try {
+            router.push("/login");
+        } catch (err) {
+            console.error("路由跳转失败", err);
+        }
+    }
+};
+
+onMounted(async () => {
+    await fetchTeacherInfo();
+});
 
 // 用户菜单状态
 const showUserMenu = ref(false);
@@ -524,6 +561,11 @@ const navigateTo = (page) => {
 
 // 退出登录
 const logout = () => {
+    try {
+        window.localStorage && window.localStorage.removeItem("token");
+    } catch (e) {
+        console.error("清理登录状态失败", e);
+    }
     router.push("/login");
     showUserMenu.value = false;
 };

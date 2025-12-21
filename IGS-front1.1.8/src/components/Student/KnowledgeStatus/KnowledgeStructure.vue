@@ -542,9 +542,29 @@ import { ref, onMounted, nextTick, computed } from "vue";
 import Chart from "chart.js/auto";
 import { useRouter } from "vue-router";
 import StudentHeader from "../StudentHeader.vue";
+import request from "../../../utils/request";
 
 // 路由实例
 const router = useRouter();
+
+const isLoggedIn = ref(
+    !!(window.localStorage && window.localStorage.getItem("token"))
+);
+
+const handleAuthFailure = async (e) => {
+    console.error("请求失败", e);
+    isLoggedIn.value = false;
+    try {
+        window.localStorage && window.localStorage.removeItem("token");
+    } catch (err) {
+        console.error("清理登录状态失败", err);
+    }
+    try {
+        router.push("/login");
+    } catch (err) {
+        console.error("路由跳转失败", err);
+    }
+};
 
 // ===================== Mock数据定义 =====================
 // 基础统计数据
@@ -844,54 +864,77 @@ let masteryChartInstance = null;
 let categoryMasteryChartInstance = null;
 let knowledgeDetailChartInstance = null;
 
-// 模拟API请求（带失败降级逻辑）
-const mockApiGetStructure = () => {
-    // 模拟50%概率请求失败，用于测试降级逻辑
-    const isSuccess = true; // 改为false可测试失败场景
+const apiGetStructure = () => {
+    return request.get("/knowledge/structure/");
+};
 
-    return new Promise((resolve, reject) => {
-        setTimeout(() => {
-            if (isSuccess) {
-                resolve({
-                    data: {
-                        ...MOCK_BASE_DATA,
-                        courseList: MOCK_COURSE_LIST,
-                        chapterList: MOCK_CHAPTER_LIST,
-                        knowledgeList: MOCK_KNOWLEDGE_LIST,
-                    },
-                });
-            } else {
-                reject(new Error("模拟API请求失败"));
-            }
-        }, 1500); // 模拟网络延迟
+const normalizeStructureData = (data) => {
+    const safe = data && typeof data === "object" ? data : {};
+    const rawKnowledgeList = Array.isArray(safe.knowledgeList)
+        ? safe.knowledgeList
+        : [];
+
+    let courseListLocal = Array.isArray(safe.courseList) ? safe.courseList : [];
+    let chapterListLocal = Array.isArray(safe.chapterList) ? safe.chapterList : [];
+
+    if (rawKnowledgeList.length > 0 && courseListLocal.length === 0) {
+        courseListLocal = [
+            {
+                id: 1,
+                name: "默认课程",
+                avgMastery: Number(safe.avgMastery || 0),
+            },
+        ];
+    }
+    if (rawKnowledgeList.length > 0 && chapterListLocal.length === 0) {
+        chapterListLocal = [
+            {
+                id: 101,
+                courseId: 1,
+                name: "默认章节",
+                avgMastery: Number(safe.avgMastery || 0),
+            },
+        ];
+    }
+
+    const knowledgeListLocal = rawKnowledgeList.map((k, idx) => {
+        const item = k && typeof k === "object" ? k : {};
+        return {
+            id: item.id ?? idx,
+            courseId: item.courseId ?? 1,
+            chapterId: item.chapterId ?? 101,
+            name: item.name || "",
+            mastery: Number(item.mastery || 0),
+            category: item.category || "general",
+            categoryText: item.categoryText || "",
+            description: item.description || "",
+            practiceCount: Number(item.practiceCount || 0),
+            lastPracticed: item.lastPracticed || "",
+        };
     });
+
+    return {
+        coverageRate: Number(safe.coverageRate || 0),
+        masteredCount: Number(safe.masteredCount || 0),
+        totalCount: Number(safe.totalCount || 0),
+        avgMastery: Number(safe.avgMastery || 0),
+        courseList: courseListLocal,
+        chapterList: chapterListLocal,
+        knowledgeList: knowledgeListLocal,
+    };
 };
 
 // 获取知识点结构数据（带降级逻辑）
 const fetchStructureData = () => {
-    // 先尝试调用真实API，失败则使用Mock数据
-    return mockApiGetStructure() // 替换为真实api.getStructure()
+    return apiGetStructure()
         .then((res) => {
-            console.log("获取的知识点结构数据为：", res.data);
-            const data = res.data;
+            const data = normalizeStructureData(res.data);
 
-            // 验证数据有效性
-            if (
-                !data ||
-                !Array.isArray(data.courseList) ||
-                !Array.isArray(data.chapterList) ||
-                !Array.isArray(data.knowledgeList)
-            ) {
-                throw new Error("数据格式异常");
-            }
+            coverageRate.value = data.coverageRate;
+            masteredCount.value = data.masteredCount;
+            totalCount.value = data.totalCount;
+            avgMastery.value = data.avgMastery;
 
-            // 更新总体数据
-            coverageRate.value = data.coverageRate || 0;
-            masteredCount.value = data.masteredCount || 0;
-            totalCount.value = data.totalCount || 0;
-            avgMastery.value = data.avgMastery || 0;
-
-            // 更新层级数据
             courseList.value = data.courseList;
             chapterList.value = data.chapterList;
             knowledgeList.value = data.knowledgeList;
@@ -899,29 +942,15 @@ const fetchStructureData = () => {
             structureRecords.value = data;
             updateLoadingProgress(100); // 加载完成
         })
-        .catch((err) => {
-            console.error("获取知识点数据失败，使用兜底Mock数据:", err);
+        .catch(async (err) => {
+            if (err && err.message && String(err.message).includes("未授权")) {
+                await handleAuthFailure(err);
+            }
 
-            // 降级使用Mock数据
-            coverageRate.value = MOCK_BASE_DATA.coverageRate;
-            masteredCount.value = MOCK_BASE_DATA.masteredCount;
-            totalCount.value = MOCK_BASE_DATA.totalCount;
-            avgMastery.value = MOCK_BASE_DATA.avgMastery;
-
-            courseList.value = MOCK_COURSE_LIST;
-            chapterList.value = MOCK_CHAPTER_LIST;
-            knowledgeList.value = MOCK_KNOWLEDGE_LIST;
-
-            structureRecords.value = {
-                ...MOCK_BASE_DATA,
-                courseList: MOCK_COURSE_LIST,
-                chapterList: MOCK_CHAPTER_LIST,
-                knowledgeList: MOCK_KNOWLEDGE_LIST,
-            };
-
+            console.error("获取知识点结构数据失败:", err);
             updateLoadingProgress(100);
-            // 不设置errorMsg，让页面正常显示Mock数据
-            // errorMsg.value = "网络请求错误，已加载本地示例数据";
+            errorMsg.value = "数据加载失败，请重试";
+            throw err;
         });
 };
 
@@ -985,6 +1014,10 @@ const retryLoad = () => {
 
 // 生命周期钩子
 onMounted(() => {
+    if (!isLoggedIn.value) {
+        router.push("/login");
+        return;
+    }
     loadData();
 });
 

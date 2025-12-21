@@ -27,7 +27,9 @@ class KnowledgeStructureView(APIView):
                 "masteredCount": 0,
                 "totalCount": 0,
                 "avgMastery": 0,
-                "knowledgeList": []
+                "courseList": [],
+                "chapterList": [],
+                "knowledgeList": [],
             })
 
         knowledge_points = KnowledgePoint.objects.filter(user=target_user)
@@ -38,7 +40,9 @@ class KnowledgeStructureView(APIView):
                 "masteredCount": 0,
                 "totalCount": 0,
                 "avgMastery": 0,
-                "knowledgeList": []
+                "courseList": [],
+                "chapterList": [],
+                "knowledgeList": [],
             })
 
         # 计算统计数据
@@ -47,12 +51,24 @@ class KnowledgeStructureView(APIView):
         coverage_rate = (mastered_count / total_count) * 100 if total_count > 0 else 0  # 覆盖率
         avg_mastery = knowledge_points.aggregate(avg=Avg("mastery"))["avg"] or 0  # 平均掌握程度
 
+        course_id = 1
+        chapter_id = 101
+
+        category_map = {
+            "core": "core",
+            "basic": "general",
+            "advanced": "important",
+            "extended": "general",
+        }
+
         # 格式化知识点列表
         knowledge_list = [
             {
                 "id": point.id,
+                "courseId": course_id,
+                "chapterId": chapter_id,
                 "name": point.name,
-                "category": point.category,
+                "category": category_map.get(point.category, "general"),
                 "categoryText": point.get_category_display(),  # 显示分类文本（如"核心知识点"）
                 "mastery": point.mastery,
                 "description": point.description,
@@ -62,12 +78,30 @@ class KnowledgeStructureView(APIView):
             for point in knowledge_points
         ]
 
+        course_list = [
+            {
+                "id": course_id,
+                "name": "默认课程",
+                "avgMastery": float(avg_mastery or 0),
+            }
+        ]
+        chapter_list = [
+            {
+                "id": chapter_id,
+                "courseId": course_id,
+                "name": "默认章节",
+                "avgMastery": float(avg_mastery or 0),
+            }
+        ]
+
         # 返回前端所需的完整数据结构
         return Response({
             "coverageRate": round(coverage_rate),  # 四舍五入为整数
             "masteredCount": mastered_count,
             "totalCount": total_count,
             "avgMastery": round(avg_mastery),
+            "courseList": course_list,
+            "chapterList": chapter_list,
             "knowledgeList": knowledge_list
         })
     

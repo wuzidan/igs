@@ -44,7 +44,7 @@ const props = defineProps({
 const router = useRouter();
 
 // 登录状态管理
-const isLoggedIn = ref(true); // 默认登录状态
+const isLoggedIn = ref(Boolean(window.localStorage && window.localStorage.getItem("token")));
 
 // 用户信息
 const userName = ref("未知用户");
@@ -57,6 +57,9 @@ const email = ref(""); // 邮箱
 
 // 获取用户信息
 const fetchUserInfo = () => {
+    if (!isLoggedIn.value) {
+        return Promise.resolve();
+    }
     return api
         .getStudentinfo()
         .then((res) => {
@@ -72,17 +75,16 @@ const fetchUserInfo = () => {
         })
         .catch((err) => {
             console.error("获取用户信息失败:", err);
-            // 使用默认用户信息
-            userName.value = "姚竣博";
-            studentId.value = "20232132055";
-            className.value = "计算机科学与技术 2023级";
-            major.value = "计算机科学与技术";
+            isLoggedIn.value = false;
+            window.localStorage && window.localStorage.removeItem("token");
+            router.push("/login");
         });
 };
 
 // 退出登录
 const logout = () => {
     isLoggedIn.value = false;
+    window.localStorage && window.localStorage.removeItem("token");
     // 清空用户信息
     userName.value = "";
     studentId.value = "";

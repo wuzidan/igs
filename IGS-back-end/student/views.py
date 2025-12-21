@@ -1,27 +1,104 @@
 # student/views.py
+from django.db.models import Q
+from django.db.utils import ProgrammingError
 from rest_framework import status
+from rest_framework.authtoken.models import Token
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from teacher.models import Teacher
 from .models import Hobby, User  # 导入学生模型
+
+
+class StudentLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        username = request.data.get("username")
+        password = request.data.get("password")
+
+        if not username or not password:
+            return Response({"error": "用户名或密码不能为空"}, status=status.HTTP_400_BAD_REQUEST)
+
+        account = str(username).strip()
+        user = (
+            User.objects.filter(
+                Q(student_id=account) | Q(username=account) | Q(email=account)
+            )
+            .distinct()
+            .first()
+        )
+        if user is None or not user.check_password(password):
+            return Response({"error": "账号或密码错误"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if hasattr(user, "is_active") and not user.is_active:
+            return Response({"error": "账号已被禁用"}, status=status.HTTP_403_FORBIDDEN)
+
+        def _is_teacher_like(account_value: str, user_obj) -> bool:
+            acc = (account_value or "").strip()
+            if acc.lower().startswith("teacher") or acc.startswith("T"):
+                return True
+            u_username = str(getattr(user_obj, "username", "") or "")
+            if u_username.lower().startswith("teacher"):
+                return True
+            u_student_id = str(getattr(user_obj, "student_id", "") or "")
+            if u_student_id.startswith("T"):
+                return True
+            return False
+
+        teacher_like = _is_teacher_like(account, user)
+        if teacher_like:
+            Teacher.objects.get_or_create(
+                user=user,
+                defaults={
+                    "teacher_id": f"T{getattr(user, 'id', 0) or 0:06d}",
+                    "title": "未设置",
+                    "department": "未设置",
+                },
+            )
+
+        try:
+            token, _ = Token.objects.get_or_create(user=user)
+        except ProgrammingError as e:
+            # 典型原因：未执行 authtoken 的迁移，导致 authtoken_token 表不存在
+            return Response(
+                {
+                    "error": "Token 表不存在，请先执行数据库迁移：python manage.py migrate authtoken",
+                    "detail": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        if bool(getattr(user, "is_superuser", False)) or bool(getattr(user, "is_staff", False)):
+            user_type = "admin"
+        elif teacher_like or Teacher.objects.filter(user=user).exists():
+            user_type = "teacher"
+        else:
+            user_type = "student"
+        return Response(
+            {
+                "token": token.key,
+                "userType": user_type,
+                "user": {
+                    "id": user.id,
+                    "name": getattr(user, "name", None) or getattr(user, "first_name", ""),
+                    "studentId": getattr(user, "student_id", ""),
+                    "username": getattr(user, "username", ""),
+                    "email": getattr(user, "email", ""),
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class StudentInfoView(APIView):
     """个人信息接口：获取和更新用户信息"""
 
-    # 开发阶段暂时    permission_classes = []
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         """获取个人信息数据"""
-        # 开发阶段：使用测试用户（实际环境替换为request.user）
-        test_user_id = 1
-        try:
-            user = User.objects.get(id=test_user_id)
-        except User.DoesNotExist:
-            return Response(
-                {"error": "用户不存在"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        user = request.user
 
         # 格式化教育经历数据
         education_list = [
@@ -71,14 +148,7 @@ class StudentInfoView(APIView):
 
     def put(self, request):
         """更新个人信息（部分字段示例）"""
-        test_user_id = 1
-        try:
-            user = User.objects.get(id=test_user_id)
-        except User.DoesNotExist:
-            return Response(
-                {"error": "用户不存在"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        user = request.user
 
         # 处理可更新字段（根据实际需求扩展）
         update_data = request.data

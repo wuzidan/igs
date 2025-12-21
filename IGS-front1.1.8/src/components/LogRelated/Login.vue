@@ -103,6 +103,7 @@
 <script setup>
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import request from "../../utils/request";
 
 // 表单数据
 const username = ref("");
@@ -113,13 +114,31 @@ const showPassword = ref(false);
 const router = useRouter();
 
 // 登录处理
-const handleLogin = () => {
-    // 实际项目中这里会有真实的登录验证逻辑和角色判断
-    // 这里简单模拟: 用户名包含'teacher'的视为教师用户
-    if (username.value.toLowerCase().includes('teacher')) {
-        router.push("/teacher/index");
-    } else {
-        router.push("/student/index");
+const handleLogin = async () => {
+    try {
+        window.localStorage && window.localStorage.removeItem("token");
+
+        const resp = await request.post("/api/user/login/", {
+            username: username.value,
+            password: password.value,
+        });
+
+        const token = resp?.data?.token;
+        if (token) {
+            window.localStorage && window.localStorage.setItem("token", token);
+        }
+
+        const userType = resp?.data?.userType;
+        if (userType === "admin") {
+            router.push("/teacher/index");
+        } else if (userType === "teacher") {
+            router.push("/teacher/index");
+        } else {
+            router.push("/student/index");
+        }
+    } catch (e) {
+        window.localStorage && window.localStorage.removeItem("token");
+        console.error("登录失败", e);
     }
 };
 </script>
