@@ -6,12 +6,43 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('question', '0001_initial'),
+        ('question', '0004_challenge_exercisechallenge'),
     ]
 
     operations = [
-        migrations.RunSQL(
-            'ALTER TABLE exercise_challenge DROP COLUMN `order`;',
-            reverse_sql='ALTER TABLE exercise_challenge ADD COLUMN `order` INT DEFAULT 0;',
+        migrations.RunPython(
+            code=lambda apps, schema_editor: _drop_order_column(schema_editor),
+            reverse_code=lambda apps, schema_editor: _add_order_column(schema_editor),
         ),
     ]
+
+
+def _table_exists(schema_editor, table_name: str) -> bool:
+    with schema_editor.connection.cursor() as cursor:
+        return table_name in schema_editor.connection.introspection.table_names(cursor)
+
+
+def _column_exists(schema_editor, table_name: str, column_name: str) -> bool:
+    with schema_editor.connection.cursor() as cursor:
+        description = schema_editor.connection.introspection.get_table_description(cursor, table_name)
+    return any(getattr(col, "name", None) == column_name for col in description)
+
+
+def _drop_order_column(schema_editor):
+    table_name = "exercise_challenge"
+    column_name = "order"
+    if not _table_exists(schema_editor, table_name):
+        return
+    if not _column_exists(schema_editor, table_name, column_name):
+        return
+    schema_editor.execute(f"ALTER TABLE {table_name} DROP COLUMN `{column_name}`;")
+
+
+def _add_order_column(schema_editor):
+    table_name = "exercise_challenge"
+    column_name = "order"
+    if not _table_exists(schema_editor, table_name):
+        return
+    if _column_exists(schema_editor, table_name, column_name):
+        return
+    schema_editor.execute(f"ALTER TABLE {table_name} ADD COLUMN `{column_name}` INT DEFAULT 0;")

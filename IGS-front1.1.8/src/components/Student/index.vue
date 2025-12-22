@@ -406,6 +406,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
+import request from "../../utils/request";
 
 // 路由实例
 const router = useRouter();
@@ -415,8 +416,8 @@ const isTeacher = ref(false);
 const userRole = ref("student"); // 可能的值: student, teacher, admin
 
 // 学生信息和数据
-const userName = ref("张明");
-const studentId = ref("20230001");
+const userName = ref("");
+const studentId = ref("");
 const userAvatar = ref("👨");
 const learningDays = ref(127);
 const continuousDays = ref(15);
@@ -481,9 +482,24 @@ const canAccessStudentFunctions = computed(() => {
 });
 
 // 确保DOM加载完成后执行初始化
-onMounted(() => {
+onMounted(async () => {
     console.log("学生首页组件已挂载，界面初始化完成");
     userRole.value = "student";
+
+    try {
+        const resp = await request.get("/student/studentInfo/");
+        const data = resp?.data || {};
+        if (typeof data.userName === "string") userName.value = data.userName;
+        if (typeof data.studentId === "string") studentId.value = data.studentId;
+        if (typeof data.userAvatar === "string" && data.userAvatar) userAvatar.value = data.userAvatar;
+    } catch (e) {
+        console.error("获取学生信息失败", e);
+        try {
+            router.push("/login");
+        } catch (error) {
+            console.error("路由跳转失败:", error);
+        }
+    }
 });
 
 // 通用方法
@@ -499,6 +515,11 @@ const navigateTo = (path) => {
 
 const logout = () => {
     console.log("学生退出登录");
+    try {
+        window.localStorage && window.localStorage.removeItem("token");
+    } catch (e) {
+        console.error("清理登录状态失败", e);
+    }
     try {
         router.push("/login");
     } catch (error) {

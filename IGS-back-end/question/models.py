@@ -5,7 +5,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from django.conf import settings  # 导入settings
 import json
-# Create your models here.
+
 # 练习记录类型枚举
 class PracticeType(models.TextChoices):
     PRACTICE = '练习', '练习'
@@ -193,9 +193,36 @@ class Question(models.Model):
 
     def get_options_list(self):
         """将JSON选项转换为列表"""
-        if self.options:
-            return json.loads(self.options)
-        return []
+        if not self.options:
+            return []
+        if isinstance(self.options, str):
+            try:
+                return json.loads(self.options)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return self.options
+
+    def get_user_answer_list(self):
+        """将JSON用户答案转换为可序列化的Python对象"""
+        if self.user_answer is None:
+            return []
+        if isinstance(self.user_answer, str):
+            try:
+                return json.loads(self.user_answer)
+            except (json.JSONDecodeError, TypeError):
+                return self.user_answer
+        return self.user_answer
+
+    def get_correct_answer_list(self):
+        """将JSON正确答案转换为可序列化的Python对象"""
+        if self.correct_answer is None:
+            return []
+        if isinstance(self.correct_answer, str):
+            try:
+                return json.loads(self.correct_answer)
+            except (json.JSONDecodeError, TypeError):
+                return self.correct_answer
+        return self.correct_answer
 
 
 # 挑战题模型

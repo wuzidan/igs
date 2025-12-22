@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import Avg, Count
-from django.contrib.auth import get_user_model
 from question.models import Question
 from datetime import datetime, timedelta
 import random
@@ -9,25 +9,10 @@ import random
 
 class KnowledgeVisualizationView(APIView):
     """学习可视化数据接口（使用实际的答题历史数据）"""
-    permission_classes = []  # 测试阶段允许匿名访问
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # 开发阶段：优先使用testuser用户
-        User = get_user_model()
-        try:
-            # 优先尝试使用testuser用户
-            user = User.objects.get(username='testuser')
-            print(f"使用测试用户: {user.username} (ID: {user.id})")
-        except User.DoesNotExist:
-            try:
-                # 如果testuser不存在，尝试使用ID=1的用户
-                user = User.objects.get(id=1)
-                print(f"使用ID=1的用户: {user.username}")
-            except User.DoesNotExist:
-                return Response({
-                    "error": "测试用户不存在，请先创建用户"},
-                    status=400
-                )
+        user = request.user
 
         # 1. 获取用户的练习记录
         practice_records = user.practice_records.all()
@@ -159,8 +144,8 @@ class KnowledgeVisualizationView(APIView):
             "completedCourses": completed_courses,
             "totalCourses": total_courses,
             "avgScore": avg_score,
-            "userName": getattr(user, 'name', '测试用户'),  # 从User模型获取
-            "studentId": getattr(user, 'student_id', '20230001'),
+            "userName": getattr(user, 'name', '') or getattr(user, 'first_name', ''),
+            "studentId": getattr(user, 'student_id', ''),
             "userAvatar": getattr(user, 'user_avatar_emoji', '👨‍🎓'),
             # 答题统计
             "accuracy": round(accuracy),

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 from idlelib import history
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -35,6 +36,7 @@ AUTH_USER_MODEL = 'student.User'  # 格式：应用名.模型名
 INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
+    'rest_framework.authtoken',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -45,8 +47,29 @@ INSTALLED_APPS = [
     'question',
     'historyRecord',
     'knowledge',
-    'visualization'
+    'visualization',
+    'teacher',
+    'classInfo',
+    'notification',
+    'user',
+    'graphs'
 ]
+
+REST_FRAMEWORK = {
+    # 分页配置：匹配前端pageSize=10
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+
+    # 权限配置：需登录才能访问接口，临时禁用以测试接口
+    # 'DEFAULT_PERMISSION_CLASSES': [
+    #     'rest_framework.permissions.IsAuthenticated',
+    # ],
+
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+}
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  
@@ -88,7 +111,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'igs_db',
         'USER': 'root',
-        'PASSWORD': '123456',
+        'PASSWORD': '123',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
@@ -166,5 +189,20 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8080",
 ]
 CORS_ALLOW_CREDENTIALS = True  # 允许跨域请求携带Cookie
-CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]  # 允许的HTTP方法
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]  # 允许的HTTP方法
 CORS_ALLOW_HEADERS = ["*"]  # 允许所有请求头
+
+
+# 1. 项目根目录（自动获取，无需修改）
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# 2. 静态资源基础配置（原有配置保留，新增/修改 MEDIA 配置）
+STATIC_URL = '/static/'  # 静态资源访问URL前缀（如 http://localhost:8000/static/）
+# 开发环境下静态文件目录（若已有，保留）
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),  # 指向项目根目录下的 static 文件夹
+]
+
+# 3. 将用户上传文件（头像）存储到/avatars
+MEDIA_URL = '/avatars/'  # 头像访问URL前缀（如 http://localhost:8000/avatars/）
+MEDIA_ROOT = os.path.join(BASE_DIR,  'avatars')  # 本地存储路径：项目根目录/static/avatars

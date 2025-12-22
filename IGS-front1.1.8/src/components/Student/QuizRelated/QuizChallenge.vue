@@ -489,6 +489,15 @@ import { useRouter } from "vue-router";
 import api from "../../../api/index";
 import StudentHeader from "../StudentHeader.vue";
 
+
+const userName = ref("");
+const studentId = ref("");
+const userAvatar = ref("👨‍💻");
+const userAvatarUrl = ref("");
+const className = ref("");
+const major = ref("");
+const email = ref("");
+
 // 路由实例
 const router = useRouter();
 
@@ -517,72 +526,124 @@ const TYPE_MAP = {
     3: "shortAnswer",
 };
 
-/**
- * 转换数据库题目到前端格式
- */
 const convertDbQuestion = (dbQuestion) => {
-    const { id, quiz, result, analysis, type } = dbQuestion;
+  const rawType = dbQuestion?.type;
 
-    // 处理题目内容和选项
-    const lines = quiz
+  // 兼容：后端可能返回数字 type，也可能返回字符串 type
+  const typeNum =
+    typeof rawType === "number"
+      ? rawType
+      : typeof rawType === "string" && /^\d+$/.test(rawType)
+        ? Number(rawType)
+        : null;
+
+  // 1) content：优先用后端 content，否则回退解析 quiz 第一行
+  let content = dbQuestion?.content;
+  let optionLines = [];
+
+  const quizStr = dbQuestion?.quiz;
+  if (!content && quizStr) {
+    const lines = String(quizStr)
+      .split(/[\n\r]+/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    content = lines[0] || "";
+    optionLines = lines.slice(1);
+  }
+
+  // 2) options：优先用后端 options（数组/JSON字符串），否则用 quiz 解析出的 optionLines
+  let optionsRaw = dbQuestion?.options;
+  let options = [];
+
+  if (Array.isArray(optionsRaw)) {
+    options = optionsRaw;
+  } else if (typeof optionsRaw === "string") {
+    // 可能是 JSON 字符串，也可能是纯文本
+    try {
+      const parsed = JSON.parse(optionsRaw);
+      options = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      options = String(optionsRaw)
         .split(/[\n\r]+/)
-        .map((line) => line.trim())
-        .filter((line) => line);
-
-    const [content, ...optionLines] = lines;
-
-    // 处理选项
-    let options = [];
-    if ([0, 1].includes(type)) {
-        // 单选题/多选题
-        options = optionLines.map((line) =>
-            line.replace(/^[A-Za-z][.、) )]\s*/, "")
-        );
-    } else if (type === 2) {
-        // 判断题
-        options = ["正确", "错误"];
+        .map((s) => s.trim())
+        .filter(Boolean);
     }
-
-    // 处理正确答案
-    let correctAnswer = null;
-    if (type === 0) {
-        // 单选题
-        correctAnswer = result.charCodeAt(0) - "A".charCodeAt(0);
-    } else if (type === 1) {
-        // 多选题
-        const answers = result.replace(/,/g, "").split("");
-        correctAnswer = answers.map(
-            (char) => char.charCodeAt(0) - "A".charCodeAt(0)
-        );
-    } else if (type === 2) {
-        // 判断题
-        correctAnswer = ["对", "正确", "A"].includes(result) ? 0 : 1;
-    } else if (type === 3) {
-        // 简答题
-        correctAnswer = result || "暂无答案";
+  } else if (optionLines.length) {
+    // 从 quiz 中解析出来的选项
+    if ([0, 1].includes(typeNum)) {
+      options = optionLines.map((line) =>
+        line.replace(/^[A-Za-z][.、)\]]\s*/, "")
+      );
+    } else if (typeNum === 2) {
+      options = ["正确", "错误"];
     }
+  } else if (typeNum === 2) {
+    options = ["正确", "错误"];
+  }
 
-    // 模拟难度
-    let difficulty = "medium";
+  // 3) correctAnswer：优先用后端 correctAnswer，否则回退解析 result
+  let correctAnswer = dbQuestion?.correctAnswer ?? dbQuestion?.correct_answer ?? null;
+
+  if (correctAnswer == null) {
+    const resultStr = dbQuestion?.result;
+
+    if (typeNum === 0) {
+      // 单选：A/B/C...
+      const r = String(resultStr || "");
+      correctAnswer = r ? r.charCodeAt(0) - "A".charCodeAt(0) : null;
+    } else if (typeNum === 1) {
+      // 多选：AC / A,C / A C
+      const r = String(resultStr || "").replace(/[^A-Za-z]/g, "");
+      correctAnswer = r
+        ? r.split("").map((ch) => ch.charCodeAt(0) - "A".charCodeAt(0))
+        : [];
+    } else if (typeNum === 2) {
+      const r = String(resultStr || "");
+      correctAnswer = ["对", "正确", "A", "true", "True"].includes(r) ? 0 : 1;
+    } else if (typeNum === 3) {
+      correctAnswer = resultStr || "暂无答案";
+    }
+  }
+
+  // 4) difficulty：优先用后端 difficulty，否则用原模拟逻辑
+  let difficulty = dbQuestion?.difficulty;
+  if (!difficulty) {
+    const id = dbQuestion?.id ?? 0;
+    difficulty = "medium";
     if (id % 3 === 0) difficulty = "easy";
     else if (id % 3 === 2) difficulty = "hard";
+  }
 
-    return {
-        id,
-        content,
-        type: TYPE_MAP[type] || "singleChoice",
-        difficulty,
-        options,
-        correctAnswer,
-        analysis: analysis || "暂无解析",
-        accuracy: Math.floor(Math.random() * 30) + 50,
-        completed: Math.random() > 0.5,
-        correct: Math.random() > 0.3,
-        userAnswer:
-            Math.random() > 0.5
-                ? correctAnswer
-                : Math.floor(Math.random() * (options.length || 2)),
-    };
+  const id = dbQuestion?.id;
+  const analysis = dbQuestion?.analysis || "暂无解析";
+
+  // 5) completed/accuracy/correct/userAnswer：优先用后端值
+  const completed =
+    typeof dbQuestion?.completed === "boolean" ? dbQuestion.completed : false;
+
+  const accuracy =
+    typeof dbQuestion?.accuracy === "number" ? dbQuestion.accuracy : 0;
+
+  const correct =
+    typeof dbQuestion?.correct === "boolean" ? dbQuestion.correct : false;
+
+  const userAnswer =
+    dbQuestion?.userAnswer ?? dbQuestion?.user_answer ?? null;
+
+  return {
+    id,
+    content: content || "",
+    type: TYPE_MAP[typeNum] || (typeof rawType === "string" ? rawType : "singleChoice"),
+    difficulty,
+    options,
+    correctAnswer,
+    analysis,
+    accuracy,
+    completed,
+    correct,
+    userAnswer,
+  };
 };
 
 // 获取用户信息的函数已在StudentHeader组件中实现，此处不再需要
@@ -948,6 +1009,20 @@ const goToRegister = () => {
     router.push({ name: "Register", params: { type: "register" } });
 };
 
+// 获取用户信息
+const fetchUserInfo = () => {
+  return api.getStudentinfo().then((res) => {
+    const userData = res?.data?.data ?? res?.data ?? {};
+
+    userName.value = userData.userName || "未知用户";
+    studentId.value = userData.studentId || "未知学号";
+    userAvatar.value = userData.userAvatar || "👨‍💻";
+    userAvatarUrl.value = userData.userAvatarUrl || "";
+    className.value = userData.className || "";
+    major.value = userData.major || "";
+    email.value = userData.email || "";
+  });
+};
 const retryLoad = () => {
     // 重置状态
     isLoading.value = true;

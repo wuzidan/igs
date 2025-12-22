@@ -21,6 +21,7 @@
                             id="subject-select"
                             v-model="selectedSubject"
                             class="input-field"
+                            @change="onFiltersChange"
                         >
                             <option value="">全部学科</option>
                             <option
@@ -39,6 +40,7 @@
                             id="difficulty-select"
                             v-model="selectedDifficulty"
                             class="input-field"
+                            @change="onFiltersChange"
                         >
                             <option value="">全部难度</option>
                             <option value="easy">简单</option>
@@ -53,6 +55,7 @@
                             id="exercise-type"
                             v-model="selectedType"
                             class="input-field"
+                            @change="onFiltersChange"
                         >
                             <option value="">全部题型</option>
                             <option value="single-choice">单选题</option>
@@ -96,8 +99,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="exercise in exercises" :key="exercise.id">
-                            <td>{{ exercise.id }}</td>
+                        <tr v-for="exercise in displayExercises" :key="exercise.id">
+                            <td>{{ exercise.exerciseId || exercise.id }}</td>
                             <td class="exercise-title">
                                 {{ truncateText(exercise.title, 30) }}
                             </td>
@@ -156,19 +159,33 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
+import request from "../../../utils/request";
 
 const router = useRouter();
 
+const isLoggedIn = ref(
+    !!(window.localStorage && window.localStorage.getItem("token"))
+);
+
+const handleAuthFailure = async (e) => {
+    console.error("请求失败", e);
+    isLoggedIn.value = false;
+    try {
+        window.localStorage && window.localStorage.removeItem("token");
+    } catch (err) {
+        console.error("清理登录状态失败", err);
+    }
+    try {
+        router.push("/login");
+    } catch (err) {
+        console.error("路由跳转失败", err);
+    }
+};
+
 // 学科数据
-const subjects = ref([
-    { id: 1, name: "编程基础" },
-    { id: 2, name: "数据结构" },
-    { id: 3, name: "算法设计" },
-    { id: 4, name: "前端开发" },
-    { id: 5, name: "后端开发" },
-]);
+const subjects = ref([]);
 
 // 筛选条件
 const selectedSubject = ref("");
@@ -182,40 +199,75 @@ const pageSize = ref(10);
 const totalPages = ref(1);
 
 // 习题数据
-const exercises = ref([
-    {
-        id: 1001,
-        title: "JavaScript中，以下哪个不是基本数据类型？",
-        subjectId: 1,
-        difficulty: "easy",
-        type: "single-choice",
-        createTime: "2023-08-15T10:30:00",
-    },
-    {
-        id: 1002,
-        title: "以下哪些排序算法的平均时间复杂度为O(n log n)？",
-        subjectId: 3,
-        difficulty: "medium",
-        type: "multiple-choice",
-        createTime: "2023-08-16T14:15:00",
-    },
-    {
-        id: 1003,
-        title: "在React中，useState钩子是否可以直接修改状态？",
-        subjectId: 4,
-        difficulty: "easy",
-        type: "true-false",
-        createTime: "2023-08-17T09:45:00",
-    },
-    {
-        id: 1004,
-        title: "链表和数组相比，插入操作的时间复杂度有什么优势？",
-        subjectId: 2,
-        difficulty: "medium",
-        type: "essay",
-        createTime: "2023-08-18T11:20:00",
-    },
-]);
+const exercises = ref([]);
+
+const displayExercises = computed(() => {
+    const list = Array.isArray(exercises.value) ? exercises.value : [];
+    const start = (currentPage.value - 1) * pageSize.value;
+    return list.slice(start, start + pageSize.value);
+});
+
+const normalizeExercise = (item) => {
+    if (!item || typeof item !== "object") return {};
+    return {
+        ...item,
+        id: item.id,
+        exerciseId: item.exerciseId || item.exercise_id || item.exerciseId,
+        title: item.title || item.name || "",
+        createTime: item.createTime || item.created_at || item.createdAt || "",
+        subjectId: item.subjectId,
+        difficulty: item.difficulty,
+        type: item.type,
+    };
+};
+
+const applyOptionalClientFilters = (list) => {
+    let out = Array.isArray(list) ? list : [];
+
+    if (selectedSubject.value) {
+        out = out.filter((x) => {
+            if (x.subjectId === undefined || x.subjectId === null || x.subjectId === "") {
+                return true;
+            }
+            return String(x.subjectId) === String(selectedSubject.value);
+        });
+    }
+    if (selectedDifficulty.value) {
+        out = out.filter((x) => {
+            if (!x.difficulty) return true;
+            return String(x.difficulty) === String(selectedDifficulty.value);
+        });
+    }
+    if (selectedType.value) {
+        out = out.filter((x) => {
+            if (!x.type) return true;
+            return String(x.type) === String(selectedType.value);
+        });
+    }
+    return out;
+};
+
+const fetchSubjects = async () => {
+    const resp = await request.get("/question/subjects/");
+    const list = resp?.data;
+    subjects.value = Array.isArray(list) ? list : [];
+};
+
+const fetchExercises = async () => {
+    const resp = await request.get("/question/", {
+        params: {
+            keyword: searchKeyword.value || "",
+            subjectId: selectedSubject.value || "",
+            difficulty: selectedDifficulty.value || "",
+            type: selectedType.value || "",
+        },
+    });
+
+    const list = resp?.data?.data;
+    const normalized = (Array.isArray(list) ? list : []).map(normalizeExercise);
+    exercises.value = applyOptionalClientFilters(normalized);
+    totalPages.value = Math.max(1, Math.ceil(exercises.value.length / pageSize.value));
+};
 
 // 格式化日期
 const formatDate = (dateString) => {
@@ -281,22 +333,23 @@ const debounceSearch = () => {
 };
 
 // 搜索习题
-const searchExercises = () => {
-    // 这里添加搜索逻辑
-    console.log("搜索习题:", {
-        searchKeyword,
-        selectedSubject,
-        selectedDifficulty,
-        selectedType,
-    });
-    // 实际应用中，这里会根据筛选条件从API获取数据
+const searchExercises = async () => {
+    currentPage.value = 1;
+    try {
+        await fetchExercises();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
+};
+
+const onFiltersChange = async () => {
+    await searchExercises();
 };
 
 // 改变页码
 const changePage = (page) => {
     if (page >= 1 && page <= totalPages.value) {
         currentPage.value = page;
-        // 实际应用中，这里会加载对应页的习题数据
     }
 };
 
@@ -311,21 +364,37 @@ const editExercise = (exerciseId) => {
 };
 
 // 删除习题
-const deleteExercise = (exerciseId) => {
-    // 这里添加删除习题的逻辑
-    if (confirm("确定要删除这道习题吗？")) {
-        exercises.value = exercises.value.filter(
-            (exercise) => exercise.id !== exerciseId
-        );
-        // 实际应用中，这里会调用API删除习题
+const deleteExercise = async (exerciseId) => {
+    if (!confirm("确定要删除这道习题吗？")) return;
+    try {
+        await request.delete(`/question/${exerciseId}/`);
+        exercises.value = exercises.value.filter((exercise) => exercise.id !== exerciseId);
+        totalPages.value = Math.max(1, Math.ceil(exercises.value.length / pageSize.value));
+        if (currentPage.value > totalPages.value) {
+            currentPage.value = totalPages.value;
+        }
+    } catch (e) {
+        await handleAuthFailure(e);
     }
 };
 
 // 组件挂载时执行
-onMounted(() => {
-    // 初始化数据
-    totalPages.value = Math.ceil(exercises.value.length / pageSize.value);
-    // 实际应用中，这里会从API获取习题数据
+onMounted(async () => {
+    if (!isLoggedIn.value) {
+        try {
+            router.push("/login");
+        } catch (err) {
+            console.error("路由跳转失败", err);
+        }
+        return;
+    }
+
+    try {
+        await fetchSubjects();
+        await fetchExercises();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 });
 </script>
 
