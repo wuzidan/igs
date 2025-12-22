@@ -551,9 +551,29 @@
 <script setup>
 import { ref, onMounted, reactive, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import request from "../../../utils/request";
 
 const router = useRouter();
 const route = useRoute();
+
+const isLoggedIn = ref(
+    !!(window.localStorage && window.localStorage.getItem("token"))
+);
+
+const handleAuthFailure = async (e) => {
+    console.error("请求失败", e);
+    isLoggedIn.value = false;
+    try {
+        window.localStorage && window.localStorage.removeItem("token");
+    } catch (err) {
+        console.error("清理登录状态失败", err);
+    }
+    try {
+        router.push("/login");
+    } catch (err) {
+        console.error("路由跳转失败", err);
+    }
+};
 
 // 图谱数据
 const graphData = reactive({
@@ -568,13 +588,28 @@ const graphData = reactive({
 });
 
 // 知识领域数据
-const domains = ref([
-    { id: 1, name: "计算机科学" },
-    { id: 2, name: "数学" },
-    { id: 3, name: "物理学" },
-    { id: 4, name: "生物学" },
-    { id: 5, name: "工程技术" },
-]);
+const domains = ref([]);
+
+const fetchDomains = async () => {
+    const resp = await request.get("/graphs/domains/");
+    const list = resp?.data;
+    domains.value = Array.isArray(list) ? list : [];
+};
+
+const fetchGraphDetail = async () => {
+    const resp = await request.get(`/graphs/${graphData.id}/`);
+    const data = resp?.data || {};
+    graphData.name = data.name || graphData.name;
+    graphData.domainId = data.domainId || graphData.domainId;
+    graphData.type = data.type || graphData.type;
+    graphData.status = data.status || graphData.status;
+    graphData.description = data.description || "";
+
+    graphData.nodes = Array.isArray(data.nodes) ? data.nodes : [];
+    graphData.relationships = Array.isArray(data.relationships)
+        ? data.relationships
+        : [];
+};
 
 // 编辑器状态
 const activeTool = ref("select");
@@ -712,11 +747,31 @@ const featureTips = {
 };
 
 // 初始化图谱
-onMounted(() => {
+onMounted(async () => {
+    if (!isLoggedIn.value) {
+        try {
+            router.push("/login");
+        } catch (err) {
+            console.error("路由跳转失败", err);
+        }
+        return;
+    }
+
+    if (graphData.id === "new") {
+        router.push("/teacher/graphs/create");
+        return;
+    }
+
+    try {
+        await fetchDomains();
+        await fetchGraphDetail();
+    } catch (e) {
+        await handleAuthFailure(e);
+        return;
+    }
+
     nextTick(() => {
-        initSampleData();
         adjustEdgesContainerSize();
-        window.addEventListener("resize", adjustEdgesContainerSize);
     });
 });
 
@@ -1162,6 +1217,7 @@ const addSubgraph = () => {
     nextTick(() => adjustEdgesContainerSize());
     recordHistory();
 };
+
 // 导入图谱功能实现
 const importGraph = () => {
     // 创建隐藏的文件选择input
@@ -1335,6 +1391,7 @@ const loadImportedGraph = (importedData) => {
         }
     });
 };
+
 // 处理节点点击
 // 处理节点点击（考虑画布缩放的Shift键多选）
 const handleNodeClick = (node) => {
@@ -1483,13 +1540,15 @@ const handleCanvasMouseDown = (event) => {
         // 获取画布的客户端矩形（视口坐标）
         const canvasRect = graphCanvas.value.getBoundingClientRect();
 
-        // 将鼠标点击位置从视口坐标转换为画布原始坐标（考虑缩放和偏移）
+        // 将鼠标点击位置从视口坐标转换为画布原始坐标（考虑缩放）
         // 公式：画布坐标 = (视口坐标 - 画布偏移) / 缩放比例
         const startX =
-            (event.clientX - canvasRect.left) / viewState.value.scale -
+            (event.clientX - canvasRect.left) /
+            viewState.value.scale -
             viewState.value.offset.x;
         const startY =
-            (event.clientY - canvasRect.top) / viewState.value.scale -
+            (event.clientY - canvasRect.top) /
+            viewState.value.scale -
             viewState.value.offset.y;
 
         boxSelect.value = {
@@ -1508,10 +1567,12 @@ const handleCanvasMouseDown = (event) => {
 
             // 实时转换鼠标位置到画布原始坐标
             const currentX =
-                (e.clientX - canvasRect.left) / viewState.value.scale -
+                (e.clientX - canvasRect.left) /
+                viewState.value.scale -
                 viewState.value.offset.x;
             const currentY =
-                (e.clientY - canvasRect.top) / viewState.value.scale -
+                (e.clientY - canvasRect.top) /
+                viewState.value.scale -
                 viewState.value.offset.y;
 
             boxSelect.value.endX = currentX;
@@ -1751,6 +1812,7 @@ const calculateSelectedNodes = () => {
         ...newlySelected.filter((node) => !allSelectedIds.has(node.id)),
     ];
 };
+
 // 结束框选
 const endSelection = () => {
     if (boxSelect.value.isSelecting) {
@@ -1985,15 +2047,40 @@ const redo = () => {
 };
 
 // 图谱操作
-const saveGraph = () => {
-    console.log("保存图谱:", graphData);
-    alert("图谱已保存");
+const saveGraph = async () => {
+    try {
+        await request.patch(
+            `/graphs/${graphData.id}/`,
+            {
+                name: graphData.name,
+                domainId: graphData.domainId,
+                type: graphData.type,
+                status: graphData.status,
+                description: graphData.description || "",
+                nodes: graphData.nodes,
+                relationships: graphData.relationships,
+            },
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+        alert("图谱已保存");
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 };
 
-const publishGraph = () => {
+const publishGraph = async () => {
     if (confirm("确定要发布此图谱吗？发布后所有人可见。")) {
-        graphData.status = "published";
-        saveGraph();
+        try {
+            const resp = await request.post(`/graphs/${graphData.id}/publish/`);
+            graphData.status = resp?.data?.status || "published";
+            await saveGraph();
+        } catch (e) {
+            await handleAuthFailure(e);
+        }
     }
 };
 
@@ -2001,19 +2088,26 @@ const previewGraph = () => {
     alert("预览图谱功能");
 };
 
-const exportGraph = () => {
-    const dataStr =
-        "data:text/json;charset=utf-8," +
-        encodeURIComponent(JSON.stringify(graphData));
-    const downloadAnchorNode = document.createElement("a");
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute(
-        "download",
-        `${graphData.name || "知识图谱"}.json`
-    );
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
+const exportGraph = async () => {
+    try {
+        const resp = await request.get(`/graphs/${graphData.id}/export/`);
+        const exportData = resp?.data || graphData;
+        const dataStr =
+            "data:text/json;charset=utf-8," +
+            encodeURIComponent(JSON.stringify(exportData));
+
+        const downloadAnchorNode = document.createElement("a");
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute(
+            "download",
+            `${graphData.name || "graph"}.json`
+        );
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 };
 
 const exportAsImage = () => {

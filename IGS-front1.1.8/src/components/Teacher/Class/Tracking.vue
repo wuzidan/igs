@@ -291,6 +291,7 @@
 import { ref, onMounted, onUnmounted, nextTick, watchEffect } from "vue";
 import { useRouter } from "vue-router";
 import { Chart, registerables } from "chart.js";
+import request from "../../../utils/request";
 
 // 注册 Chart.js 所有组件
 Chart.register(...registerables);
@@ -303,12 +304,7 @@ const knowledgeChart = ref(null);
 const studentTrendChart = ref(null);
 
 // 班级数据
-const classes = ref([
-    { id: 1, name: "编程基础班" },
-    { id: 2, name: "前端开发班" },
-    { id: 3, name: "后端开发班" },
-    { id: 4, name: "算法与数据结构班" },
-]);
+const classes = ref([]);
 
 // 筛选条件
 const selectedClass = ref("");
@@ -316,243 +312,7 @@ const startDate = ref("");
 const endDate = ref("");
 
 // 学生数据 - 扩展了更多详细信息
-const students = ref([
-    {
-        id: 1,
-        name: "张明",
-        studentId: "DEV2023001",
-        classId: 2,
-        progress: 85,
-        averageScore: 88,
-        lastStudyTime: "2023-08-19T14:30:00",
-        favoriteLanguage: "JavaScript",
-        completedProjects: 8,
-        enrollmentDate: "2023-01-15T00:00:00",
-        totalStudyHours: 186,
-        attendanceRate: 95,
-        skills: [
-            { name: "HTML/CSS", level: 90, color: "#e34c26" },
-            { name: "JavaScript", level: 92, color: "#f0db4f" },
-            { name: "React", level: 85, color: "#61dafb" },
-            { name: "Node.js", level: 78, color: "#68a063" },
-            { name: "Git", level: 82, color: "#f1502f" },
-        ],
-        recentProjects: [
-            {
-                id: 101,
-                name: "响应式电商网站",
-                description: "使用React和Node.js开发的全功能电商网站前端",
-                score: 92,
-                completionDate: "2023-08-15T00:00:00",
-                hoursSpent: 45,
-            },
-            {
-                id: 102,
-                name: "待办事项应用",
-                description: "具有用户认证和数据持久化的待办事项管理应用",
-                score: 88,
-                completionDate: "2023-07-28T00:00:00",
-                hoursSpent: 28,
-            },
-        ],
-        weeklyProgress: [75, 78, 80, 82, 85],
-    },
-    {
-        id: 2,
-        name: "李华",
-        studentId: "DEV2023002",
-        classId: 1,
-        progress: 72,
-        averageScore: 76,
-        lastStudyTime: "2023-08-18T09:15:00",
-        favoriteLanguage: "Python",
-        completedProjects: 5,
-        enrollmentDate: "2023-02-10T00:00:00",
-        totalStudyHours: 124,
-        attendanceRate: 88,
-        skills: [
-            { name: "Python基础语法", level: 85, color: "#306998" },
-            { name: "数据结构", level: 76, color: "#ffd43b" },
-            { name: "算法基础", level: 70, color: "#00758f" },
-            { name: "Web基础", level: 65, color: "#e34c26" },
-        ],
-        recentProjects: [
-            {
-                id: 201,
-                name: "数据分析工具",
-                description: "使用Python进行数据清洗和可视化的工具",
-                score: 80,
-                completionDate: "2023-08-10T00:00:00",
-                hoursSpent: 32,
-            },
-            {
-                id: 202,
-                name: "文本分析器",
-                description: "分析文本情感倾向和关键词提取的Python程序",
-                score: 75,
-                completionDate: "2023-07-20T00:00:00",
-                hoursSpent: 22,
-            },
-        ],
-        weeklyProgress: [60, 65, 68, 70, 72],
-    },
-    {
-        id: 3,
-        name: "王强",
-        studentId: "DEV2023003",
-        classId: 3,
-        progress: 92,
-        averageScore: 94,
-        lastStudyTime: "2023-08-20T11:45:00",
-        favoriteLanguage: "Java",
-        completedProjects: 12,
-        enrollmentDate: "2023-01-05T00:00:00",
-        totalStudyHours: 215,
-        attendanceRate: 98,
-        skills: [
-            { name: "Java基础", level: 95, color: "#5382a1" },
-            { name: "Spring框架", level: 92, color: "#6db33f" },
-            { name: "SQL数据库", level: 88, color: "#00758f" },
-            { name: "RESTfulAPI", level: 85, color: "#306998" },
-        ],
-        recentProjects: [
-            {
-                id: 301,
-                name: "用户管理系统",
-                description: "基于Spring Boot的完整用户管理和认证系统",
-                score: 96,
-                completionDate: "2023-08-18T00:00:00",
-                hoursSpent: 52,
-            },
-            {
-                id: 302,
-                name: "在线商店API",
-                description: "完整的RESTful API实现在线商店功能",
-                score: 94,
-                completionDate: "2023-08-05T00:00:00",
-                hoursSpent: 40,
-            },
-        ],
-        weeklyProgress: [82, 85, 88, 90, 92],
-    },
-    {
-        id: 4,
-        name: "赵敏",
-        studentId: "DEV2023004",
-        classId: 4,
-        progress: 68,
-        averageScore: 70,
-        lastStudyTime: "2023-08-20T16:20:00",
-        favoriteLanguage: "C++",
-        completedProjects: 3,
-        enrollmentDate: "2023-03-01T00:00:00",
-        totalStudyHours: 98,
-        attendanceRate: 82,
-        skills: [
-            { name: "C++基础", level: 75, color: "#00599c" },
-            { name: "算法实现", level: 72, color: "#ffd43b" },
-            { name: "数据结构", level: 65, color: "#00758f" },
-            { name: "内存管理", level: 60, color: "#e34c26" },
-        ],
-        recentProjects: [
-            {
-                id: 401,
-                name: "排序算法比较",
-                description: "实现并比较多种排序算法的效率",
-                score: 72,
-                completionDate: "2023-08-12T00:00:00",
-                hoursSpent: 25,
-            },
-            {
-                id: 402,
-                name: "链表应用",
-                description: "使用链表实现的文本编辑器基本功能",
-                score: 68,
-                completionDate: "2023-07-30T00:00:00",
-                hoursSpent: 18,
-            },
-        ],
-        weeklyProgress: [58, 62, 65, 67, 68],
-    },
-    {
-        id: 5,
-        name: "陈杰",
-        studentId: "DEV2023005",
-        classId: 2,
-        progress: 80,
-        averageScore: 82,
-        lastStudyTime: "2023-08-19T10:10:00",
-        favoriteLanguage: "TypeScript",
-        completedProjects: 7,
-        enrollmentDate: "2023-01-20T00:00:00",
-        totalStudyHours: 165,
-        attendanceRate: 92,
-        skills: [
-            { name: "TypeScript", level: 88, color: "#3178c6" },
-            { name: "Angular", level: 82, color: "#dd0031" },
-            { name: "RxJS", level: 78, color: "#b7178c" },
-            { name: "单元测试", level: 75, color: "#68a063" },
-        ],
-        recentProjects: [
-            {
-                id: 501,
-                name: "任务管理应用",
-                description: "使用Angular和TypeScript开发的任务管理系统",
-                score: 85,
-                completionDate: "2023-08-16T00:00:00",
-                hoursSpent: 38,
-            },
-            {
-                id: 502,
-                name: "天气仪表板",
-                description: "集成天气API的响应式仪表板",
-                score: 80,
-                completionDate: "2023-07-25T00:00:00",
-                hoursSpent: 24,
-            },
-        ],
-        weeklyProgress: [70, 73, 76, 78, 80],
-    },
-    {
-        id: 6,
-        name: "刘洋",
-        studentId: "DEV2023006",
-        classId: 3,
-        progress: 95,
-        averageScore: 96,
-        lastStudyTime: "2023-08-21T09:30:00",
-        favoriteLanguage: "Go",
-        completedProjects: 15,
-        enrollmentDate: "2023-01-01T00:00:00",
-        totalStudyHours: 240,
-        attendanceRate: 99,
-        skills: [
-            { name: "Go基础", level: 96, color: "#00add8" },
-            { name: "并发编程", level: 94, color: "#375eab" },
-            { name: "微服务", level: 90, color: "#68a063" },
-            { name: "Docker", level: 88, color: "#0db7ed" },
-        ],
-        recentProjects: [
-            {
-                id: 601,
-                name: "分布式缓存",
-                description: "使用Go实现的分布式缓存系统",
-                score: 98,
-                completionDate: "2023-08-20T00:00:00",
-                hoursSpent: 65,
-            },
-            {
-                id: 602,
-                name: "API网关",
-                description: "基于Go的轻量级API网关",
-                score: 95,
-                completionDate: "2023-08-08T00:00:00",
-                hoursSpent: 48,
-            },
-        ],
-        weeklyProgress: [88, 90, 92, 94, 95],
-    },
-]);
+const students = ref([]);
 
 // 模态窗口状态
 const showStudentDetail = ref(false);
@@ -578,102 +338,73 @@ const getClassName = (classId) => {
 };
 
 // 班级整体进度数据
-const progressData = ref({
-    labels: [
-        "第1周",
-        "第2周",
-        "第3周",
-        "第4周",
-        "第5周",
-        "第6周",
-        "第7周",
-        "第8周",
-        "第9周",
-        "第10周",
-        "第11周",
-        "第12周",
-    ],
-    datasets: [
-        {
-            label: "编程基础班",
-            data: [65, 72, 78, 80, 85, 88, 90, 89, 92, 94, 95, 96],
-            borderColor: "#3498db",
-            backgroundColor: "rgba(52, 152, 219, 0.1)",
-            tension: 0.3,
-            fill: true,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-        },
-        {
-            label: "前端开发班",
-            data: [58, 62, 68, 75, 78, 82, 85, 87, 89, 90, 91, 93],
-            borderColor: "#2ecc71",
-            backgroundColor: "rgba(46, 204, 113, 0.1)",
-            tension: 0.3,
-            fill: true,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-        },
-        {
-            label: "后端开发班",
-            data: [70, 75, 78, 82, 85, 88, 92, 93, 94, 95, 96, 97],
-            borderColor: "#e74c3c",
-            backgroundColor: "rgba(231, 76, 60, 0.1)",
-            tension: 0.3,
-            fill: true,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-        },
-        {
-            label: "算法与数据结构班",
-            data: [62, 68, 73, 78, 82, 85, 87, 89, 91, 92, 93, 94],
-            borderColor: "#9b59b6",
-            backgroundColor: "rgba(155, 89, 182, 0.1)",
-            tension: 0.3,
-            fill: true,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-        },
-    ],
-});
+const progressData = ref({ labels: [], datasets: [] });
 
 // 知识点掌握情况数据
-const knowledgeData = ref({
-    labels: [
-        "JavaScript基础",
-        "HTML/CSS",
-        "React框架",
-        "Node.js",
-        "算法与数据结构",
-        "数据库",
-        "Git版本控制",
-        "计算机网络",
-    ],
-    datasets: [
-        {
-            label: "整体掌握度",
-            data: [85, 78, 72, 65, 80, 70, 75, 68],
-            backgroundColor: "rgba(52, 152, 219, 0.2)",
-            borderColor: "rgba(52, 152, 219, 1)",
-            pointBackgroundColor: "rgba(52, 152, 219, 1)",
-            pointBorderColor: "#fff",
-            pointHoverBackgroundColor: "#fff",
-            pointHoverBorderColor: "rgba(52, 152, 219, 1)",
-            borderWidth: 2,
-        },
-        {
-            label: "优秀学生掌握度",
-            data: [95, 90, 85, 80, 92, 85, 90, 80],
-            backgroundColor: "rgba(46, 204, 113, 0.2)",
-            borderColor: "rgba(46, 204, 113, 1)",
-            pointBackgroundColor: "rgba(46, 204, 113, 1)",
-            pointBorderColor: "#fff",
-            pointHoverBackgroundColor: "#fff",
-            pointHoverBorderColor: "rgba(46, 204, 113, 1)",
-            borderWidth: 2,
-        },
-    ],
-});
+const knowledgeData = ref({ labels: [], datasets: [] });
+
+const isLoggedIn = ref(
+    !!(window.localStorage && window.localStorage.getItem("token"))
+);
+
+const handleAuthFailure = async (e) => {
+    console.error("请求失败", e);
+    isLoggedIn.value = false;
+    try {
+        window.localStorage && window.localStorage.removeItem("token");
+    } catch (err) {
+        console.error("清理登录状态失败", err);
+    }
+    try {
+        router.push("/login");
+    } catch (err) {
+        console.error("路由跳转失败", err);
+    }
+};
+
+const fetchClasses = async () => {
+    if (!isLoggedIn.value) return;
+    const resp = await request.get("/classInfo/class-chart/class-list/");
+    classes.value = Array.isArray(resp?.data) ? resp.data : [];
+};
+
+const fetchCharts = async () => {
+    if (!isLoggedIn.value) return;
+    const [progressResp, knowledgeResp] = await Promise.all([
+        request.get("/classInfo/class-chart/progress-chart/"),
+        request.get("/classInfo/class-chart/knowledge-chart/"),
+    ]);
+    progressData.value = progressResp?.data || { labels: [], datasets: [] };
+    knowledgeData.value = knowledgeResp?.data || { labels: [], datasets: [] };
+};
+
+const fetchStudents = async () => {
+    if (!isLoggedIn.value) return;
+    if (!selectedClass.value) {
+        students.value = [];
+        return;
+    }
+    const resp = await request.get(
+        `/classInfo/classes/${selectedClass.value}/students/`
+    );
+    const data = resp?.data;
+    const list = data?.results?.students || data?.students || data?.results || [];
+    students.value = Array.isArray(list)
+        ? list.map((s) => ({
+              id: s.id,
+              name: s.name || "",
+              studentId: s.studentId || s.student_id || "",
+              favoriteLanguage: s.favoriteLanguage || "-",
+              progress: typeof s.progress === "number" ? s.progress : 0,
+              averageScore: s.averageScore || "-",
+              completedProjects: s.completedProjects || 0,
+              lastStudyTime: s.lastStudyTime || s.joinTime || "",
+              weeklyProgress: Array.isArray(s.weeklyProgress)
+                  ? s.weeklyProgress
+                  : [0, 0, 0, 0, 0],
+          }))
+        : [];
+};
 
 // 创建班级整体进度图表
 const createProgressChart = () => {
@@ -903,10 +634,16 @@ const createStudentTrendChart = () => {
 };
 
 // 应用筛选
-const applyFilters = () => {
+const applyFilters = async () => {
     console.log("应用筛选:", { selectedClass, startDate, endDate });
-    createProgressChart();
-    createKnowledgeChart();
+    try {
+        await fetchStudents();
+        await fetchCharts();
+        createProgressChart();
+        createKnowledgeChart();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 };
 
 // 重置筛选
@@ -947,17 +684,20 @@ const handleResize = () => {
 };
 
 // 组件挂载时初始化
-onMounted(() => {
-    // 使用setTimeout确保路由切换完成
-    const timer = setTimeout(() => {
-        nextTick(() => {
+onMounted(async () => {
+    const timer = setTimeout(async () => {
+        try {
+            await fetchClasses();
+            await fetchCharts();
+            await nextTick();
             createProgressChart();
             createKnowledgeChart();
-        });
-        window.addEventListener("resize", handleResize);
-    }, 100); // 短暂延迟确保DOM完全就绪
+            window.addEventListener("resize", handleResize);
+        } catch (e) {
+            await handleAuthFailure(e);
+        }
+    }, 100);
 
-    // 清理函数
     return () => clearTimeout(timer);
 });
 

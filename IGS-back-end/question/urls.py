@@ -1,9 +1,17 @@
 # urls.py（应用内）
-from django.urls import path
-from .views import question
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
-app_name='question'
+from .views import ExerciseViewSet, debug_view, question, question_list
+
+app_name = 'question'
+
+router = DefaultRouter()
+router.register(r'', ExerciseViewSet, basename='exercise')
+
 urlpatterns = [
-    # 作答记录数据
-    path('question/', question.as_view(), name='question'),
+    path('question/', question_list, name='question_list'),
+    path('', include(router.urls)),
+    path('page/', question.as_view(), name='question_page'),
+    path('debug/', debug_view, name='debug'),
 ]

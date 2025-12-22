@@ -13,22 +13,37 @@ class KnowledgeStructureView(APIView):
     # permission_classes = [IsAuthenticated]  # 仅登录用户可访问
     permission_classes = []
     def get(self, request):
-        # 直接返回模拟数据，确保前端显示有意义的内容
-        return self.get_mock_data()
+        target_user = None
+        if getattr(request, "user", None) and request.user.is_authenticated:
+            target_user = request.user
+        else:
+            user_id = request.query_params.get("user_id") or request.query_params.get("userId")
+            if user_id:
+                target_user = User.objects.filter(id=user_id).first()
 
-        # 以下是原始逻辑，暂时注释掉
-        # 获取测试用户
-        # test_user = User.objects.filter(id=1).first()
-        # if not test_user:
-        #     # 即使没有用户，也返回模拟数据
-        #     return self.get_mock_data()
+        if not target_user:
+            return Response({
+                "coverageRate": 0,
+                "masteredCount": 0,
+                "totalCount": 0,
+                "avgMastery": 0,
+                "courseList": [],
+                "chapterList": [],
+                "knowledgeList": [],
+            })
 
-        # # 获取用户的知识点数据
-        # knowledge_points = KnowledgePoint.objects.filter(user=test_user)
+        knowledge_points = KnowledgePoint.objects.filter(user=target_user)
 
-        # # 如果数据库中没有数据，返回模拟数据
-        # if not knowledge_points.exists():
-        #     return self.get_mock_data()
+        if not knowledge_points.exists():
+            return Response({
+                "coverageRate": 0,
+                "masteredCount": 0,
+                "totalCount": 0,
+                "avgMastery": 0,
+                "courseList": [],
+                "chapterList": [],
+                "knowledgeList": [],
+            })
 
         # 计算统计数据
         total_count = knowledge_points.count()  # 总知识点数量
@@ -36,12 +51,24 @@ class KnowledgeStructureView(APIView):
         coverage_rate = (mastered_count / total_count) * 100 if total_count > 0 else 0  # 覆盖率
         avg_mastery = knowledge_points.aggregate(avg=Avg("mastery"))["avg"] or 0  # 平均掌握程度
 
+        course_id = 1
+        chapter_id = 101
+
+        category_map = {
+            "core": "core",
+            "basic": "general",
+            "advanced": "important",
+            "extended": "general",
+        }
+
         # 格式化知识点列表
         knowledge_list = [
             {
                 "id": point.id,
+                "courseId": course_id,
+                "chapterId": chapter_id,
                 "name": point.name,
-                "category": point.category,
+                "category": category_map.get(point.category, "general"),
                 "categoryText": point.get_category_display(),  # 显示分类文本（如"核心知识点"）
                 "mastery": point.mastery,
                 "description": point.description,
@@ -51,12 +78,30 @@ class KnowledgeStructureView(APIView):
             for point in knowledge_points
         ]
 
+        course_list = [
+            {
+                "id": course_id,
+                "name": "默认课程",
+                "avgMastery": float(avg_mastery or 0),
+            }
+        ]
+        chapter_list = [
+            {
+                "id": chapter_id,
+                "courseId": course_id,
+                "name": "默认章节",
+                "avgMastery": float(avg_mastery or 0),
+            }
+        ]
+
         # 返回前端所需的完整数据结构
         return Response({
             "coverageRate": round(coverage_rate),  # 四舍五入为整数
             "masteredCount": mastered_count,
             "totalCount": total_count,
             "avgMastery": round(avg_mastery),
+            "courseList": course_list,
+            "chapterList": chapter_list,
             "knowledgeList": knowledge_list
         })
     

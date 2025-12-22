@@ -398,6 +398,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
+import request from "../../utils/request";
 
 // 路由实例
 const router = useRouter();
@@ -406,82 +407,50 @@ const router = useRouter();
 const isTeacher = ref(true);
 const userRole = ref("teacher"); // 可能的值: student, teacher, admin
 
+const isLoggedIn = ref(
+    !!(window.localStorage && window.localStorage.getItem("token"))
+);
+
+const handleAuthFailure = async (e) => {
+    console.error("请求失败", e);
+    isLoggedIn.value = false;
+    try {
+        window.localStorage && window.localStorage.removeItem("token");
+    } catch (err) {
+        console.error("清理登录状态失败", err);
+    }
+    try {
+        router.push("/login");
+    } catch (err) {
+        console.error("路由跳转失败", err);
+    }
+};
+
 // 教师信息
-const userName = ref("李教授");
-const teacherId = ref("T2023001");
+const userName = ref("");
+const teacherId = ref("");
 const userAvatar = ref("👨🏫");
-const classCount = ref(5);
-const studentCount = ref(125);
+const classCount = ref(0);
+const studentCount = ref(0);
 
 // 教师待办任务数据
-const pendingTasks = ref(8);
-const pendingTaskList = reactive([
-    {
-        id: 1,
-        title: "批改高三一班数学作业",
-        description: "需要批改30份数学作业，截止日期为本周五",
-        priority: "high",
-        deadline: "2023-10-20",
-        progress: "30%",
-    },
-    {
-        id: 2,
-        title: "准备下周的物理测验",
-        description: "设计15道选择题和5道解答题，涵盖力学章节",
-        priority: "medium",
-        deadline: "2023-10-25",
-        progress: "60%",
-    },
-    {
-        id: 3,
-        title: "与张三同学家长沟通",
-        description: "关于张三同学近期学习状态波动的问题",
-        priority: "high",
-        deadline: "2023-10-18",
-        progress: "0%",
-    },
-]);
+const pendingTasks = ref(0);
+const pendingTaskList = ref([]);
 
 // 教师教学数据
-const questionCount = ref(500);
-const averageAccuracy = ref(68);
-const accuracyTrend = ref(3);
-const averageStudyHours = ref(15.2);
-const studyHoursRateTeacher = ref(Math.round((15.2 / 25) * 100));
-const hoursTrend = ref(1.8);
-const completedAssignments = ref(178);
-const totalAssignments = ref(200);
-const assignmentCompletionRate = ref(Math.round((178 / 200) * 100));
-const assignmentsTrend = ref(5);
+const questionCount = ref(0);
+const averageAccuracy = ref(0);
+const accuracyTrend = ref(0);
+const averageStudyHours = ref(0);
+const studyHoursRateTeacher = ref(0);
+const hoursTrend = ref(0);
+const completedAssignments = ref(0);
+const totalAssignments = ref(0);
+const assignmentCompletionRate = ref(0);
+const assignmentsTrend = ref(0);
 
 // 班级进度数据
-const classProgressData = reactive([
-    {
-        id: 1,
-        className: "高三一班",
-        progress: 85,
-    },
-    {
-        id: 2,
-        className: "高三二班",
-        progress: 72,
-    },
-    {
-        id: 3,
-        className: "高三三班",
-        progress: 65,
-    },
-    {
-        id: 4,
-        className: "高二一班",
-        progress: 90,
-    },
-    {
-        id: 5,
-        className: "高二二班",
-        progress: 78,
-    },
-]);
+const classProgressData = ref([]);
 
 // 权限判断计算属性
 const canAccessTeacherFunctions = computed(() => {
@@ -489,9 +458,61 @@ const canAccessTeacherFunctions = computed(() => {
 });
 
 // 确保DOM加载完成后执行初始化
-onMounted(() => {
+onMounted(async () => {
     console.log("教师首页组件已挂载，界面初始化完成");
     userRole.value = "teacher";
+
+    if (!isLoggedIn.value) {
+        try {
+            router.push("/login");
+        } catch (err) {
+            console.error("路由跳转失败", err);
+        }
+        return;
+    }
+
+    try {
+        const resp = await request.get("/teacher/dashboard/");
+        const data = resp?.data || {};
+
+        const teacher = data.teacher || {};
+        userName.value = teacher.teacherName || userName.value;
+        teacherId.value = teacher.teacherId || teacherId.value;
+        if (userName.value) {
+            userAvatar.value = userName.value.slice(0, 1);
+        }
+
+        const summary = data.summary || {};
+        classCount.value = summary.classCount || 0;
+        studentCount.value = summary.studentCount || 0;
+        questionCount.value = summary.questionCount || 0;
+
+        const tasks = data.tasks || {};
+        pendingTasks.value = tasks.pendingTasks || 0;
+        pendingTaskList.value = Array.isArray(tasks.pendingTaskList)
+            ? tasks.pendingTaskList
+            : [];
+        if (!pendingTasks.value) {
+            pendingTasks.value = pendingTaskList.value.length;
+        }
+
+        const stats = data.stats || {};
+        averageAccuracy.value = stats.averageAccuracy || 0;
+        accuracyTrend.value = stats.accuracyTrend || 0;
+        averageStudyHours.value = stats.averageStudyHours || 0;
+        studyHoursRateTeacher.value = stats.studyHoursRateTeacher || 0;
+        hoursTrend.value = stats.hoursTrend || 0;
+        completedAssignments.value = stats.completedAssignments || 0;
+        totalAssignments.value = stats.totalAssignments || 0;
+        assignmentCompletionRate.value = stats.assignmentCompletionRate || 0;
+        assignmentsTrend.value = stats.assignmentsTrend || 0;
+
+        classProgressData.value = Array.isArray(data.classProgressData)
+            ? data.classProgressData
+            : [];
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 });
 
 // 通用方法
@@ -508,6 +529,7 @@ const navigateTo = (path) => {
 const logout = () => {
     console.log("教师退出登录");
     try {
+        window.localStorage && window.localStorage.removeItem("token");
         router.push("/login");
     } catch (error) {
         console.error("退出登录失败:", error);
@@ -518,7 +540,7 @@ const logout = () => {
 const markTaskAsComplete = (taskId) => {
     if (canAccessTeacherFunctions.value) {
         console.log(`标记任务完成: ${taskId}`);
-        const task = pendingTaskList.find((task) => task.id === taskId);
+        const task = pendingTaskList.value.find((task) => task.id === taskId);
         if (task) {
             task.progress = "100%";
             pendingTasks.value--;

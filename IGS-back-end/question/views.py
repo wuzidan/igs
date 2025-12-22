@@ -1,34 +1,239 @@
-# question/views.py
+from django.http import HttpResponse
 from django.views import View
-from django.http import JsonResponse
-from .models import Exercise
+from django.contrib.auth import get_user_model
+from django.db.models import F, Q, Value
+from django.db.models.fields import TextField
+from django.utils import timezone
 
-# 类视图（class 定义，继承自 View 或其子类）
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import serializers, status, viewsets
+from rest_framework import filters
+from rest_framework.decorators import action
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+
+from .models import Exercise, Question
+
+
+class ExerciseListSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(source="pk", read_only=True)
+    title = serializers.CharField(source="name", read_only=True)
+    createTime = serializers.DateTimeField(source="created_at", read_only=True)
+    useCount = serializers.IntegerField(source="visits", read_only=True)
+    publishTime = serializers.DateTimeField(source="publish_time", allow_null=True, required=False)
+    exerciseId = serializers.CharField(source="exercise_id", read_only=True)
+    forkFrom = serializers.CharField(source="fork_from", allow_null=True, required=False)
+
+    class Meta:
+        model = Exercise
+        fields = [
+            "id",
+            "exerciseId",
+            "title",
+            "forkFrom",
+            "status",
+            "createTime",
+            "publishTime",
+            "useCount",
+        ]
+
+
+class ExerciseDetailSerializer(ExerciseListSerializer):
+    pass
+
+
+class ExerciseCreateSerializer(serializers.ModelSerializer):
+    exerciseId = serializers.CharField(source="exercise_id")
+    title = serializers.CharField(source="name")
+    forkFrom = serializers.CharField(source="fork_from", required=False, allow_null=True, allow_blank=True)
+    publishTime = serializers.DateTimeField(source="publish_time", required=False, allow_null=True)
+    createTime = serializers.DateTimeField(source="created_at", required=False)
+    useCount = serializers.IntegerField(source="visits", required=False)
+
+    class Meta:
+        model = Exercise
+        fields = [
+            "exerciseId",
+            "title",
+            "status",
+            "forkFrom",
+            "publishTime",
+            "createTime",
+            "useCount",
+        ]
+
+    def create(self, validated_data):
+        if "created_at" not in validated_data or validated_data["created_at"] is None:
+            validated_data["created_at"] = timezone.now()
+        if "visits" not in validated_data or validated_data["visits"] is None:
+            validated_data["visits"] = 0
+        return super().create(validated_data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])  # 明确允许任何人访问
+def debug_view(request):
+    return Response({
+        "message": "Debug view is working",
+        "path": request.path,
+        "method": request.method
+    })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def question_list(request):
+    User = get_user_model()
+    user = None
+    try:
+        user = User.objects.get(username='testuser')
+    except User.DoesNotExist:
+        user = User.objects.filter(id=1).first()
+
+    queryset = Question.objects.all()
+    if user is not None:
+        queryset = queryset.filter(record__student=user)
+    queryset = queryset.order_by('-id')
+
+    data = []
+    for q in queryset:
+        user_answer = q.get_user_answer_list() if hasattr(q, 'get_user_answer_list') else q.user_answer
+        correct_answer = q.get_correct_answer_list() if hasattr(q, 'get_correct_answer_list') else q.correct_answer
+        options = q.get_options_list() if hasattr(q, 'get_options_list') else q.options
+
+        completed = q.user_answer is not None
+        accuracy = 0
+        if completed:
+            accuracy = 100 if bool(q.correct) else 0
+
+        data.append({
+            "id": q.id,
+            "type": q.type,
+            "difficulty": q.difficulty,
+            "content": q.content,
+            "correct": q.correct,
+            "completed": completed,
+            "accuracy": accuracy,
+            "userAnswer": user_answer,
+            "correctAnswer": correct_answer,
+            "options": options,
+            "analysis": q.analysis,
+        })
+
+    return Response({"data": data})
+
+# 类视图（classInfo 定义，继承自 View 或其子类）
 class question(View):
     def get(self, request):
-        # 从Exercise模型中获取数据
-        exercises = Exercise.objects.all()
-        
-        # 转换为前端期望的格式
-        question_data = {
-            "data": [
-                {
-                    "id": exercise.exercise_id,
-                    "title": exercise.name,
-                    "subjectId": 1,  # 默认设置为编程基础
-                    "difficulty": "medium",  # 默认设置为中等难度
-                    "type": 0,  # 默认设置为单选题
-                    "creator": "admin",  # 默认设置为管理员
-                    "createTime": exercise.created_at,
-                    "useCount": exercise.visits,  # 前端使用useCount，后端是visits
-                    # 其他字段供未来扩展使用
-                    "quiz": exercise.name,
-                    "status": exercise.status,
-                    "publishTime": exercise.publish_time,
-                    "result": "",
-                    "analysis": ""
-                }
-                for exercise in exercises
-            ]
-        }
-        return JsonResponse(question_data, safe=False)
+        return HttpResponse("学生信息页面（类视图）")
+
+class ExerciseViewSet(viewsets.ModelViewSet):
+    """
+    习题视图集：列表、详情、创建、我的习题、学科列表
+    """
+    queryset = Exercise.objects.all()
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = []
+    search_fields = ["title", "analysis"]
+    ordering_fields = ["create_time", "use_count"]
+    ordering = ["-create_time"]
+    permission_classes = [AllowAny]
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({"data": serializer.data})
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response({"data": serializer.data})
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return ExerciseCreateSerializer
+        elif self.action == 'retrieve':
+            return ExerciseDetailSerializer
+        return ExerciseListSerializer
+
+    @action(detail=False, methods=['get'], url_path='subjects')
+    def get_subjects(self, request):
+        """获取学科列表"""
+        return Response([
+            {"id": 1, "name": "默认学科"}
+        ])
+
+
+    def create(self, request, *args, **kwargs):
+        """
+        处理创建新习题的请求。
+        """
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(
+                {"message": "习题创建成功！"},
+                status=status.HTTP_201_CREATED,
+                headers=headers
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def get_queryset(self):
+        queryset = Exercise.objects.all().annotate(
+            title=F("name"),
+            create_time=F("created_at"),
+            use_count=F("visits"),
+            analysis=Value("", output_field=TextField()),
+        )
+
+        # 处理查询参数
+        subject_id = self.request.query_params.get('subjectId')
+        difficulty = self.request.query_params.get('difficulty')
+        type_ = self.request.query_params.get('type')
+        keyword = self.request.query_params.get('keyword')
+
+        if subject_id and subject_id.isdigit():
+            queryset = queryset
+        if difficulty:
+            queryset = queryset
+        if type_:
+            queryset = queryset
+        if keyword:
+            queryset = queryset.filter(
+                Q(title__icontains=keyword) |
+                Q(exercise_id__icontains=keyword) |
+                Q(status__icontains=keyword) |
+                Q(fork_from__icontains=keyword)
+            )
+
+        return queryset
+
+    # @action(detail=False, methods=['post'], url_path='add-to-my', permission_classes=[IsAuthenticated])
+    #开发阶段暂时允许所有人访控
+    @action(detail=True, methods=['post'], url_path='add-to-my', permission_classes=[AllowAny])
+    def add_to_my(self, request):
+        """批量或自定义添加到我的习题"""
+        exercise_id = request.data.get("exercise_id") or request.data.get("exerciseId")
+        if not exercise_id:
+            return Response({"error": "缺少 exercise_id 参数"}, status=status.HTTP_400_BAD_REQUEST)
+
+        exercise = None
+        if str(exercise_id).isdigit():
+            exercise = Exercise.objects.filter(id=int(exercise_id)).first()
+        if not exercise:
+            exercise = Exercise.objects.filter(exercise_id=str(exercise_id)).first()
+        if not exercise:
+            return Response({"error": "习题不存在"}, status=status.HTTP_404_NOT_FOUND)
+
+        session_key = "my_exercise_ids"
+        saved_ids = request.session.get(session_key, [])
+        saved_ids = [str(x) for x in saved_ids]
+
+        if str(exercise.pk) in saved_ids:
+            return Response({"message": "该习题已在您的习题列表中"}, status=status.HTTP_200_OK)
+
+        saved_ids.append(str(exercise.pk))
+        request.session[session_key] = saved_ids
+        return Response({"message": "习题已成功添加到您的习题列表！"}, status=status.HTTP_201_CREATED)

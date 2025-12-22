@@ -21,6 +21,7 @@
                             id="domain-select"
                             v-model="selectedDomain"
                             class="input-field"
+                            @change="onFiltersChange"
                         >
                             <option value="">全部领域</option>
                             <option
@@ -39,6 +40,7 @@
                             id="graph-type"
                             v-model="selectedType"
                             class="input-field"
+                            @change="onFiltersChange"
                         >
                             <option value="">全部类型</option>
                             <option value="concept">概念图谱</option>
@@ -54,6 +56,7 @@
                             id="status-select"
                             v-model="selectedStatus"
                             class="input-field"
+                            @change="onFiltersChange"
                         >
                             <option value="">全部状态</option>
                             <option value="draft">草稿</option>
@@ -176,17 +179,31 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import request from "../../../utils/request";
 
 const router = useRouter();
 
+const isLoggedIn = ref(
+    !!(window.localStorage && window.localStorage.getItem("token"))
+);
+
+const handleAuthFailure = async (e) => {
+    console.error("请求失败", e);
+    isLoggedIn.value = false;
+    try {
+        window.localStorage && window.localStorage.removeItem("token");
+    } catch (err) {
+        console.error("清理登录状态失败", err);
+    }
+    try {
+        router.push("/login");
+    } catch (err) {
+        console.error("路由跳转失败", err);
+    }
+};
+
 // 知识领域数据
-const domains = ref([
-    { id: 1, name: "计算机科学" },
-    { id: 2, name: "数学" },
-    { id: 3, name: "物理学" },
-    { id: 4, name: "生物学" },
-    { id: 5, name: "工程技术" },
-]);
+const domains = ref([]);
 
 // 筛选条件
 const selectedDomain = ref("");
@@ -198,85 +215,54 @@ const searchKeyword = ref("");
 const currentPage = ref(1);
 const pageSize = ref(6);
 const totalPages = ref(1);
+const total = ref(0);
 
 // 图谱数据
-const graphs = ref([
-    {
-        id: 1001,
-        name: "数据结构知识图谱",
-        domainId: 1,
-        type: "hierarchical",
-        status: "published",
-        nodesCount: 45,
-        relationshipsCount: 87,
-        creator: "张教授",
-        createTime: "2023-05-10T09:30:00",
-        updateTime: "2023-09-15T14:20:00",
+const graphs = ref([]);
+
+const normalizeGraph = (g) => {
+    if (!g || typeof g !== "object") return {};
+    const type = g.type || "concept";
+    const domainId = g.domainId;
+    const palette = {
+        concept: "linear-gradient(135deg, #3498db10, #2980b915)",
+        relationship: "linear-gradient(135deg, #9b59b610, #8e44ad15)",
+        hierarchical: "linear-gradient(135deg, #1abc9c10, #16a08515)",
+        integrated: "linear-gradient(135deg, #f1c40f10, #f39c1215)",
+    };
+    const background = palette[type] || palette.concept;
+    return {
+        ...g,
+        domainId,
         previewStyle: {
-            background: "linear-gradient(135deg, #3498db10, #2980b915)",
+            background,
         },
-    },
-    {
-        id: 1002,
-        name: "机器学习算法体系",
-        domainId: 1,
-        type: "integrated",
-        status: "published",
-        nodesCount: 78,
-        relationshipsCount: 156,
-        creator: "李博士",
-        createTime: "2023-06-18T16:45:00",
-        updateTime: "2023-10-02T11:30:00",
-        previewStyle: {
-            background: "linear-gradient(135deg, #9b59b610, #8e44ad15)",
+    };
+};
+
+const fetchDomains = async () => {
+    const resp = await request.get("/graphs/domains/");
+    const list = resp?.data;
+    domains.value = Array.isArray(list) ? list : [];
+};
+
+const fetchGraphs = async () => {
+    const resp = await request.get("/graphs/", {
+        params: {
+            page: currentPage.value,
+            pageSize: pageSize.value,
+            domainId: selectedDomain.value || "",
+            type: selectedType.value || "",
+            status: selectedStatus.value || "",
+            keyword: searchKeyword.value || "",
         },
-    },
-    {
-        id: 1003,
-        name: "高等数学概念图谱",
-        domainId: 2,
-        type: "concept",
-        status: "published",
-        nodesCount: 62,
-        relationshipsCount: 112,
-        creator: "王教授",
-        createTime: "2023-04-05T10:20:00",
-        updateTime: "2023-08-25T15:40:00",
-        previewStyle: {
-            background: "linear-gradient(135deg, #1abc9c10, #16a08515)",
-        },
-    },
-    {
-        id: 1004,
-        name: "网络协议关系图谱",
-        domainId: 1,
-        type: "relationship",
-        status: "draft",
-        nodesCount: 36,
-        relationshipsCount: 94,
-        creator: "赵工程师",
-        createTime: "2023-09-01T13:10:00",
-        updateTime: "2023-10-18T09:15:00",
-        previewStyle: {
-            background: "linear-gradient(135deg, #f1c40f10, #f39c1215)",
-        },
-    },
-    {
-        id: 1005,
-        name: "细胞生物学概念体系",
-        domainId: 4,
-        type: "hierarchical",
-        status: "archived",
-        nodesCount: 58,
-        relationshipsCount: 132,
-        creator: "陈教授",
-        createTime: "2023-01-15T14:30:00",
-        updateTime: "2023-07-08T16:25:00",
-        previewStyle: {
-            background: "linear-gradient(135deg, #e74c3c10, #c0392b15)",
-        },
-    },
-]);
+    });
+
+    const results = resp?.data?.results;
+    total.value = resp?.data?.total || 0;
+    graphs.value = (Array.isArray(results) ? results : []).map(normalizeGraph);
+    totalPages.value = Math.max(1, Math.ceil((total.value || 0) / pageSize.value));
+};
 
 // 格式化日期
 const formatDate = (dateString) => {
@@ -334,32 +320,39 @@ const debounceSearch = () => {
 };
 
 // 搜索图谱
-const searchGraphs = () => {
-    console.log("搜索知识图谱:", {
-        searchKeyword,
-        selectedDomain,
-        selectedType,
-        selectedStatus,
-    });
-    // 实际应用中，这里会根据筛选条件从API获取数据
+const searchGraphs = async () => {
+    currentPage.value = 1;
+    try {
+        await fetchGraphs();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
+};
+
+const onFiltersChange = async () => {
+    await searchGraphs();
 };
 
 // 改变页码
-const changePage = (page) => {
+const changePage = async (page) => {
     if (page >= 1 && page <= totalPages.value) {
         currentPage.value = page;
-        // 实际应用中，这里会加载对应页的图谱数据
+        try {
+            await fetchGraphs();
+        } catch (e) {
+            await handleAuthFailure(e);
+        }
     }
 };
 
 // 查看图谱
 const viewGraph = (graphId) => {
-    router.push(`/teacher/graph/view/${graphId}`);
+    router.push(`/teacher/graphs/edit/${graphId}`);
 };
 
 // 编辑图谱
 const editGraph = (graphId) => {
-    router.push(`/teacher/graph/edit/${graphId}`);
+    router.push(`/teacher/graphs/edit/${graphId}`);
 };
 
 // 创建新图谱
@@ -374,10 +367,13 @@ const shareGraph = (graphId) => {
 };
 
 // 组件挂载时执行
-onMounted(() => {
-    // 初始化数据
-    totalPages.value = Math.ceil(graphs.value.length / pageSize.value);
-    // 实际应用中，这里会从API获取图谱数据
+onMounted(async () => {
+    try {
+        await fetchDomains();
+        await fetchGraphs();
+    } catch (e) {
+        await handleAuthFailure(e);
+    }
 });
 </script>
 

@@ -1,12 +1,33 @@
 
 from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import Group, Permission
 from django.db import models
 from django.utils.encoding import force_str
-
+from django.conf import settings
 from question.models import Question
 
 # 用户主模型（扩展AbstractUser）
 class User(AbstractUser):
+    groups = models.ManyToManyField(
+        Group,
+        related_name="student_user_set",
+        related_query_name="student_user",
+        blank=True,
+        help_text=(
+            "The groups this user belongs to. A user will get all permissions "
+            "granted to each of their groups."
+        ),
+        verbose_name="groups",
+    )
+    user_permissions = models.ManyToManyField(
+        Permission,
+        related_name="student_user_set",
+        related_query_name="student_user",
+        blank=True,
+        help_text="Specific permissions for this user.",
+        verbose_name="user permissions",
+    )
+
     # 存储明文密码
     def set_password(self, raw_password):
         self.password = raw_password
@@ -112,7 +133,7 @@ class User(AbstractUser):
 # 爱好模型（与User为一对多关系）
 class Hobby(models.Model):
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="hobbies",
         verbose_name="关联用户"
@@ -140,7 +161,7 @@ class Skill(models.Model):
         ("高级", "高级"),
     ]
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="skills",
         verbose_name="关联用户"
@@ -169,7 +190,7 @@ class Skill(models.Model):
 # 教育经历模型（与User为一对多关系）
 class Education(models.Model):
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="education",
         verbose_name="关联用户"

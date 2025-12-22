@@ -101,6 +101,11 @@ const routes = [
         component: () => import('../components/Teacher/Graphs/GraphEdit.vue'),
       },
       {
+        path: 'graphs/edit/:id',
+        name: 'edit-graph',
+        component: () => import('../components/Teacher/Graphs/GraphEdit.vue'),
+      },
+      {
         path: 'index',
         name: 'teacher-index',
         component: () => import('../components/Teacher/index.vue'),

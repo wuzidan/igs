@@ -25,5 +25,9 @@ urlpatterns = [
     path('knowledge/',include('knowledge.urls'),name='knowledge'),
     path('visualization/', include('visualization.urls'), name='visualization'),
     path('model/', include('model_integration.urls'), name='model_integration'),
+    path('teacher/', include('teacher.urls'), name='teacher'),
+    path('classInfo/', include('classInfo.urls'), name='classInfo'),
+    path('api/user/', include('user.urls'), name='user'),
+    path("graphs/", include("graphs.urls")),
 
 ]
