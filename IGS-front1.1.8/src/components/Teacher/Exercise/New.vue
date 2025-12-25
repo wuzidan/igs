@@ -4,217 +4,273 @@
         <span>首页</span>
     </a>
 
-    <div class="new-exercise-container">
+    <div class="exercise-bank-container">
         <div class="page-header">
-            <h2>设计新题</h2>
-            <p>创建新的习题内容</p>
+            <h2>题库管理</h2>
+            <p>查看和管理系统中的所有习题资源</p>
         </div>
 
-        <!-- 使用统一的card样式包裹表单 -->
-        <div class="card exercise-form-container">
-            <h3>习题信息</h3>
-            <form class="exercise-form" @submit.prevent="submitExercise">
-                <div class="form-group">
-                    <label for="subject-select">学科:</label>
-                    <select
-                        id="subject-select"
-                        v-model="formData.subjectId"
-                        required
-                        class="input-field"
-                    >
-                        <option value="">请选择学科</option>
-                        <option
-                            v-for="subject in subjects"
-                            :key="subject.id"
-                            :value="subject.id"
-                        >
-                            {{ subject.name }}
-                        </option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="difficulty-select">难度:</label>
-                    <select
-                        id="difficulty-select"
-                        v-model="formData.difficulty"
-                        required
-                        class="input-field"
-                    >
-                        <option value="">请选择难度</option>
-                        <option value="easy">简单</option>
-                        <option value="medium">中等</option>
-                        <option value="hard">困难</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="exercise-type">题型:</label>
-                    <select
-                        id="exercise-type"
-                        v-model="formData.type"
-                        @change="onTypeChange"
-                        required
-                        class="input-field"
-                    >
-                        <option value="">请选择题型</option>
-                        <option value="single-choice">单选题</option>
-                        <option value="multiple-choice">多选题</option>
-                        <option value="true-false">判断题</option>
-                        <option value="blank">填空题</option>
-                        <option value="essay">简答题</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="exercise-title">题目:</label>
-                    <textarea
-                        id="exercise-title"
-                        v-model="formData.title"
-                        placeholder="输入题目内容"
-                        required
-                        class="input-field"
-                    ></textarea>
-                </div>
-
-                <!-- 选项区域 - 根据题型动态显示 -->
-                <div
-                    v-if="
-                        formData.type === 'single-choice' ||
-                        formData.type === 'multiple-choice'
-                    "
-                    class="options-container"
-                >
-                    <h3>选项</h3>
-                    <div
-                        v-for="(option, index) in formData.options"
-                        :key="index"
-                        class="option-item"
-                    >
-                        <input
-                            type="text"
-                            v-model="option.content"
-                            placeholder="选项内容"
-                            :id="'option-' + index"
-                            required
+        <!-- 筛选条件卡片 - 使用统一的card样式 -->
+        <div class="card filters-container">
+            <!-- 筛选条件内容保持不变 -->
+            <h3>筛选条件</h3>
+            <div class="filter-content">
+                <div class="filter-group">
+                    <div class="filter-item">
+                        <label for="subject-select">学科:</label>
+                        <select
+                            id="subject-select"
+                            v-model="selectedSubject"
                             class="input-field"
-                        />
-                        <input
-                            type="radio"
-                            v-model="formData.correctAnswer"
-                            :value="index"
-                            :id="'correct-' + index"
-                            v-if="formData.type === 'single-choice'"
-                        />
-                        <input
-                            type="checkbox"
-                            v-model="formData.correctAnswers"
-                            :value="index"
-                            :id="'correct-' + index"
-                            v-if="formData.type === 'multiple-choice'"
-                        />
-                        <label :for="'correct-' + index">正确选项</label>
-                        <button
-                            type="button"
-                            class="btn btn-remove-option"
-                            @click="removeOption(index)"
-                            :disabled="formData.options.length <= 2"
                         >
-                            删除
-                        </button>
+                            <option value="">全部学科</option>
+                            <option
+                                v-for="subject in subjects"
+                                :key="subject.id"
+                                :value="subject.id"
+                            >
+                                {{ subject.name }}
+                            </option>
+                        </select>
                     </div>
-                    <button
-                        type="button"
-                        class="btn btn-add-option"
-                        @click="addOption"
-                    >
-                        添加选项
-                    </button>
+
+                    <div class="filter-item">
+                        <label for="difficulty-select">难度:</label>
+                        <select
+                            id="difficulty-select"
+                            v-model="selectedDifficulty"
+                            class="input-field"
+                        >
+                            <option value="">全部难度</option>
+                            <option value="easy">简单</option>
+                            <option value="medium">中等</option>
+                            <option value="hard">困难</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-item">
+                        <label for="exercise-type">题型:</label>
+                        <select
+                            id="exercise-type"
+                            v-model="selectedType"
+                            class="input-field"
+                        >
+                            <option value="">全部题型</option>
+                            <option value="single-choice">单选题</option>
+                            <option value="multiple-choice">多选题</option>
+                            <option value="true-false">判断题</option>
+                            <option value="blank">填空题</option>
+                            <option value="essay">简答题</option>
+                        </select>
+                    </div>
                 </div>
 
-                <!-- 判断题区域 -->
-                <div
-                    v-if="formData.type === 'true-false'"
-                    class="true-false-container"
-                >
-                    <h3>答案</h3>
-                    <div class="radio-group">
-                        <input
-                            type="radio"
-                            id="true-option"
-                            v-model="formData.correctAnswer"
-                            value="true"
-                        />
-                        <label for="true-option">正确</label>
-                        <input
-                            type="radio"
-                            id="false-option"
-                            v-model="formData.correctAnswer"
-                            value="false"
-                        />
-                        <label for="false-option">错误</label>
-                    </div>
-                </div>
-
-                <!-- 填空题区域 -->
-                <div v-if="formData.type === 'blank'" class="blank-container">
-                    <h3>答案</h3>
+                <div class="search-container">
                     <input
                         type="text"
-                        v-model="formData.correctAnswer"
-                        placeholder="输入正确答案"
-                        required
+                        placeholder="搜索习题..."
+                        v-model="searchKeyword"
+                        @input="debounceSearch"
                         class="input-field"
                     />
-                </div>
-
-                <!-- 简答题区域 -->
-                <div v-if="formData.type === 'essay'" class="essay-container">
-                    <h3>参考答案</h3>
-                    <textarea
-                        v-model="formData.correctAnswer"
-                        placeholder="输入参考答案"
-                        required
-                        class="input-field"
-                    ></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="exercise-explanation">解析:</label>
-                    <textarea
-                        id="exercise-explanation"
-                        v-model="formData.explanation"
-                        placeholder="输入题目解析（可选）"
-                        class="input-field"
-                    ></textarea>
-                </div>
-
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-submit">
-                        保存习题
+                    <button class="btn btn-search" @click="searchExercises">
+                        搜索
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 习题列表和我的题库使用网格布局 -->
+        <div class="exercise-lists-container">
+            <!-- 公共题库列表卡片 - 不可滚动 -->
+            <div class="card exercise-list-container">
+                <h3>公共题库</h3>
+                <div class="table-responsive">
+                    <table class="exercise-table">
+                        <thead>
+                            <tr>
+                                <th>习题ID</th>
+                                <th>题目</th>
+                                <th>学科</th>
+                                <th>难度</th>
+                                <th>题型</th>
+                                <th>创建者</th>
+                                <th>创建时间</th>
+                                <th>使用次数</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-if="loading">
+                                <td colspan="9" class="loading-message">
+                                    正在加载数据...
+                                </td>
+                            </tr>
+                            <tr
+                                v-else-if="
+                                    paginatedPublicExercises.length === 0
+                                "
+                            >
+                                <td colspan="9" class="empty-message">
+                                    没有找到相关习题
+                                </td>
+                            </tr>
+                            <tr
+                                v-else
+                                v-for="exercise in paginatedPublicExercises"
+                                :key="exercise.id"
+                            >
+                                <td>{{ exercise.id }}</td>
+                                <td class="exercise-title">
+                                    {{ truncateText(exercise.title, 30) }}
+                                </td>
+                                <td>
+                                    {{ getSubjectName(exercise.subjectId) }}
+                                </td>
+                                <td>
+                                    {{ getDifficultyText(exercise.difficulty) }}
+                                </td>
+                                <td>{{ getTypeText(exercise.type) }}</td>
+                                <td>{{ exercise.creator }}</td>
+                                <td>{{ formatDate(exercise.createTime) }}</td>
+                                <td>{{ exercise.useCount }}</td>
+                                <td>
+                                    <button
+                                        class="btn btn-view"
+                                        @click="viewExercise(exercise.id)"
+                                    >
+                                        查看
+                                    </button>
+                                    <button
+                                        class="btn btn-add"
+                                        @click="
+                                            addExerciseToMyList(exercise.id)
+                                        "
+                                        :disabled="isInMyList(exercise.id)"
+                                    >
+                                        {{
+                                            isInMyList(exercise.id)
+                                                ? "已添加"
+                                                : "添加到我的习题"
+                                        }}
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pagination-container" v-if="publicTotalPages > 1">
                     <button
-                        type="button"
-                        class="btn btn-preview"
-                        @click="previewExercise"
+                        class="pagination-btn"
+                        :disabled="publicCurrentPage === 1"
+                        @click="changePublicPage(publicCurrentPage - 1)"
                     >
-                        预览
+                        上一页
                     </button>
+                    <span class="pagination-info">
+                        {{ publicCurrentPage }} / {{ publicTotalPages }}
+                    </span>
                     <button
-                        type="button"
-                        class="btn btn-reset"
-                        @click="resetForm"
+                        class="pagination-btn"
+                        :disabled="publicCurrentPage === publicTotalPages"
+                        @click="changePublicPage(publicCurrentPage + 1)"
                     >
-                        重置
+                        下一页
                     </button>
                 </div>
-            </form>
+            </div>
+
+            <!-- 我的题库列表卡片 - 改为和公共题库一致的不可滚动样式 -->
+            <div class="card exercise-list-container">
+                <h3>我的题库</h3>
+                <div class="table-responsive">
+                    <table class="exercise-table">
+                        <thead>
+                            <tr>
+                                <th>习题ID</th>
+                                <th>题目</th>
+                                <th>学科</th>
+                                <th>难度</th>
+                                <th>题型</th>
+                                <th>添加时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-if="myExercises.length === 0">
+                                <td colspan="7" class="empty-message">
+                                    我的题库中暂无习题，可从公共题库添加
+                                </td>
+                            </tr>
+                            <tr v-else-if="paginatedMyExercises.length === 0">
+                                <td colspan="7" class="empty-message">
+                                    当前页没有习题
+                                </td>
+                            </tr>
+                            <tr
+                                v-else
+                                v-for="exercise in paginatedMyExercises"
+                                :key="exercise.id"
+                            >
+                                <td>{{ exercise.id }}</td>
+                                <td class="exercise-title">
+                                    {{ truncateText(exercise.title, 30) }}
+                                </td>
+                                <td>
+                                    {{ getSubjectName(exercise.subjectId) }}
+                                </td>
+                                <td>
+                                    {{ getDifficultyText(exercise.difficulty) }}
+                                </td>
+                                <td>{{ getTypeText(exercise.type) }}</td>
+                                <td>{{ formatDate(exercise.addTime) }}</td>
+                                <td>
+                                    <button
+                                        class="btn btn-view"
+                                        @click="viewExercise(exercise.id)"
+                                    >
+                                        查看
+                                    </button>
+                                    <button
+                                        class="btn btn-remove"
+                                        @click="removeFromMyList(exercise.id)"
+                                    >
+                                        移除
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 我的题库分页控件 -->
+                <div class="pagination-container" v-if="myTotalPages > 1">
+                    <button
+                        class="pagination-btn"
+                        :disabled="myCurrentPage === 1"
+                        @click="changeMyPage(myCurrentPage - 1)"
+                    >
+                        上一页
+                    </button>
+                    <span class="pagination-info">
+                        {{ myCurrentPage }} / {{ myTotalPages }}
+                    </span>
+                    <button
+                        class="pagination-btn"
+                        :disabled="myCurrentPage === myTotalPages"
+                        @click="changeMyPage(myCurrentPage + 1)"
+                    >
+                        下一页
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
@@ -228,89 +284,305 @@ const subjects = ref([
     { id: 5, name: "后端开发" },
 ]);
 
-// 表单数据
-const formData = ref({
-    subjectId: "",
-    difficulty: "",
-    type: "",
-    title: "",
-    options: [{ content: "" }, { content: "" }],
-    correctAnswer: "",
-    correctAnswers: [],
-    explanation: "",
+// 筛选条件
+const selectedSubject = ref("");
+const selectedDifficulty = ref("");
+const selectedType = ref("");
+const searchKeyword = ref("");
+
+// 分页配置 - 每页10条
+const pageSize = ref(10);
+
+// 公共题库分页数据
+const publicCurrentPage = ref(1);
+const publicTotalPages = ref(1);
+
+// 我的题库分页数据
+const myCurrentPage = ref(1);
+const myTotalPages = ref(1);
+
+// 习题数据
+const allExercises = ref([]); // 存储所有公共题库习题
+const myExercises = ref([]); // 存储我的题库习题
+
+// 加载中状态
+const loading = ref(false);
+
+// 计算属性：根据筛选条件过滤公共题库习题
+const filteredExercises = computed(() => {
+    return allExercises.value.filter((exercise) => {
+        // 过滤已添加到我的题库的习题
+        if (myExercises.value.some((item) => item.id === exercise.id)) {
+            return false;
+        }
+
+        // 学科筛选
+        if (
+            selectedSubject.value &&
+            exercise.subjectId !== selectedSubject.value
+        ) {
+            return false;
+        }
+
+        // 难度筛选
+        if (
+            selectedDifficulty.value &&
+            exercise.difficulty !== selectedDifficulty.value
+        ) {
+            return false;
+        }
+
+        // 题型筛选
+        if (selectedType.value) {
+            // 转换题型字符串为数字以便比较
+            const typeMap = {
+                "single-choice": 0,
+                "multiple-choice": 1,
+                "true-false": 2,
+                essay: 3,
+            };
+            if (exercise.type !== typeMap[selectedType.value]) {
+                return false;
+            }
+        }
+
+        // 关键词搜索
+        if (
+            searchKeyword.value &&
+            !exercise.title.includes(searchKeyword.value)
+        ) {
+            return false;
+        }
+
+        return true;
+    });
 });
 
-// 题型改变时重置相关字段
-const onTypeChange = () => {
-    formData.value.options = [{ content: "" }, { content: "" }];
-    formData.value.correctAnswer = "";
-    formData.value.correctAnswers = [];
+// 计算属性：公共题库分页数据
+const paginatedPublicExercises = computed(() => {
+    const startIndex = (publicCurrentPage.value - 1) * pageSize.value;
+    const endIndex = startIndex + pageSize.value;
+    return filteredExercises.value.slice(startIndex, endIndex);
+});
+
+// 计算属性：我的题库分页数据
+const paginatedMyExercises = computed(() => {
+    const startIndex = (myCurrentPage.value - 1) * pageSize.value;
+    const endIndex = startIndex + pageSize.value;
+    return myExercises.value.slice(startIndex, endIndex);
+});
+
+// 检查习题是否已在我的题库中
+const isInMyList = (exerciseId) => {
+    return myExercises.value.some((item) => item.id === exerciseId);
 };
 
-// 添加选项
-const addOption = () => {
-    formData.value.options.push({ content: "" });
+// 格式化日期
+const formatDate = (dateString) => {
+    if (!dateString) return "-";
+    const date = new Date(dateString);
+    return date.toLocaleString("zh-CN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    });
 };
 
-// 删除选项
-const removeOption = (index) => {
-    formData.value.options.splice(index, 1);
-    // 如果删除的是正确选项，重置正确选项
-    if (
-        formData.value.type === "single-choice" &&
-        formData.value.correctAnswer === index.toString()
-    ) {
-        formData.value.correctAnswer = "";
+// 获取学科名称
+const getSubjectName = (subjectId) => {
+    const subject = subjects.value.find((s) => s.id === subjectId);
+    return subject ? subject.name : "-";
+};
+
+// 获取难度文本
+const getDifficultyText = (difficulty) => {
+    switch (difficulty) {
+        case "easy":
+            return "简单";
+        case "medium":
+            return "中等";
+        case "hard":
+            return "困难";
+        default:
+            return "-";
     }
-    if (formData.value.type === "multiple-choice") {
-        formData.value.correctAnswers = formData.value.correctAnswers.filter(
-            (val) => val !== index
+};
+
+// 获取题型文本
+const getTypeText = (type) => {
+    switch (type) {
+        case 0:
+            return "单选题";
+        case 1:
+            return "多选题";
+        case 2:
+            return "判断题";
+        case 3:
+            return "简答题";
+        default:
+            return "-";
+    }
+};
+
+// 截断文本
+const truncateText = (text, length) => {
+    if (!text || text.length <= length) return text;
+    return text.substring(0, length) + "...";
+};
+
+// 防抖搜索
+const debounceSearch = () => {
+    clearTimeout(window.searchTimeout);
+    window.searchTimeout = setTimeout(() => {
+        searchExercises();
+    }, 500);
+};
+
+// 获取习题数据
+const fetchExercises = async () => {
+    loading.value = true;
+    try {
+        const response = await fetch(
+            "http://localhost:8000/question/question/"
+        );
+        if (!response.ok) {
+            throw new Error("Network response was not ok");
+        }
+        const data = await response.json();
+        allExercises.value = data.data;
+
+        // 初始化公共题库分页
+        publicTotalPages.value = Math.ceil(
+            filteredExercises.value.length / pageSize.value
+        );
+
+        // 从本地存储加载我的题库（实际应用中应该从API加载）
+        const savedMyExercises = localStorage.getItem("myExercises");
+        if (savedMyExercises) {
+            myExercises.value = JSON.parse(savedMyExercises);
+            // 初始化我的题库分页
+            myTotalPages.value = Math.ceil(
+                myExercises.value.length / pageSize.value
+            );
+        }
+    } catch (error) {
+        console.error("Error fetching exercises:", error);
+    } finally {
+        loading.value = false;
+    }
+};
+
+// 搜索习题
+const searchExercises = () => {
+    // 重置公共题库到第一页
+    publicCurrentPage.value = 1;
+    publicTotalPages.value = Math.ceil(
+        filteredExercises.value.length / pageSize.value
+    );
+};
+
+// 改变公共题库页码
+const changePublicPage = (page) => {
+    if (page >= 1 && page <= publicTotalPages.value) {
+        publicCurrentPage.value = page;
+        // 移除滚动逻辑，因为公共题库不可滚动
+    }
+};
+
+// 改变我的题库页码
+const changeMyPage = (page) => {
+    if (page >= 1 && page <= myTotalPages.value) {
+        myCurrentPage.value = page;
+        // 移除滚动逻辑，保持和公共题库一致
+    }
+};
+
+// 查看习题
+const viewExercise = (exerciseId) => {
+    router.push(`/teacher/exercise/view/${exerciseId}`);
+};
+
+// 添加到我的习题
+const addExerciseToMyList = (exerciseId) => {
+    // 查找要添加的习题
+    const exerciseToAdd = allExercises.value.find(
+        (item) => item.id === exerciseId
+    );
+    if (exerciseToAdd && !isInMyList(exerciseId)) {
+        // 添加添加时间
+        const exerciseWithAddTime = {
+            ...exerciseToAdd,
+            addTime: new Date().toISOString(),
+        };
+
+        // 添加到我的题库
+        myExercises.value = [...myExercises.value, exerciseWithAddTime];
+
+        // 更新我的题库分页
+        myTotalPages.value = Math.ceil(
+            myExercises.value.length / pageSize.value
+        );
+
+        // 保存到本地存储（实际应用中应该调用API保存到服务器）
+        localStorage.setItem("myExercises", JSON.stringify(myExercises.value));
+
+        // 如果添加后公共题库数据变化，更新分页
+        publicTotalPages.value = Math.ceil(
+            filteredExercises.value.length / pageSize.value
         );
     }
 };
 
-// 提交表单
-const submitExercise = () => {
-    // 这里添加表单验证和提交逻辑
-    console.log("提交习题:", formData.value);
-    // 实际应用中，这里会调用API提交习题
-    // 提交成功后跳转到已设计习题页面
-    router.push("/teacher/exercise/existing");
-};
+// 从我的题库移除
+const removeFromMyList = (exerciseId) => {
+    if (confirm("确定要从我的题库中移除这道习题吗？")) {
+        const prevLength = myExercises.value.length;
+        myExercises.value = myExercises.value.filter(
+            (item) => item.id !== exerciseId
+        );
 
-// 预览习题
-const previewExercise = () => {
-    // 这里添加预览逻辑
-    console.log("预览习题:", formData.value);
-    // 实际应用中，这里会打开预览对话框
-};
+        // 更新我的题库分页
+        myTotalPages.value = Math.ceil(
+            myExercises.value.length / pageSize.value
+        );
 
-// 重置表单
-const resetForm = () => {
-    formData.value = {
-        subjectId: "",
-        difficulty: "",
-        type: "",
-        title: "",
-        options: [{ content: "" }, { content: "" }],
-        correctAnswer: "",
-        correctAnswers: [],
-        explanation: "",
-    };
+        // 如果删除后当前页超出范围，跳转到最后一页
+        if (
+            myCurrentPage.value > myTotalPages.value &&
+            myTotalPages.value > 0
+        ) {
+            myCurrentPage.value = myTotalPages.value;
+        }
+
+        // 更新本地存储
+        localStorage.setItem("myExercises", JSON.stringify(myExercises.value));
+
+        // 如果移除后公共题库数据变化，更新分页
+        publicTotalPages.value = Math.ceil(
+            filteredExercises.value.length / pageSize.value
+        );
+    }
 };
 
 // 组件挂载时执行
 onMounted(() => {
-    // 初始化数据
+    fetchExercises();
 });
 </script>
 
 <style scoped>
 /* 整体容器样式 */
-.new-exercise-container {
+.exercise-bank-container {
     width: 100%;
     padding: 0;
     margin: 0;
+}
+
+/* 新增：两个列表并排显示 */
+.exercise-lists-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px;
 }
 
 /* 页面头部 */
@@ -423,41 +695,69 @@ onMounted(() => {
     color: #2563eb;
 }
 
-/* 表单容器 */
-.exercise-form-container {
-    transition: box-shadow 0.3s ease;
+/* 筛选条件容器 */
+.filters-container {
+    margin-bottom: 30px;
 }
 
-/* 表单样式 */
-.exercise-form {
+.filter-content {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: 20px;
+    align-items: center;
     transition: transform 0.3s ease;
 }
 
-.card:hover .exercise-form {
+.card:hover .filter-content {
     transform: translateX(3px);
 }
 
-.form-group {
+.filter-group {
+    display: flex;
+    gap: 20px;
+    flex: 1;
+    flex-wrap: wrap;
+}
+
+.filter-item {
     display: flex;
     flex-direction: column;
-    margin-bottom: 15px;
+    min-width: 150px;
     transition: transform 0.3s ease, opacity 0.3s ease;
     opacity: 0.9;
 }
 
-.card:hover .form-group {
+.card:hover .filter-item {
     transform: translateX(3px);
     opacity: 1;
 }
 
-.form-group label {
+.card:hover .filter-item:nth-child(2) {
+    transition-delay: 0.05s;
+}
+.card:hover .filter-item:nth-child(3) {
+    transition-delay: 0.1s;
+}
+
+.filter-item label {
     font-size: 14px;
     color: #555;
     margin-bottom: 8px;
     font-weight: 500;
+}
+
+/* 搜索容器 */
+.search-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    opacity: 0.9;
+}
+
+.card:hover .search-container {
+    transform: translateX(3px);
+    opacity: 1;
 }
 
 /* 输入框样式统一 */
@@ -467,73 +767,13 @@ onMounted(() => {
     border-radius: 6px;
     font-size: 14px;
     transition: all 0.3s ease;
-    font-family: inherit;
+    min-width: 200px;
 }
 
 .input-field:focus {
     outline: none;
     border-color: #3498db;
     box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
-}
-
-.form-group textarea {
-    min-height: 100px;
-    resize: vertical;
-}
-
-/* 选项容器 */
-.options-container {
-    margin-top: 15px;
-    padding-top: 15px;
-    border-top: 1px solid #f0f0f0;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    opacity: 0.9;
-}
-
-.card:hover .options-container {
-    transform: translateX(3px);
-    opacity: 1;
-}
-
-.options-container h3 {
-    margin-top: 0;
-    font-size: 16px;
-    color: #333;
-    font-weight: 600;
-    margin-bottom: 15px;
-}
-
-.option-item {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 15px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    transition: background-color 0.3s ease;
-}
-
-.option-item:hover {
-    background-color: #e9ecef;
-}
-
-.option-item input[type="text"] {
-    flex: 1;
-}
-
-.option-item input[type="radio"],
-.option-item input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-}
-
-.option-item label {
-    margin: 0;
-    font-size: 14px;
-    color: #666;
-    cursor: pointer;
 }
 
 /* 按钮样式统一 */
@@ -550,202 +790,168 @@ onMounted(() => {
     justify-content: center;
 }
 
-.btn-remove-option {
-    background: linear-gradient(135deg, #e74c3c, #c0392b);
-    color: white;
-    padding: 8px 16px;
-    font-size: 12px;
+/* 按钮间隙调整 */
+.btn-view {
+    margin-right: 10px;
 }
 
-.btn-remove-option:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(231, 76, 60, 0.3);
-}
-
-.btn-remove-option:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-}
-
-.btn-add-option {
-    background: linear-gradient(135deg, #3498db, #2980b9);
-    color: white;
-    margin-top: 10px;
-}
-
-.btn-add-option:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
-}
-
-/* 判断题容器 */
-.true-false-container {
-    margin-top: 15px;
-    padding-top: 15px;
-    border-top: 1px solid #f0f0f0;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    opacity: 0.9;
-}
-
-.card:hover .true-false-container {
-    transform: translateX(3px);
-    opacity: 1;
-}
-
-.true-false-container h3 {
-    margin-top: 0;
-    font-size: 16px;
-    color: #333;
-    font-weight: 600;
-    margin-bottom: 15px;
-}
-
-.radio-group {
-    display: flex;
-    gap: 30px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-}
-
-.radio-group input[type="radio"] {
-    width: 18px;
-    height: 18px;
-    margin-right: 8px;
-    cursor: pointer;
-}
-
-.radio-group label {
-    font-size: 14px;
-    color: #333;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-}
-
-/* 填空题和简答题容器 */
-.blank-container,
-.essay-container {
-    margin-top: 15px;
-    padding-top: 15px;
-    border-top: 1px solid #f0f0f0;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    opacity: 0.9;
-}
-
-.card:hover .blank-container,
-.card:hover .essay-container {
-    transform: translateX(3px);
-    opacity: 1;
-}
-
-.blank-container h3,
-.essay-container h3 {
-    margin-top: 0;
-    font-size: 16px;
-    color: #333;
-    font-weight: 600;
-    margin-bottom: 15px;
-}
-
-.essay-container textarea {
-    min-height: 150px;
-}
-
-/* 表单操作按钮 */
-.form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 15px;
-    margin-top: 25px;
-    padding-top: 20px;
-    border-top: 1px solid #f0f0f0;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    opacity: 0.9;
-}
-
-.card:hover .form-actions {
-    transform: translateX(3px);
-    opacity: 1;
-}
-
-.btn-submit {
-    background: linear-gradient(135deg, #2ecc71, #27ae60);
-    color: white;
-}
-
-.btn-submit:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(46, 204, 113, 0.4);
-    background: linear-gradient(135deg, #58d68d, #27ae60);
-}
-
-.btn-preview {
+.btn-search,
+.btn-view {
     background: linear-gradient(135deg, #3498db, #2980b9);
     color: white;
 }
 
-.btn-preview:hover {
+.btn-search:hover,
+.btn-view:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
     background: linear-gradient(135deg, #64b5f6, #2196f3);
 }
 
-.btn-reset {
-    background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+.btn-add {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
     color: white;
 }
 
-.btn-reset:hover {
+.btn-add:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(149, 165, 166, 0.4);
-    background: linear-gradient(135deg, #bdc3c7, #95a5a6);
+    box-shadow: 0 6px 16px rgba(46, 204, 113, 0.4);
+    background: linear-gradient(135deg, #58d68d, #27ae60);
 }
 
-/* 响应式设计 */
-@media (max-width: 1200px) {
-    .form-actions {
-        justify-content: center;
-        flex-wrap: wrap;
-    }
+.btn-add:disabled {
+    background: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.7;
 }
 
-@media (max-width: 768px) {
-    .card {
-        padding: 20px;
-    }
-
-    .option-item {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-    }
-
-    .radio-group {
-        flex-direction: column;
-        gap: 15px;
-    }
-
-    .input-field {
-        padding: 10px 12px;
-    }
-
-    .btn {
-        padding: 8px 16px;
-        font-size: 13px;
-    }
-
-    .form-actions {
-        flex-direction: column;
-    }
-
-    .form-actions button {
-        width: 100%;
-        margin-bottom: 10px;
-    }
+/* 新增：移除按钮样式 */
+.btn-remove {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
 }
+
+.btn-remove:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(231, 76, 60, 0.4);
+    background: linear-gradient(135deg, #ec7063, #c0392b);
+}
+
+/* 公共题库和我的题库容器 - 统一为不可滚动样式 */
+.exercise-list-container {
+    margin-bottom: 25px;
+    /* 移除最大高度和滚动 */
+    max-height: none;
+    overflow: visible;
+}
+
+/* 表格样式 */
+.table-responsive {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
+/* 公共题库和我的题库表格容器 - 统一为不可滚动 */
+.exercise-list-container .table-responsive {
+    max-height: none;
+    overflow: visible;
+}
+
+.exercise-table {
+    width: 100%;
+    border-collapse: collapse;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    opacity: 0.9;
+}
+
+.card:hover .exercise-table {
+    transform: translateX(3px);
+    opacity: 1;
+}
+
+.exercise-table th {
+    background-color: #f8f9fa;
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 2px solid #e9ecef;
+    font-size: 14px;
+    /* 统一移除粘性表头 */
+    position: static;
+    z-index: auto;
+}
+
+.exercise-table td {
+    padding: 15px;
+    border-bottom: 1px solid #e9ecef;
+    color: #666;
+    font-size: 14px;
+}
+
+.exercise-table tr:last-child td {
+    border-bottom: none;
+}
+
+.exercise-table tr:hover {
+    background-color: #f8f9fa;
+    transition: background-color 0.3s ease;
+}
+
+.exercise-title {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 分页样式 */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #e9ecef;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    opacity: 0.9;
+}
+
+.card:hover .pagination-container {
+    transform: translateX(3px);
+    opacity: 1;
+}
+
+.pagination-btn {
+    padding: 10px 16px;
+    border: 1px solid #e0e0e0;
+    background-color: white;
+    color: #333;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background-color: #3498db;
+    color: white;
+    border-color: #3498db;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pagination-info {
+    color: #666;
+    font-size: 14px;
+}
+
 /* 返回首页按钮样式 */
 .back-to-home {
     position: fixed;
@@ -781,4 +987,45 @@ onMounted(() => {
     transform: translateY(-2px);
 }
 
+/* 响应式设计 */
+@media (max-width: 1200px) {
+    .filter-content {
+        justify-content: center;
+    }
+
+    .filter-item {
+        flex: 1;
+        min-width: auto;
+        max-width: 300px;
+    }
+
+    .exercise-lists-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .card {
+        padding: 20px;
+    }
+
+    .filter-content {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-item {
+        min-width: auto;
+        max-width: none;
+    }
+
+    .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .btn-view {
+        margin-right: 0;
+    }
+}
 </style>
