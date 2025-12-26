@@ -102,6 +102,17 @@
                             <span class="submenu-dot"></span>题库
                         </router-link>
                     </li>
+                    <li>
+                        <router-link
+                            to="/teacher/exercise/assignment"
+                            :class="{
+                                'active-submenu': activeSubmenu === '发布作业',
+                            }"
+                            @click="setActiveSubmenu('发布作业')"
+                        >
+                            <span class="submenu-dot"></span>发布作业
+                        </router-link>
+                    </li>
                 </ul>
             </li>
             <!-- 图谱模块 -->

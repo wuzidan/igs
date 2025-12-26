@@ -192,5 +192,17 @@ IGS-front1.1.8/
 4. **前端请求错误**: 检查API路径和请求参数是否正确
 
 
+### 数据库迁移
+首先尝试方案1（跳过迁移）：
+python manage.py migrate knowledge --fake 0006
+
+然后继续其他迁移：
+python manage.py migrate
+
+验证迁移状态：
+python manage.py showmigrations
+
+
+
 ---
 **版本**: 1.0.0

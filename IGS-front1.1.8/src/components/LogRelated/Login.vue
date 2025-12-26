@@ -15,6 +15,9 @@
                     <p class="login-desc">请登录您的账号以继续使用系统</p>
                 </div>
 
+
+
+
                 <!-- 登录表单 -->
                 <form class="login-form" @submit.prevent="handleLogin">
                     <div class="form-group">
@@ -37,7 +40,7 @@
                         <div class="input-wrapper">
                             <span class="input-icon">🔒</span>
                             <input
-                                type="password"
+                                :type="showPassword ? 'text' : 'password'"
                                 id="password"
                                 v-model="password"
                                 placeholder="请输入密码"
@@ -54,6 +57,12 @@
                         </div>
                     </div>
 
+
+             <!-- 错误提示 -->
+             <div v-if="errorMessage" class="error-message" style="color: red;">
+                    ⚠️ {{ errorMessage }}
+                </div>
+
                     <div class="form-options">
                         <label class="remember-me">
                             <input type="checkbox" v-model="rememberMe" />
@@ -64,7 +73,9 @@
                         >
                     </div>
 
-                    <button type="submit" class="login-btn">登录</button>
+                    <button type="submit" class="login-btn" :disabled="isLoading">
+                        {{ isLoading ? "登录中..." : "登录" }}
+                    </button>
                 </form>
 
                 <!-- 其他登录选项 -->
@@ -110,11 +121,26 @@ const username = ref("");
 const password = ref("");
 const rememberMe = ref(false);
 const showPassword = ref(false);
+const errorMessage = ref("");
+const isLoading = ref(false);
 
 const router = useRouter();
 
 // 登录处理
 const handleLogin = async () => {
+        // 验证输入
+        if (!username.value.trim()) {
+        errorMessage.value = "请输入用户名";
+        return;
+    }
+    
+    if (!password.value.trim()) {
+        errorMessage.value = "请输入密码";
+        return;
+    }
+
+    isLoading.value = true;
+    errorMessage.value = "";
     try {
         window.localStorage && window.localStorage.removeItem("token");
 
@@ -130,15 +156,50 @@ const handleLogin = async () => {
 
         const userType = resp?.data?.userType;
         if (userType === "admin") {
+            console.log("管理员登录成功");
             router.push("/teacher/index");
         } else if (userType === "teacher") {
+            console.log("教师登录成功");
             router.push("/teacher/index");
         } else {
+            console.log("学生登录成功");
             router.push("/student/index");
         }
     } catch (e) {
         window.localStorage && window.localStorage.removeItem("token");
+        // 根据错误类型显示不同的错误信息
+        if (e.response) {
+            // 服务器返回错误
+            const status = e.response.status;
+            const data = e.response.data;
+            
+            if (status === 401) {
+                errorMessage.value = "用户名或密码错误，请重新输入";
+            } else if (status === 400) {
+                errorMessage.value = data.detail || "请求参数错误";
+            } else if (status === 404) {
+                errorMessage.value = "用户不存在";
+            } else if (status === 429) {
+                errorMessage.value = "登录尝试次数过多，请稍后再试";
+            } else if (status >= 500) {
+                errorMessage.value = "服务器错误，请稍后再试";
+            } else {
+                errorMessage.value = data.detail || "登录失败，请稍后再试";
+            }
+        } else if (e.request) {
+            // 请求已发送但没有响应
+            errorMessage.value = "网络连接失败，请检查网络设置";
+        } else {
+            // 其他错误
+            errorMessage.value = "登录失败，请稍后再试";
+        }
+        
+        // 清空密码字段
+        password.value = "";
         console.error("登录失败", e);
+    }
+    finally {
+        isLoading.value = false;
     }
 };
 </script>
