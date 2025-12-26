@@ -16,8 +16,6 @@
                 </div>
 
 
-
-
                 <!-- 登录表单 -->
                 <form class="login-form" @submit.prevent="handleLogin">
                     <div class="form-group">
@@ -40,7 +38,9 @@
                         <div class="input-wrapper">
                             <span class="input-icon">🔒</span>
                             <input
+
                                 :type="showPassword ? 'text' : 'password'"
+
                                 id="password"
                                 v-model="password"
                                 placeholder="请输入密码"
@@ -58,6 +58,7 @@
                     </div>
 
 
+
              <!-- 错误提示 -->
              <div v-if="errorMessage" class="error-message" style="color: red;">
                     ⚠️ {{ errorMessage }}
@@ -73,9 +74,11 @@
                         >
                     </div>
 
+
                     <button type="submit" class="login-btn" :disabled="isLoading">
                         {{ isLoading ? "登录中..." : "登录" }}
                     </button>
+
                 </form>
 
                 <!-- 其他登录选项 -->
@@ -124,6 +127,7 @@ const showPassword = ref(false);
 const errorMessage = ref("");
 const isLoading = ref(false);
 
+
 const router = useRouter();
 
 // 登录处理
@@ -141,6 +145,7 @@ const handleLogin = async () => {
 
     isLoading.value = true;
     errorMessage.value = "";
+
     try {
         window.localStorage && window.localStorage.removeItem("token");
 
@@ -163,6 +168,7 @@ const handleLogin = async () => {
             router.push("/teacher/index");
         } else {
             console.log("学生登录成功");
+
             router.push("/student/index");
         }
     } catch (e) {
@@ -201,6 +207,7 @@ const handleLogin = async () => {
     finally {
         isLoading.value = false;
     }
+
 };
 </script>
 
