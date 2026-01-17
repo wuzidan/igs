@@ -1,0 +1,543 @@
+{
+  "coverageRate": 0,
+  "masteredCount": 0,
+  "totalCount": 3276,
+  "avgMastery": 0,
+  "courseList": [
+    {
+      "id": 1,
+      "name": "C++程序设计",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 1,
+          "courseId": 1,
+          "name": "第1章 基础知识",
+          "avgMastery": 0
+        },
+        {
+          "id": 2,
+          "courseId": 1,
+          "name": "第2章 控制语句",
+          "avgMastery": 0
+        },
+        {
+          "id": 18,
+          "courseId": 1,
+          "name": "第3章 函数",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "C&C++程序设计（计算机程序设计）",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 3,
+          "courseId": 3,
+          "name": "第一部分 程序控制",
+          "avgMastery": 0
+        },
+        {
+          "id": 5,
+          "courseId": 3,
+          "name": "第二部分 数据结构",
+          "avgMastery": 0
+        },
+        {
+          "id": 6,
+          "courseId": 3,
+          "name": "第三部分 综合提升",
+          "avgMastery": 0
+        },
+        {
+          "id": 6385,
+          "courseId": 3,
+          "name": "第四部分 面向对象",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "﻿数据结构与算法（C语言）",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 10,
+          "courseId": 4,
+          "name": "第1部分 线性数据结构",
+          "avgMastery": 0
+        },
+        {
+          "id": 11,
+          "courseId": 4,
+          "name": "第2部分 线性结构的应用",
+          "avgMastery": 0
+        },
+        {
+          "id": 52,
+          "courseId": 4,
+          "name": "第3部分 树和图",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Python程序设计",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 16,
+          "courseId": 7,
+          "name": "第1章 Python起步",
+          "avgMastery": 0
+        },
+        {
+          "id": 1099,
+          "courseId": 7,
+          "name": "第2章 Python编程基础",
+          "avgMastery": 0
+        },
+        {
+          "id": 17,
+          "courseId": 7,
+          "name": "第2章 程序流程控制",
+          "avgMastery": 0
+        },
+        {
+          "id": 1100,
+          "courseId": 7,
+          "name": "第4章 函数与模块",
+          "avgMastery": 0
+        },
+        {
+          "id": 1101,
+          "courseId": 7,
+          "name": "第5章 面向对象编程",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Python程序设计入门",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 29,
+          "courseId": 11,
+          "name": "第一阶段 Python 程序设计入门：Python 初体验",
+          "avgMastery": 0
+        },
+        {
+          "id": 30,
+          "courseId": 11,
+          "name": "第二阶段 Python 程序设计入门：数据类型",
+          "avgMastery": 0
+        },
+        {
+          "id": 954,
+          "courseId": 11,
+          "name": "第三阶段 Python 程序设计入门：控制结构",
+          "avgMastery": 0
+        },
+        {
+          "id": 32,
+          "courseId": 11,
+          "name": "第四阶段 Python 程序设计入门：函数与模块",
+          "avgMastery": 0
+        },
+        {
+          "id": 33,
+          "courseId": 11,
+          "name": "第五阶段 Python 程序设计入门：类与对象",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "大学计算机基础——计算思维（原“大学计算机基础——基于Python”）",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 26,
+          "courseId": 13,
+          "name": "专题一 Python基础",
+          "avgMastery": 0
+        },
+        {
+          "id": 933,
+          "courseId": 13,
+          "name": "专题二 Python面向对象编程基础",
+          "avgMastery": 0
+        },
+        {
+          "id": 37,
+          "courseId": 13,
+          "name": "专题三 典型应用问题求解",
+          "avgMastery": 0
+        },
+        {
+          "id": 38,
+          "courseId": 13,
+          "name": "专题四 信息编码与数据表示",
+          "avgMastery": 0
+        },
+        {
+          "id": 39,
+          "courseId": 13,
+          "name": "专题五 计算机系统的程序员视角",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "C++程序设计",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 34,
+          "courseId": 14,
+          "name": "第1章 C++实现智能指针",
+          "avgMastery": 0
+        },
+        {
+          "id": 36,
+          "courseId": 14,
+          "name": "第2章  C++实现高性能内存池",
+          "avgMastery": 0
+        },
+        {
+          "id": 157,
+          "courseId": 14,
+          "name": "第3章",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "HTML5+CSS3网页制作入门",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 42,
+          "courseId": 15,
+          "name": "第1章 HTML5入门基础",
+          "avgMastery": 0
+        },
+        {
+          "id": 43,
+          "courseId": 15,
+          "name": "第2章 CSS3从入门到精通",
+          "avgMastery": 0
+        },
+        {
+          "id": 44,
+          "courseId": 15,
+          "name": "第3章 网页制作综合实例",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "name": "机器学习-入门",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 47,
+          "courseId": 20,
+          "name": "第一阶段 基础Python数据工具实战",
+          "avgMastery": 0
+        },
+        {
+          "id": 48,
+          "courseId": 20,
+          "name": "第二阶段 机器学习算法框架入门",
+          "avgMastery": 0
+        },
+        {
+          "id": 49,
+          "courseId": 20,
+          "name": "第三阶段 常用机器学习算法实战",
+          "avgMastery": 0
+        },
+        {
+          "id": 50,
+          "courseId": 20,
+          "name": "第四阶段 前沿机器学习技术",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "大学计算机基础",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 56,
+          "courseId": 24,
+          "name": "第1章 计算机基础知识",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "PHP语言程序设计",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 59,
+          "courseId": 25,
+          "name": "第一阶段 PHP基础教程",
+          "avgMastery": 0
+        },
+        {
+          "id": 61,
+          "courseId": 25,
+          "name": "第二阶段 PHP高级教程",
+          "avgMastery": 0
+        },
+        {
+          "id": 871,
+          "courseId": 25,
+          "name": "第三阶段 设计模式",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "Android 开发入门",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 62,
+          "courseId": 26,
+          "name": "第一章、Android 开发初体验 ",
+          "avgMastery": 0
+        },
+        {
+          "id": 80,
+          "courseId": 26,
+          "name": "第二章、Android 开发之 UI 设计",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "name": "MySQL-实用教程",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 64,
+          "courseId": 28,
+          "name": "MySQL-实用教程",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "name": "Docker企业级实训",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 65,
+          "courseId": 29,
+          "name": "第1章 Docker入门",
+          "avgMastery": 0
+        },
+        {
+          "id": 66,
+          "courseId": 29,
+          "name": "第2章 Docker进阶之镜像",
+          "avgMastery": 0
+        },
+        {
+          "id": 67,
+          "courseId": 29,
+          "name": "第3章 Docker进阶之数据卷",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "name": "C程序设计",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 69,
+          "courseId": 31,
+          "name": "第一部分 基础知识",
+          "avgMastery": 0
+        },
+        {
+          "id": 70,
+          "courseId": 31,
+          "name": "第二部分 程序控制",
+          "avgMastery": 0
+        },
+        {
+          "id": 71,
+          "courseId": 31,
+          "name": "第三部分 数据结构及函数",
+          "avgMastery": 0
+        },
+        {
+          "id": 72,
+          "courseId": 31,
+          "name": "第4章 C进阶编程",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "name": "C语言程序设计",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 73,
+          "courseId": 32,
+          "name": "第1章 C语言概述",
+          "avgMastery": 0
+        },
+        {
+          "id": 74,
+          "courseId": 32,
+          "name": "第2章 数据的存储和表示",
+          "avgMastery": 0
+        },
+        {
+          "id": 75,
+          "courseId": 32,
+          "name": "第3章 运算符与表达式",
+          "avgMastery": 0
+        },
+        {
+          "id": 76,
+          "courseId": 32,
+          "name": "第4章 分支结构",
+          "avgMastery": 0
+        },
+        {
+          "id": 77,
+          "courseId": 32,
+          "name": "第5章 循环结构",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "name": "云计算基础之Hadoop实训",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 78,
+          "courseId": 33,
+          "name": "Hadoop基础实训",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "name": "MATLAB学习和实战",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 81,
+          "courseId": 34,
+          "name": "第1章 MATLAB基本语法",
+          "avgMastery": 0
+        },
+        {
+          "id": 82,
+          "courseId": 34,
+          "name": "第2章 MATLAB矩阵进阶",
+          "avgMastery": 0
+        },
+        {
+          "id": 83,
+          "courseId": 34,
+          "name": "第3章 MATLAB程序控制结构",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "name": "Go语言程序设计——从入门到精通",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 84,
+          "courseId": 35,
+          "name": "第1章 Go语言初识",
+          "avgMastery": 0
+        },
+        {
+          "id": 85,
+          "courseId": 35,
+          "name": "第2章 Go语言基础知识",
+          "avgMastery": 0
+        },
+        {
+          "id": 86,
+          "courseId": 35,
+          "name": "第3章 Go语言控制语句",
+          "avgMastery": 0
+        },
+        {
+          "id": 87,
+          "courseId": 35,
+          "name": "第4章 Go语言数组和字符串",
+          "avgMastery": 0
+        },
+        {
+          "id": 88,
+          "courseId": 35,
+          "name": "第5章 Go语言函数和方法",
+          "avgMastery": 0
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "name": "JUnit单元测试",
+      "avgMastery": 0,
+      "chapters": [
+        {
+          "id": 94,
+          "courseId": 36,
+          "name": "第1章 ",
+          "avgMastery": 0
+        },
+        {
+          "id": 95,
+          "courseId": 36,
+          "name": "第2章",
+          "avgMastery": 0
+        }
+      ]
+    }
+  ],
+  "chapterList": [],
+  "knowledgeList": [],
+  "totalCourses": 600,
+  "currentPage": 1,
+  "pageSize": 20
+}
