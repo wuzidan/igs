@@ -951,13 +951,51 @@ def predict_next_questions(request):
         if hard_questions:
             recommendations.append(f"有{len(hard_questions)}道题预测准确率较低，建议重点关注")
         
+        # 添加用户交互数据统计
+        # 查询用户的实际练习记录，获取交互数据
+        User = get_user_model()
+        try:
+            user = User.objects.get(id=user_id)
+            practice_records = PracticeRecord.objects.filter(student=user).order_by('date')
+            interactions = []
+            for record in practice_records:
+                for question in record.questions.all():
+                    model_qid = None
+                    try:
+                        if getattr(question, "exercise", None) is not None and getattr(question.exercise, "exercise_id", None) is not None:
+                            model_qid = question.exercise.exercise_id
+                    except Exception:
+                        model_qid = None
+                    interactions.append({
+                        'question_id': model_qid if model_qid is not None else question.id,
+                        'correct': question.correct
+                    })
+            
+            # 计算有效交互数（在question_map中存在的交互）
+            valid_interactions_count = 0
+            if QUESTION_MAP and isinstance(QUESTION_MAP, dict):
+                for inter in interactions:
+                    if str(inter['question_id']) in QUESTION_MAP:
+                        valid_interactions_count += 1
+            else:
+                valid_interactions_count = len(interactions)
+            
+            total_interactions_count = len(interactions)
+        except User.DoesNotExist:
+            total_interactions_count = 0
+            valid_interactions_count = 0
+        
         # 返回预测结果
         response_data = {
             'predicted_questions': predicted_questions,
             'average_accuracy': round(average_accuracy, 3),
             'recommendations': recommendations,
             'status': 'success',
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            # 添加诊断统计字段
+            'total_interactions': total_interactions_count,
+            'valid_interactions': valid_interactions_count,
+            'model_status': 'prediction_mode'
         }
         
         print(f"Successfully generated next questions prediction for user {user_id}")

@@ -49,7 +49,13 @@ const routes = [
     name: 'history',
     component: () => import('../components/Student/QuizRelated/History.vue'),
   },
-  // 教师端路由
+  // 教师端首页 - 独立路由，不使用TeacherHeader组件（无顶栏和侧栏）
+  {
+    path: '/teacher/index',
+    name: 'teacher-index',
+    component: () => import('../components/Teacher/index.vue'),
+  },
+  // 教师端其他页面 - 共享TeacherHeader组件（有顶栏和侧栏）
   {
     path: '/teacher',
     name: 'teacher',
@@ -109,11 +115,6 @@ const routes = [
         path: 'graphs/edit/:id',
         name: 'edit-graph',
         component: () => import('../components/Teacher/Graphs/GraphEdit.vue'),
-      },
-      {
-        path: 'index',
-        name: 'teacher-index',
-        component: () => import('../components/Teacher/index.vue'),
       },
     ],
   },

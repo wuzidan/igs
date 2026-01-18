@@ -612,8 +612,11 @@ const startCognitiveDiagnosis = () => {
                     average_accuracy: res.data.average_accuracy || 0,
                     // 确保推荐列表正确
                     recommendations: res.data.recommendations || [],
-                    // 添加状态信息
-                    model_status: 'prediction_mode',
+                    // 确保交互统计数据正确
+                    total_interactions: res.data.total_interactions || 0,
+                    valid_interactions: res.data.valid_interactions || 0,
+                    // 使用后端返回的model_status
+                    model_status: res.data.model_status || 'prediction_mode',
                     // 添加总体准确率
                     accuracy: res.data.average_accuracy || 0
                 };
@@ -660,7 +663,10 @@ const startCognitiveDiagnosis = () => {
                         "⚠️ 有1道题预测准确率较低，建议重点关注"
                     ],
                     model_status: "prediction_mode",
-                    accuracy: 0.78
+                    accuracy: 0.78,
+                    // 添加模拟的交互统计数据
+                    total_interactions: 50,
+                    valid_interactions: 45
                 };
             }
             
