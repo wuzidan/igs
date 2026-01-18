@@ -4,85 +4,82 @@
         <StudentHeader title="状态可视化" />
 
         <div class="dashboard">
-            <!-- 学习进度卡片 -->
-            <div class="card">
-                <h3>学习进度</h3>
-                <div class="progress-item">
-                    <div class="progress-label">
-                        <span>总体进度</span>
-                        <span>{{ overallProgress }}%</span>
+            <!-- 顶部卡片容器 -->
+            <div class="top-cards">
+                <!-- 学习进度卡片 -->
+                <div class="card">
+                    <h3>学习进度</h3>
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>总体进度</span>
+                            <span>{{ overallProgress }}%</span>
+                        </div>
+                        <div class="progress-container">
+                            <div
+                                class="progress"
+                                :style="{ width: overallProgress + '%' }"
+                                :class="getProgressColorClass(overallProgress)"
+                            ></div>
+                        </div>
                     </div>
-                    <div class="progress-container">
-                        <div
-                            class="progress"
-                            :style="{ width: overallProgress + '%' }"
-                            :class="getProgressColorClass(overallProgress)"
-                        ></div>
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>已完成课程</span>
+                            <span>{{ completedCourses }}/{{ totalCourses }}</span>
+                        </div>
+                        <div class="progress-container">
+                            <div
+                                class="progress"
+                                :style="{
+                                    width:
+                                        (completedCourses / totalCourses) * 100 +
+                                        '%',
+                                }"
+                                :class="
+                                    getProgressColorClass(
+                                        (completedCourses / totalCourses) * 100
+                                    )
+                                "
+                            ></div>
+                        </div>
+                    </div>
+                    <div class="progress-item">
+                        <div class="progress-label">
+                            <span>平均成绩</span>
+                            <span>{{ avgScore }}分</span>
+                        </div>
+                        <div class="progress-container">
+                            <div
+                                class="progress"
+                                :style="{ width: avgScore + '%' }"
+                                :class="getProgressColorClass(avgScore)"
+                            ></div>
+                        </div>
                     </div>
                 </div>
-                <div class="progress-item">
-                    <div class="progress-label">
-                        <span>已完成课程</span>
-                        <span>{{ completedCourses }}/{{ totalCourses }}</span>
-                    </div>
-                    <div class="progress-container">
-                        <div
-                            class="progress"
-                            :style="{
-                                width:
-                                    (completedCourses / totalCourses) * 100 +
-                                    '%',
-                            }"
-                            :class="
-                                getProgressColorClass(
-                                    (completedCourses / totalCourses) * 100
-                                )
-                            "
-                        ></div>
-                    </div>
-                </div>
-                <div class="progress-item">
-                    <div class="progress-label">
-                        <span>平均成绩</span>
-                        <span>{{ avgScore }}分</span>
-                    </div>
-                    <div class="progress-container">
-                        <div
-                            class="progress"
-                            :style="{ width: avgScore + '%' }"
-                            :class="getProgressColorClass(avgScore)"
-                        ></div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- 答题统计卡片 -->
-            <div class="card">
-                <h3>答题统计</h3>
-                <div class="stats">
-                    <div class="stat-item">
-                        <span class="stat-value">{{
-                            studentInfo.accuracy || 0
-                        }}</span>
-                        <span class="stat-label">正确率</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-value">{{
-                            studentInfo.totalQuestions || 0
-                        }}</span>
-                        <span class="stat-label">总题数</span>
+                <!-- 答题统计卡片 -->
+                <div class="card">
+                    <h3>答题统计</h3>
+                    <div class="stats">
+                        <div class="stat-item">
+                            <span class="stat-value">{{
+                                studentInfo.accuracy || 0
+                            }}</span>
+                            <span class="stat-label">正确率</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value">{{
+                                studentInfo.totalQuestions || 0
+                            }}</span>
+                            <span class="stat-label">总题数</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- 知识掌握度图表 -->
-            <div class="chart-container">
-                <h3>知识掌握度</h3>
-                <canvas id="knowledgeChart"></canvas>
             </div>
 
             <!-- 学习时长图表 -->
-            <div class="chart-container">
+            <div class="chart-container full-width">
                 <h3>学习时长</h3>
                 <canvas id="learningHoursChart"></canvas>
             </div>
@@ -111,7 +108,7 @@
                     <div v-if="diagnosisResult" class="diagnosis-content">
                         <!-- 题目正确率预测 -->
                         <div class="section">
-                            <h4>📊 下一道题正确率预测</h4>
+                            <h4>📊 答题正确率预测</h4>
                             <div v-if="diagnosisResult.predicted_questions && diagnosisResult.predicted_questions.length > 0" class="prediction-list">
                                 <div v-for="(question, index) in diagnosisResult.predicted_questions" :key="question.id" class="prediction-item">
                                     <div class="question-info">
@@ -272,7 +269,6 @@ const studentInfo = ref({});
 const skills = ref([]);
 
 // 图表实例引用
-let knowledgeChart = null;
 let learningHoursChart = null;
 
 // 根据进度获取颜色类
@@ -296,130 +292,6 @@ const getSkillLevelText = (level) => {
     if (level < 60) return "中级";
     if (level < 80) return "高级";
     return "专家";
-};
-
-// 初始化知识掌握度雷达图
-const initKnowledgeChart = () => {
-    const knowledgeCtx = document
-        .getElementById("knowledgeChart")
-        .getContext("2d");
-
-    // 销毁已存在的图表实例
-    if (knowledgeChart) {
-        knowledgeChart.destroy();
-    }
-
-    // 创建径向渐变背景
-    const gradient = knowledgeCtx.createRadialGradient(0, 0, 0, 0, 0, 300);
-    gradient.addColorStop(0, "rgba(59, 130, 246, 0.3)"); // 中心亮色
-    gradient.addColorStop(1, "rgba(59, 130, 246, 0.05)"); // 边缘淡色
-
-    knowledgeChart = new Chart(knowledgeCtx, {
-        type: "radar",
-        data: {
-            labels: ["HTML", "CSS", "JavaScript", "数据库", "算法", "网络"],
-            datasets: [
-                {
-                    label: "掌握程度",
-                    data: studentInfo.value.knowledgeMastery || [
-                        65, 50, 70, 45, 60, 55,
-                    ],
-                    backgroundColor: gradient, // 使用径向渐变
-                    borderColor: "rgba(37, 99, 235, 0.9)", // 深蓝色边框
-                    borderWidth: 2.5,
-                    pointBackgroundColor: "#ffffff", // 白色点中心
-                    pointBorderColor: "rgba(37, 99, 235, 1)", // 点边框颜色
-                    pointBorderWidth: 2,
-                    pointRadius: 6, // 点大小
-                    pointHoverRadius: 8, // 悬停时点大小
-                    pointHoverBackgroundColor: "rgba(37, 99, 235, 1)", // 悬停时填充色
-                    pointHoverBorderColor: "#ffffff", // 悬停时点边框
-                    pointHoverBorderWidth: 2,
-                },
-            ],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            elements: {
-                line: {
-                    tension: 0, // 线条柔和度
-                },
-            },
-            scales: {
-                r: {
-                    angleLines: {
-                        display: true,
-                        color: "rgba(226, 232, 240, 0.8)", // 角度线颜色
-                        lineWidth: 1.5,
-                    },
-                    grid: {
-                        color: "rgba(226, 232, 240, 0.5)", // 网格线颜色
-                        lineWidth: 1,
-                    },
-                    pointLabels: {
-                        color: "#334155", // 标签文字颜色
-                        font: {
-                            size: 13,
-                            weight: "500",
-                        },
-                        padding: 15,
-                    },
-                    ticks: {
-                        backdropColor: "transparent", // 隐藏刻度背景
-                        color: "#94a3b8", // 刻度文字颜色
-                        font: {
-                            size: 11,
-                        },
-                        stepSize: 20, // 刻度间隔
-                        showLabelBackdrop: false,
-                    },
-                    suggestedMin: 0,
-                    suggestedMax: 100,
-                    border: {
-                        color: "rgba(226, 232, 240, 1)", // 雷达图边框
-                        lineWidth: 2,
-                    },
-                },
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: "top",
-                    labels: {
-                        color: "#334155",
-                        font: {
-                            size: 13,
-                            weight: "500",
-                        },
-                        padding: 20,
-                        usePointStyle: true,
-                        pointStyle: "circle",
-                    },
-                },
-                tooltip: {
-                    backgroundColor: "rgba(255, 255, 255, 0.95)",
-                    titleColor: "#1e293b",
-                    bodyColor: "#475569",
-                    borderColor: "rgba(226, 232, 240, 1)",
-                    borderWidth: 1,
-                    padding: 12,
-                    boxPadding: 6,
-                    usePointStyle: true,
-                    callbacks: {
-                        // 显示技能水平文本描述
-                        label: function (context) {
-                            const value = context.raw;
-                            return [
-                                `掌握程度: ${value}%`,
-                                `技能水平: ${getSkillLevelText(value)}`,
-                            ];
-                        },
-                    },
-                },
-            },
-        },
-    });
 };
 
 // 初始化学习进度柱状图
@@ -787,13 +659,11 @@ onMounted(() => {
         .then(() => {
             isLoading.value = false;
             // 初始化图表
-            initKnowledgeChart();
             initLearningHoursChart();
         })
         .catch(() => {
             isLoading.value = false;
             // 初始化图表
-            initKnowledgeChart();
             initLearningHoursChart();
         });
 });
@@ -969,6 +839,13 @@ onMounted(() => {
 
 .dashboard {
     display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    width: 100%;
+}
+
+.top-cards {
+    display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
     width: 100%;
@@ -1112,7 +989,11 @@ onMounted(() => {
 }
 
 .chart-container {
-    height: 300px;
+    height: 400px;
+}
+
+.chart-container.full-width {
+    height: 450px;
 }
 
 .activity-list {

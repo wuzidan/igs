@@ -750,7 +750,7 @@ def select_next_questions(user_id, num_questions=5, force_model: bool = False):
         
         print(f"User {user_id} has completed {len(completed_question_ids)} questions")
         
-        # 使用题库表作为候选池（Exercise），而不是作答记录表（Question）
+        # 使用题库表作为候选池（Exercise）
         from question.models import Exercise
         
         # 筛选学生未做过的题目
@@ -1015,7 +1015,7 @@ def predict_next_questions(request):
             'status': 'error'
         }, status=500)
 
-# 在模块加载时尝试预加载模型（可选）
+# 在模块加载时尝试预加载模型
 try:
     load_model()
 except Exception as e:
