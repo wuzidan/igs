@@ -748,6 +748,18 @@ def select_next_questions(user_id, num_questions=5, force_model: bool = False):
                 })
                 completed_question_ids.add(str(model_qid) if model_qid is not None else str(question.id))
         
+        # 从HistoryRecord表中收集交互数据
+        from historyRecord.models import HistoryRecord
+        history_records = HistoryRecord.objects.filter(user=user).order_by('date')
+        for record in history_records:
+            # 使用record的id作为question_id，因为HistoryRecord没有直接关联到具体题目
+            # 使用score > 0来判断是否正确
+            interactions.append({
+                'question_id': record.id,
+                'correct': record.score > 0
+            })
+            completed_question_ids.add(str(record.id))
+        
         print(f"User {user_id} has completed {len(completed_question_ids)} questions")
         
         # 使用题库表作为候选池（Exercise）
@@ -798,10 +810,24 @@ def select_next_questions(user_id, num_questions=5, force_model: bool = False):
         predicted_questions = []
         for question in selected_questions:
             accuracy = predict_question_accuracy(user_id, question.exercise_id, interactions, force_model=force_model)
+            
+            # 获取题目难度
+            difficulty = 'medium'  # 默认难度
+            
+            # 通过ExerciseChallenge关联获取Challenge的难度
+            try:
+                from question.models import ExerciseChallenge, Challenge
+                # 获取与当前Exercise关联的第一个Challenge
+                exercise_challenge = ExerciseChallenge.objects.filter(exercise=question).first()
+                if exercise_challenge and exercise_challenge.challenge:
+                    difficulty = exercise_challenge.challenge.difficulty
+            except Exception as e:
+                print(f"Error getting difficulty for exercise {question.exercise_id}: {str(e)}")
+            
             predicted_questions.append({
                 'id': question.exercise_id,
                 'name': question.name,
-                'difficulty': 'medium',
+                'difficulty': difficulty,
                 'predicted_accuracy': round(accuracy, 3)
             })
         
