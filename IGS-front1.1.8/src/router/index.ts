@@ -137,7 +137,7 @@ const routes = [
   {
     path: '/wechat-login',
     name: 'wechat-login',
-    component: () => import('../components/LogRelated/LoginMethod/WechatLogin.vue'),
+    component: () => import('../components/LogRelated/LoginMethod/WechatQRLogin.vue'),
   },
   // 可以在这里添加其他路由
 ];

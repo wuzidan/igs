@@ -21,8 +21,8 @@
                         >
                             <!-- 自定义头像图片 -->
                             <img
-                                v-if="teacherAvatarUrl"
-                                :src="teacherAvatarUrl"
+                                v-if="profile.avatarUrl"
+                                :src="profile.avatarUrl"
                                 class="custom-avatar"
                                 alt="教师头像"
                             />
@@ -63,10 +63,10 @@
                     </div>
 
                     <div class="user-basic">
-                        <h2 class="user-name">{{ teacherName }}</h2>
-                        <p class="user-id">{{ teacherId }}</p>
-                        <p class="user-title">{{ title }}</p>
-                        <p class="user-department">{{ department }}</p>
+                        <h2 class="user-name">{{ profile.teacherName }}</h2>
+                        <p class="user-id">{{ profile.teacherId }}</p>
+                        <p class="user-title">{{ profile.title }}</p>
+                        <p class="user-department">{{ profile.department }}</p>
                     </div>
                 </div>
                 <button class="edit-btn" @click="toggleEditMode">
@@ -89,9 +89,9 @@
                 <div class="info-item">
                     <label>出生日期:</label>
                     <template v-if="isEditing">
-                        <input type="date" v-model="birthDate" />
+                        <input type="date" v-model="profile.birthDate" />
                     </template>
-                    <span v-else>{{ birthDate }}</span>
+                    <span v-else>{{ profile.birthDate }}</span>
                 </div>
                 <div class="info-item">
                     <label>籍贯:</label>
@@ -220,9 +220,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import request from "../../../utils/request";
+import api from "../../../api/index";
 
 const router = useRouter();
 
@@ -251,7 +252,7 @@ const newSubject = ref("");
 const teacherAvatar = ref("👨");
 const teacherAvatarUrl = ref("");
 const avatarClass = computed(() =>
-    teacherAvatarUrl.value ? "has-avatar" : ""
+    teacherAvatarUrl.value ? "has-avatar" : "",
 );
 
 // 切换编辑模式
@@ -281,7 +282,6 @@ const saveTeacherInfo = async () => {
             bio: bio.value,
             subjects: subjects.value,
         };
-        const res = await request.patch("/teacher/profile/", payload);
         const data = res?.data?.data || res?.data;
         if (data) {
             teacherName.value = data.teacherName ?? teacherName.value;
@@ -290,12 +290,15 @@ const saveTeacherInfo = async () => {
             department.value = data.department ?? department.value;
             birthDate.value = data.birthDate ?? birthDate.value;
             hometown.value = data.hometown ?? hometown.value;
-            politicalStatus.value = data.politicalStatus ?? politicalStatus.value;
+            politicalStatus.value =
+                data.politicalStatus ?? politicalStatus.value;
             email.value = data.email ?? email.value;
             phone.value = data.phone ?? phone.value;
             officeAddress.value = data.officeAddress ?? officeAddress.value;
             bio.value = data.bio ?? bio.value;
-            subjects.value = Array.isArray(data.subjects) ? data.subjects : subjects.value;
+            subjects.value = Array.isArray(data.subjects)
+                ? data.subjects
+                : subjects.value;
         }
         alert("信息保存成功！");
     } catch (e) {
@@ -333,27 +336,21 @@ const addSubject = () => {
 const removeSubject = (index) => {
     subjects.value.splice(index, 1);
 };
-
+const profile = reactive({});
 const loadTeacherProfile = async () => {
     loading.value = true;
     errorMessage.value = "";
     try {
-        const res = await request.get("/teacher/profile/");
-        const data = res?.data;
-        teacherName.value = data?.teacherName || "";
-        teacherId.value = data?.teacherId || "";
-        title.value = data?.title || "";
-        department.value = data?.department || "";
-        birthDate.value = data?.birthDate || "";
-        hometown.value = data?.hometown || "";
-        politicalStatus.value = data?.politicalStatus || "";
-        email.value = data?.email || "";
-        phone.value = data?.phone || "";
-        officeAddress.value = data?.officeAddress || "";
-        bio.value = data?.bio || "";
-        subjects.value = Array.isArray(data?.subjects) ? data.subjects : [];
-        teacherAvatarUrl.value = data?.avatarUrl || "";
+        const response = await api.getTeacherInfo();
+        console.log("完整响应:", response);
+        const data = response.data;
+        console.log("响应数据:", data);
+        console.log("avatarUrl值:", data.avatarUrl);
+        Object.assign(profile, data);
+        console.log("profile对象:", profile);
+        console.log("profile.avatarUrl:", profile.avatarUrl);
     } catch (e) {
+        console.error("获取教师信息失败", e);
         errorMessage.value = e?.message || "获取教师信息失败";
     } finally {
         loading.value = false;
@@ -363,18 +360,6 @@ const loadTeacherProfile = async () => {
 const uploadAvatar = async (file) => {
     loading.value = true;
     errorMessage.value = "";
-    try {
-        const formData = new FormData();
-        formData.append("avatar", file);
-        const res = await request.post("/teacher/profile/upload-avatar/", formData);
-        teacherAvatarUrl.value = res?.data?.avatarUrl || teacherAvatarUrl.value;
-        alert("头像上传成功！");
-    } catch (e) {
-        errorMessage.value = e?.message || "头像上传失败";
-        alert(errorMessage.value);
-    } finally {
-        loading.value = false;
-    }
 };
 
 onMounted(() => {
@@ -388,8 +373,9 @@ onMounted(() => {
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-        Ubuntu, Cantarell, sans-serif;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+        Cantarell, sans-serif;
 }
 
 /* 响应式宽度调整 */

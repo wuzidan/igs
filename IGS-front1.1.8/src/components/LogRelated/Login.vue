@@ -15,7 +15,6 @@
                     <p class="login-desc">请登录您的账号以继续使用系统</p>
                 </div>
 
-
                 <!-- 登录表单 -->
                 <form class="login-form" @submit.prevent="handleLogin">
                     <div class="form-group">
@@ -38,9 +37,7 @@
                         <div class="input-wrapper">
                             <span class="input-icon">🔒</span>
                             <input
-
                                 :type="showPassword ? 'text' : 'password'"
-
                                 id="password"
                                 v-model="password"
                                 placeholder="请输入密码"
@@ -57,12 +54,14 @@
                         </div>
                     </div>
 
-
-
-             <!-- 错误提示 -->
-             <div v-if="errorMessage" class="error-message" style="color: red;">
-                    ⚠️ {{ errorMessage }}
-                </div>
+                    <!-- 错误提示 -->
+                    <div
+                        v-if="errorMessage"
+                        class="error-message"
+                        style="color: red"
+                    >
+                        ⚠️ {{ errorMessage }}
+                    </div>
 
                     <div class="form-options">
                         <label class="remember-me">
@@ -74,11 +73,13 @@
                         >
                     </div>
 
-
-                    <button type="submit" class="login-btn" :disabled="isLoading">
+                    <button
+                        type="submit"
+                        class="login-btn"
+                        :disabled="isLoading"
+                    >
                         {{ isLoading ? "登录中..." : "登录" }}
                     </button>
-
                 </form>
 
                 <!-- 其他登录选项 -->
@@ -87,7 +88,12 @@
                         <span>或使用以下方式登录</span>
                     </div>
                     <div class="social-login">
-                        <a class="social-btn" href="wechat-login">📱</a>
+                        <a
+                            class="social-btn"
+                            href="/wechat-login"
+                            title="微信登录"
+                            >📱</a
+                        >
                         <button class="social-btn" title="QQ登录">🐧</button>
                         <button class="social-btn" title="校园网登录">
                             🏫
@@ -127,17 +133,16 @@ const showPassword = ref(false);
 const errorMessage = ref("");
 const isLoading = ref(false);
 
-
 const router = useRouter();
 
 // 登录处理
 const handleLogin = async () => {
-        // 验证输入
-        if (!username.value.trim()) {
+    // 验证输入
+    if (!username.value.trim()) {
         errorMessage.value = "请输入用户名";
         return;
     }
-    
+
     if (!password.value.trim()) {
         errorMessage.value = "请输入密码";
         return;
@@ -178,7 +183,7 @@ const handleLogin = async () => {
             // 服务器返回错误
             const status = e.response.status;
             const data = e.response.data;
-            
+
             if (status === 401) {
                 errorMessage.value = "用户名或密码错误，请重新输入";
             } else if (status === 400) {
@@ -199,15 +204,13 @@ const handleLogin = async () => {
             // 其他错误
             errorMessage.value = "登录失败，请稍后再试";
         }
-        
+
         // 清空密码字段
         password.value = "";
         console.error("登录失败", e);
-    }
-    finally {
+    } finally {
         isLoading.value = false;
     }
-
 };
 </script>
 

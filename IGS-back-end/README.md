@@ -133,7 +133,7 @@ pip install django djangorestframework mysqlclient django-cors-headers
 ```
 
 ### 4. 配置数据库
-确保MySQL已安装并运行，创建名为`igs`的数据库，并更新`settings.py`中的数据库配置
+确保MySQL已安装并运行，创建名为`igs_db`的数据库，并更新`settings.py`中的数据库配置
 
 ### 5. 执行数据库迁移
 ```bash

@@ -154,15 +154,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref } from "vue";
+import { useRouter } from "vue-router";
 
-// 表单数据
-const username = ref('');
-const phone = ref('');
-const userId = ref('');
-const password = ref('');
-const confirmPassword = ref('');
 const agreeTerms = ref(false);
 const showPassword = ref(false);
 const showSuccessModal = ref(false);
@@ -170,8 +164,8 @@ const showSuccessModal = ref(false);
 const router = useRouter();
 
 const handleConfirm = () => {
-  showSuccessModal.value = false;
-  router.push('/login');
+    showSuccessModal.value = false;
+    router.push("/login");
 };
 
 // 错误信息

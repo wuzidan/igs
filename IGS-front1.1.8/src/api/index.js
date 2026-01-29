@@ -14,8 +14,8 @@ const api = {
     getStudentinfo() {
         return axios.get(path.studentinfo)
     },
-    putStudentinfo() {
-        return axios.put(path.studentinfo)
+    putStudentinfo(saveData) {
+        return axios.put(path.studentinfo, saveData)
     },
     getQuestion() {
         return axios.get(path.quiz)
@@ -32,6 +32,9 @@ const api = {
             params: { user_id: userId }
         })
     },
+    getTeacherInfo() {
+        return axios.get(path.teacherInfo)
+    }
 }
 
 export default api

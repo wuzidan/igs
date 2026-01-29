@@ -8,6 +8,7 @@ const base = {
     quiz: "/question/question/", // 修改为正确的后端配置路径
     cognitiveDiagnosis: "/model/cognitiveDiagnosis/", // 认知诊断API路径
     predictNextQuestions: "/model/predictNextQuestions/", // 预测下一组题目API路径
+    teacherInfo: "/teacher/profile/", // 教师个人信息API路径
 }
 
 export default base

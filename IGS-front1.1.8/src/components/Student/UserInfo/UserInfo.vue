@@ -49,6 +49,12 @@
                         上传头像
                     </button>
                     <button
+                        class="action-btn select-btn"
+                        @click="openAvatarSelector"
+                    >
+                        选择头像
+                    </button>
+                    <button
                         class="action-btn reset-btn"
                         @click="resetAvatar"
                         v-if="userAvatarUrl"
@@ -63,9 +69,7 @@
             <button class="edit-btn" @click="toggleEditMode">
                 <span v-if="!isEditing">编辑信息</span>
                 <span v-if="isEditing">保存</span>
-                <i class="edit-icon" :class="{ 'rotate-icon': isEditing }"
-                    >✎</i
-                >
+                <i class="edit-icon" :class="{ 'rotate-icon': isEditing }">✎</i>
             </button>
         </div>
 
@@ -358,16 +362,55 @@
         <span class="icon">🏠</span>
         <span class="bth-text">首页</span>
     </a>
+
+    <!-- 头像选择弹窗 -->
+    <div
+        v-if="showAvatarSelector"
+        class="avatar-selector-overlay"
+        @click="closeAvatarSelector"
+    >
+        <div class="avatar-selector-modal" @click.stop>
+            <div class="avatar-selector-header">
+                <h3>选择头像</h3>
+                <button class="close-btn" @click="closeAvatarSelector">
+                    ×
+                </button>
+            </div>
+            <div class="avatar-selector-content">
+                <div class="avatar-grid">
+                    <div
+                        v-for="(avatar, index) in defaultAvatars"
+                        :key="index"
+                        class="avatar-option"
+                        :class="{ active: selectedAvatar === avatar }"
+                        @click="selectAvatar(avatar)"
+                    >
+                        <span class="avatar-emoji">{{ avatar }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="avatar-selector-footer">
+                <button class="cancel-btn" @click="closeAvatarSelector">
+                    取消
+                </button>
+                <button class="confirm-btn" @click="confirmAvatarSelection">
+                    确定
+                </button>
+            </div>
+        </div>
+    </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import api from "../../../api/index";
-import StudentHeader from '../StudentHeader.vue';
+import StudentHeader from "../StudentHeader.vue";
 
 // 头像相关数据
 const userAvatarUrl = ref(""); // 自定义头像URL
 const userAvatar = ref("👨‍💻"); // 默认头像emoji
+const showAvatarSelector = ref(false); // 头像选择弹窗显示状态
+const selectedAvatar = ref(""); // 当前选中的头像
 
 // 基本信息数据
 const isEditing = ref(false);
@@ -438,6 +481,28 @@ const resetAvatar = () => {
     }
 };
 
+// 头像选择相关方法
+const openAvatarSelector = () => {
+    selectedAvatar.value = userAvatar.value;
+    showAvatarSelector.value = true;
+};
+
+const closeAvatarSelector = () => {
+    showAvatarSelector.value = false;
+};
+
+const selectAvatar = (avatar) => {
+    selectedAvatar.value = avatar;
+};
+
+const confirmAvatarSelection = () => {
+    if (selectedAvatar.value) {
+        userAvatar.value = selectedAvatar.value;
+        userAvatarUrl.value = ""; // 清除自定义头像URL
+        showAvatarSelector.value = false;
+    }
+};
+
 // 信息编辑方法
 const toggleEditMode = () => {
     if (isEditing.value) {
@@ -451,29 +516,29 @@ const toggleEditMode = () => {
 
 // 保存个人信息到服务器（使用PUT接口）
 const saveStudentInfo = () => {
-    // 构建要保存的数据对象
-    const saveData = {
-        userAvatarUrl: userAvatarUrl.value,
-        userAvatar: userAvatar.value,
-        userName: userName.value,
-        studentId: studentId.value,
-        className: className.value,
-        major: major.value,
-        birthDate: birthDate.value,
-        hometown: hometown.value,
-        politicalStatus: politicalStatus.value,
-        email: email.value,
-        phone: phone.value,
-        website: website.value,
-        bio: bio.value,
-        hobbies: hobbies.value,
-        skills: skills.value,
-        education: education.value,
-    };
+    // 构建要保存的数据对象，只包含API支持的字段
+    const saveData = {};
 
-    // 验证必填字段
-    if (!userName.value.trim()) {
-        alert("请输入姓名");
+    // 只添加有值的字段
+    if (userName.value.trim()) {
+        saveData.userName = userName.value;
+    }
+    if (email.value.trim()) {
+        saveData.email = email.value;
+    }
+    if (phone.value.trim()) {
+        saveData.phone = phone.value;
+    }
+    if (bio.value.trim()) {
+        saveData.bio = bio.value;
+    }
+    if (hobbies.value.length > 0) {
+        saveData.hobbies = hobbies.value;
+    }
+
+    // 验证至少有一个字段需要更新
+    if (Object.keys(saveData).length === 0) {
+        alert("请至少修改一个字段");
         return;
     }
 
@@ -488,17 +553,19 @@ const saveStudentInfo = () => {
             isEditing.value = false;
 
             // 显示成功提示
-            alert("个人信息修改成功！");
+            alert(res.data.message || "个人信息修改成功！");
 
-            // 更新本地完整数据
-            studentInfo.value = res.data;
+            // 重新获取最新数据
+            fetchStudentInfo();
         })
         .catch((err) => {
             console.error("修改失败", err);
             saveLoading.value = false;
             alert(
                 "修改失败：" +
-                    (err.response?.data?.message || "网络错误，请稍后重试")
+                    (err.response?.data?.error ||
+                        err.response?.data?.message ||
+                        "网络错误，请稍后重试"),
             );
         });
 };
@@ -630,8 +697,8 @@ const removeEducation = (index) => {
     education.value.splice(index, 1);
 };
 
-// 生命周期钩子 - 加载个人信息（用户基本信息由StudentHeader组件管理）
-onMounted(() => {
+// 获取学生信息函数
+const fetchStudentInfo = () => {
     // 调用接口获取数据
     api.getStudentinfo()
         .then((res) => {
@@ -669,6 +736,11 @@ onMounted(() => {
             // 加载失败时使用默认数据
             setDefaultData();
         });
+};
+
+// 生命周期钩子 - 加载个人信息（用户基本信息由StudentHeader组件管理）
+onMounted(() => {
+    fetchStudentInfo();
 });
 
 // 设置默认数据（当接口请求失败时）
@@ -703,11 +775,20 @@ const setDefaultData = () => {
     studentInfo.value = defaultData;
     // 填充表单数据（不包括由StudentHeader管理的字段）
     const fieldsToSet = [
-        'userAvatarUrl', 'userAvatar', 'birthDate', 'hometown', 
-        'politicalStatus', 'email', 'phone', 'website', 'bio', 
-        'hobbies', 'skills', 'education'
+        "userAvatarUrl",
+        "userAvatar",
+        "birthDate",
+        "hometown",
+        "politicalStatus",
+        "email",
+        "phone",
+        "website",
+        "bio",
+        "hobbies",
+        "skills",
+        "education",
     ];
-    
+
     fieldsToSet.forEach((key) => {
         if (key in defaultData && this[key] !== undefined) {
             this[key] = defaultData[key];
@@ -1668,5 +1749,211 @@ textarea {
 }
 .bth-text {
     color: white;
+}
+
+/* 头像选择弹窗样式 */
+.avatar-selector-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease;
+}
+
+.avatar-selector-modal {
+    background-color: white;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    animation: slideUp 0.3s ease;
+}
+
+.avatar-selector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 1px solid #f0f2f5;
+    background: linear-gradient(135deg, #4a6fa5 0%, #36cbcb 100%);
+    color: white;
+}
+
+.avatar-selector-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: white;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.close-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    transform: rotate(90deg);
+}
+
+.avatar-selector-content {
+    padding: 25px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 15px;
+}
+
+.avatar-option {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f0f7ff, #e6f0ff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.avatar-option:hover {
+    transform: scale(1.1) rotate(5deg);
+    box-shadow: 0 4px 12px rgba(74, 111, 165, 0.2);
+    border-color: #4a6fa5;
+}
+
+.avatar-option.active {
+    border-color: #4a6fa5;
+    background: linear-gradient(135deg, #4a6fa5, #36cbcb);
+    color: white;
+    box-shadow: 0 4px 12px rgba(74, 111, 165, 0.3);
+}
+
+.avatar-selector-footer {
+    display: flex;
+    gap: 15px;
+    padding: 20px 25px;
+    border-top: 1px solid #f0f2f5;
+    background-color: #fafbff;
+}
+
+.avatar-selector-footer button {
+    flex: 1;
+    padding: 12px 0;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.cancel-btn {
+    background-color: #f0f2f5;
+    color: #6c7a89;
+}
+
+.cancel-btn:hover {
+    background-color: #e6e9ec;
+    transform: translateY(-2px);
+}
+
+.confirm-btn {
+    background: linear-gradient(90deg, #4a6fa5, #36cbcb);
+    color: white;
+}
+
+.confirm-btn:hover {
+    box-shadow: 0 4px 12px rgba(74, 111, 165, 0.3);
+    transform: translateY(-2px);
+}
+
+/* 头像选择按钮样式 */
+.select-btn {
+    background-color: #f0f7ff;
+    color: #4a6fa5;
+    border: 1px solid #d1e0f5;
+}
+
+.select-btn:hover {
+    background-color: #e6f0ff;
+    transform: translateY(-2px);
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .avatar-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+    }
+
+    .avatar-option {
+        font-size: 20px;
+    }
+
+    .avatar-selector-content {
+        padding: 20px;
+    }
+
+    .avatar-selector-header,
+    .avatar-selector-footer {
+        padding: 15px 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .avatar-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+
+    .avatar-option {
+        font-size: 18px;
+    }
 }
 </style>
