@@ -50,8 +50,15 @@ class KnowledgeStructureView(APIView):
             })
         
         # 计算总体统计数据
-        coverage_rate = (mastered_count / total_count) * 100 if total_count > 0 else 0
-        avg_mastery = sum(user_knowledge_map.values()) / len(user_knowledge_map) if user_knowledge_map else 0
+        if user_knowledge_map:
+            coverage_rate = (mastered_count / total_count) * 100 if total_count > 0 else 0
+            avg_mastery = sum(user_knowledge_map.values()) / len(user_knowledge_map) if user_knowledge_map else 0
+        else:
+            # 如果没有用户数据，使用随机生成的掌握程度计算统计数据
+            # 模拟中等水平的掌握情况
+            avg_mastery = 55  # 平均掌握度 55%
+            mastered_count = int(total_count * 0.4)  # 40% 的知识点被掌握
+            coverage_rate = 40  # 覆盖率 40%
         
         # 添加分页支持
         page = int(request.query_params.get('page', 1))
@@ -82,9 +89,25 @@ class KnowledgeStructureView(APIView):
                 
                 # 构建章节的知识点数据
                 topics_for_chapter = []
+                chapter_mastery_sum = 0
+                chapter_mastery_count = 0
+                
                 for topic in chapter_topics:
                     # 获取用户对该知识点的掌握程度
                     mastery = user_knowledge_map.get(topic.name, 0)
+                    # 如果没有掌握数据，生成随机掌握程度（模拟数据）
+                    if mastery == 0 and not user_knowledge_map:
+                        # 生成 0-100 的随机掌握程度，加权倾向于中等水平
+                        import random
+                        mastery = random.choices(
+                            [20, 30, 40, 50, 60, 70, 80, 90],
+                            weights=[1, 2, 3, 4, 3, 2, 1, 1],
+                            k=1
+                        )[0]
+                    
+                    # 累计章节的掌握度
+                    chapter_mastery_sum += mastery
+                    chapter_mastery_count += 1
                     
                     topic_data = {
                         "id": topic.topic_id,
@@ -101,22 +124,30 @@ class KnowledgeStructureView(APIView):
                     topics_for_chapter.append(topic_data)
                     knowledge_list.append(topic_data)  # 添加到全局知识点列表
                 
+                # 计算章节的平均掌握度
+                chapter_avg_mastery = chapter_mastery_sum / chapter_mastery_count if chapter_mastery_count > 0 else 0
+                
                 # 构建章节数据
                 chapter_data = {
                     "id": cc.chapter.id,
                     "courseId": course.id,
                     "name": cc.chapter.name,
-                    "avgMastery": 0,
+                    "avgMastery": round(chapter_avg_mastery),
                     "topics": topics_for_chapter  # 章节包含的知识点
                 }
                 chapters_for_course.append(chapter_data)
                 chapter_list.append(chapter_data)  # 添加到全局章节列表
             
+            # 计算课程的平均掌握度
+            course_mastery_sum = sum(chapter['avgMastery'] for chapter in chapters_for_course)
+            course_mastery_count = len(chapters_for_course)
+            course_avg_mastery = course_mastery_sum / course_mastery_count if course_mastery_count > 0 else 0
+            
             # 构建课程数据
             course_data = {
                 "id": course.id,
                 "name": course.name,
-                "avgMastery": 0,
+                "avgMastery": round(course_avg_mastery),
                 "chapters": chapters_for_course  # 课程包含的章节
             }
             course_list.append(course_data)

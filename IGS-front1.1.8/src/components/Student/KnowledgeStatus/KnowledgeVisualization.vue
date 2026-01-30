@@ -35,7 +35,7 @@
                             }"
                             :class="
                                 getProgressColorClass(
-                                    (completedCourses / totalCourses) * 100
+                                    (completedCourses / totalCourses) * 100,
                                 )
                             "
                         ></div>
@@ -90,9 +90,15 @@
 
         <!-- 认知诊断按钮 -->
         <div class="diagnosis-section">
-            <button class="diagnosis-btn" @click="startCognitiveDiagnosis" :disabled="isDiagnosing">
-                <span class="diagnosis-icon">{{ isDiagnosing ? '⏳' : '🧠' }}</span>
-                {{ isDiagnosing ? '诊断中...' : '认知诊断' }}
+            <button
+                class="diagnosis-btn"
+                @click="startCognitiveDiagnosis"
+                :disabled="isDiagnosing"
+            >
+                <span class="diagnosis-icon">{{
+                    isDiagnosing ? "⏳" : "🧠"
+                }}</span>
+                {{ isDiagnosing ? "诊断中..." : "认知诊断" }}
             </button>
             <!-- 错误提示 -->
             <div v-if="diagnosisError" class="diagnosis-error">
@@ -101,35 +107,89 @@
         </div>
 
         <!-- 认知诊断结果弹窗 -->
-        <div v-if="showDiagnosisResult" class="diagnosis-modal-overlay" @click.self="closeDiagnosisResult">
+        <div
+            v-if="showDiagnosisResult"
+            class="diagnosis-modal-overlay"
+            @click.self="closeDiagnosisResult"
+        >
             <div class="diagnosis-modal">
                 <div class="modal-header">
                     <h3>🧠 认知诊断结果</h3>
-                    <button class="close-btn" @click="closeDiagnosisResult">×</button>
+                    <button class="close-btn" @click="closeDiagnosisResult">
+                        ×
+                    </button>
                 </div>
                 <div class="modal-body">
                     <div v-if="diagnosisResult" class="diagnosis-content">
                         <!-- 题目正确率预测 -->
                         <div class="section">
                             <h4>📊 下一道题正确率预测</h4>
-                            <div v-if="diagnosisResult.predicted_questions && diagnosisResult.predicted_questions.length > 0" class="prediction-list">
-                                <div v-for="(question, index) in diagnosisResult.predicted_questions" :key="question.id" class="prediction-item">
+                            <div
+                                v-if="
+                                    diagnosisResult.predicted_questions &&
+                                    diagnosisResult.predicted_questions.length >
+                                        0
+                                "
+                                class="prediction-list"
+                            >
+                                <div
+                                    v-for="(
+                                        question, index
+                                    ) in diagnosisResult.predicted_questions"
+                                    :key="question.id"
+                                    class="prediction-item"
+                                >
                                     <div class="question-info">
-                                        <span class="question-number">{{ index + 1 }}.</span>
-                                        <span class="question-name">{{ question.name }}</span>
-                                        <span class="question-difficulty" :class="getDifficultyClass(question.difficulty)">
+                                        <span class="question-number"
+                                            >{{ index + 1 }}.</span
+                                        >
+                                        <span class="question-name">{{
+                                            question.name
+                                        }}</span>
+                                        <span
+                                            class="question-difficulty"
+                                            :class="
+                                                getDifficultyClass(
+                                                    question.difficulty,
+                                                )
+                                            "
+                                        >
                                             难度: {{ question.difficulty }}
                                         </span>
                                     </div>
                                     <div class="accuracy-bar">
-                                        <div 
-                                            class="accuracy-progress" 
-                                            :style="{ width: (question.predicted_accuracy * 100) + '%' }"
-                                            :class="getAccuracyClass(question.predicted_accuracy)"
-                                        ></div>
+                                        <div
+                                            :class="
+                                                getAccuracyClass(
+                                                    question.predicted_accuracy,
+                                                )
+                                            "
+                                        >
+                                            <div
+                                                class="accuracy-progress"
+                                                :style="{
+                                                    width:
+                                                        question.predicted_accuracy *
+                                                            100 +
+                                                        '%',
+                                                }"
+                                            ></div>
+                                        </div>
                                     </div>
-                                    <span class="accuracy-value" :class="getAccuracyClass(question.predicted_accuracy)">
-                                        {{ (question.predicted_accuracy * 100).toFixed(1) }}%
+                                    <span
+                                        class="accuracy-value"
+                                        :class="
+                                            getAccuracyClass(
+                                                question.predicted_accuracy,
+                                            )
+                                        "
+                                    >
+                                        {{
+                                            (
+                                                question.predicted_accuracy *
+                                                100
+                                            ).toFixed(1)
+                                        }}%
                                     </span>
                                 </div>
                             </div>
@@ -141,15 +201,37 @@
                             <h4>📈 整体预测情况</h4>
                             <div class="overall-prediction">
                                 <div class="prediction-stat">
-                                    <span class="stat-label">平均预测准确率</span>
-                                    <span class="stat-value" :class="getAccuracyClass(diagnosisResult.average_accuracy)">
-                                        {{ diagnosisResult.average_accuracy ? (diagnosisResult.average_accuracy * 100).toFixed(1) + '%' : '无数据' }}
+                                    <span class="stat-label"
+                                        >平均预测准确率</span
+                                    >
+                                    <span
+                                        class="stat-value"
+                                        :class="
+                                            getAccuracyClass(
+                                                diagnosisResult.average_accuracy,
+                                            )
+                                        "
+                                    >
+                                        {{
+                                            diagnosisResult.average_accuracy
+                                                ? (
+                                                      diagnosisResult.average_accuracy *
+                                                      100
+                                                  ).toFixed(1) + "%"
+                                                : "无数据"
+                                        }}
                                     </span>
                                 </div>
                                 <div class="prediction-stat">
                                     <span class="stat-label">预测题目数量</span>
                                     <span class="stat-value">
-                                        {{ diagnosisResult.predicted_questions ? diagnosisResult.predicted_questions.length : 0 }}
+                                        {{
+                                            diagnosisResult.predicted_questions
+                                                ? diagnosisResult
+                                                      .predicted_questions
+                                                      .length
+                                                : 0
+                                        }}
                                     </span>
                                 </div>
                             </div>
@@ -158,17 +240,43 @@
                         <!-- 学习建议 -->
                         <div class="section">
                             <h4>💡 学习建议</h4>
-                            <div v-if="diagnosisResult.recommendations && diagnosisResult.recommendations.length > 0" class="recommendations">
-                                <div v-for="(recommendation, index) in diagnosisResult.recommendations" :key="index" class="recommendation-item">
+                            <div
+                                v-if="
+                                    diagnosisResult.recommendations &&
+                                    diagnosisResult.recommendations.length > 0
+                                "
+                                class="recommendations"
+                            >
+                                <div
+                                    v-for="(
+                                        recommendation, index
+                                    ) in diagnosisResult.recommendations"
+                                    :key="index"
+                                    class="recommendation-item"
+                                >
                                     {{ recommendation }}
                                 </div>
                             </div>
-                            <div v-else-if="diagnosisResult.weakest_tags && diagnosisResult.weakest_tags.length > 0" class="recommendations">
-                                <div v-for="(tag, index) in diagnosisResult.weakest_tags" :key="index" class="recommendation-item">
+                            <div
+                                v-else-if="
+                                    diagnosisResult.weakest_tags &&
+                                    diagnosisResult.weakest_tags.length > 0
+                                "
+                                class="recommendations"
+                            >
+                                <div
+                                    v-for="(
+                                        tag, index
+                                    ) in diagnosisResult.weakest_tags"
+                                    :key="index"
+                                    class="recommendation-item"
+                                >
                                     建议加强对「{{ tag }}」的学习和练习
                                 </div>
                             </div>
-                            <div v-else class="no-data">继续保持良好的学习状态</div>
+                            <div v-else class="no-data">
+                                继续保持良好的学习状态
+                            </div>
                         </div>
 
                         <!-- 诊断统计信息 -->
@@ -177,20 +285,43 @@
                             <div class="stats">
                                 <div class="stat-item">
                                     <span class="stat-label">分析题目数</span>
-                                    <span class="stat-value">{{ diagnosisResult.total_interactions || 0 }}</span>
+                                    <span class="stat-value">{{
+                                        diagnosisResult.total_interactions || 0
+                                    }}</span>
                                 </div>
                                 <div class="stat-item">
                                     <span class="stat-label">有效交互</span>
-                                    <span class="stat-value">{{ diagnosisResult.valid_interactions || 0 }}</span>
+                                    <span class="stat-value">{{
+                                        diagnosisResult.valid_interactions || 0
+                                    }}</span>
                                 </div>
                                 <div class="stat-item">
                                     <span class="stat-label">诊断模式</span>
-                                    <span class="stat-value">{{ diagnosisResult.model_status === 'fallback' ? '标准模式' : '智能模式' }}</span>
+                                    <span class="stat-value">{{
+                                        diagnosisResult.model_status ===
+                                        "fallback"
+                                            ? "标准模式"
+                                            : "智能模式"
+                                    }}</span>
                                 </div>
                                 <div class="stat-item">
                                     <span class="stat-label">答题准确率</span>
-                                    <span class="stat-value" :class="getAccuracyClass(diagnosisResult.accuracy)">
-                                        {{ diagnosisResult.accuracy ? (diagnosisResult.accuracy * 100).toFixed(1) + '%' : '无数据' }}
+                                    <span
+                                        class="stat-value"
+                                        :class="
+                                            getAccuracyClass(
+                                                diagnosisResult.accuracy,
+                                            )
+                                        "
+                                    >
+                                        {{
+                                            diagnosisResult.accuracy
+                                                ? (
+                                                      diagnosisResult.accuracy *
+                                                      100
+                                                  ).toFixed(1) + "%"
+                                                : "无数据"
+                                        }}
                                     </span>
                                 </div>
                             </div>
@@ -198,7 +329,9 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="primary-btn" @click="closeDiagnosisResult">我知道了</button>
+                    <button class="primary-btn" @click="closeDiagnosisResult">
+                        我知道了
+                    </button>
                 </div>
             </div>
         </div>
@@ -584,27 +717,27 @@ const initLearningHoursChart = () => {
 const showDiagnosisResult = ref(false);
 const diagnosisResult = ref(null);
 const isDiagnosing = ref(false);
-const diagnosisError = ref('');
+const diagnosisError = ref("");
 
 // 认知诊断API调用函数
 const startCognitiveDiagnosis = () => {
-    console.log('开始认知诊断...');
+    console.log("开始认知诊断...");
     isDiagnosing.value = true;
-    diagnosisError.value = '';
-    
+    diagnosisError.value = "";
+
     // 设置默认用户ID（实际应用中应该从用户认证系统获取）
     const userId = 1; // testuser的ID
-    
+
     // 调用预测下一组题目的API
     api.getPredictNextQuestions(userId)
         .then((res) => {
-            console.log('预测题目结果:', res.data);
-            
+            console.log("预测题目结果:", res.data);
+
             // 确保诊断结果格式正确
             let formattedResult = {};
-            
+
             // 后端返回的结构应该是 {predicted_questions: [...], recommendations: [...], status: 'success'}
-            if (res.data && typeof res.data === 'object') {
+            if (res.data && typeof res.data === "object") {
                 formattedResult = {
                     // 确保预测题目数据正确
                     predicted_questions: res.data.predicted_questions || [],
@@ -616,12 +749,12 @@ const startCognitiveDiagnosis = () => {
                     total_interactions: res.data.total_interactions || 0,
                     valid_interactions: res.data.valid_interactions || 0,
                     // 使用后端返回的model_status
-                    model_status: res.data.model_status || 'prediction_mode',
+                    model_status: res.data.model_status || "prediction_mode",
                     // 添加总体准确率
-                    accuracy: res.data.average_accuracy || 0
+                    accuracy: res.data.average_accuracy || 0,
                 };
             } else {
-                console.warn('诊断结果格式不正确，使用默认格式');
+                console.warn("诊断结果格式不正确，使用默认格式");
                 // 使用默认的模拟数据，确保UI能正常显示
                 formattedResult = {
                     predicted_questions: [
@@ -629,69 +762,71 @@ const startCognitiveDiagnosis = () => {
                             id: 1,
                             name: "数据库连接与数据操作",
                             difficulty: "1",
-                            predicted_accuracy: 0.85
+                            predicted_accuracy: 0.85,
                         },
                         {
                             id: 2,
                             name: "数据表的创建与管理",
                             difficulty: "1",
-                            predicted_accuracy: 0.72
+                            predicted_accuracy: 0.72,
                         },
                         {
                             id: 3,
                             name: "数据库查询操作",
                             difficulty: "2",
-                            predicted_accuracy: 0.65
+                            predicted_accuracy: 0.65,
                         },
                         {
                             id: 4,
                             name: "数据库的插入操作",
                             difficulty: "1",
-                            predicted_accuracy: 0.90
+                            predicted_accuracy: 0.9,
                         },
                         {
                             id: 5,
                             name: "数据库的更新操作",
                             difficulty: "1",
-                            predicted_accuracy: 0.78
-                        }
+                            predicted_accuracy: 0.78,
+                        },
                     ],
                     average_accuracy: 0.78,
                     recommendations: [
                         "📝 整体预测准确率中等，建议针对性地进行练习",
                         "🎯 有2道题预测准确率较高，可以尝试挑战",
-                        "⚠️ 有1道题预测准确率较低，建议重点关注"
+                        "⚠️ 有1道题预测准确率较低，建议重点关注",
                     ],
                     model_status: "prediction_mode",
                     accuracy: 0.78,
                     // 添加模拟的交互统计数据
                     total_interactions: 50,
-                    valid_interactions: 45
+                    valid_interactions: 45,
                 };
             }
-            
+
             diagnosisResult.value = formattedResult;
             showDiagnosisResult.value = true;
         })
         .catch((err) => {
-            console.error('认知诊断失败:', err);
+            console.error("认知诊断失败:", err);
             // 提供更详细的错误信息
             if (err.response) {
                 // 服务器返回错误响应
-                diagnosisError.value = err.response.data.message || 
-                                      `服务器错误: ${err.response.status}` || 
-                                      '认知诊断失败，请稍后重试';
+                diagnosisError.value =
+                    err.response.data.message ||
+                    `服务器错误: ${err.response.status}` ||
+                    "认知诊断失败，请稍后重试";
             } else if (err.request) {
                 // 请求已发出但没有收到响应
-                diagnosisError.value = '网络连接失败，请检查网络设置后重试';
+                diagnosisError.value = "网络连接失败，请检查网络设置后重试";
             } else {
                 // 请求配置出错
-                diagnosisError.value = err.message || '认知诊断失败，请稍后重试';
+                diagnosisError.value =
+                    err.message || "认知诊断失败，请稍后重试";
             }
-            
+
             // 显示错误通知
             setTimeout(() => {
-                diagnosisError.value = '';
+                diagnosisError.value = "";
             }, 5000); // 5秒后自动清除错误信息
         })
         .finally(() => {
@@ -707,27 +842,27 @@ const closeDiagnosisResult = () => {
 
 // 根据掌握度获取样式类
 const getMasteryLevelClass = (mastery) => {
-    if (mastery >= 0.8) return 'mastery-high';
-    if (mastery >= 0.6) return 'mastery-medium';
-    if (mastery >= 0.4) return 'mastery-low';
-    return 'mastery-very-low';
+    if (mastery >= 0.8) return "mastery-high";
+    if (mastery >= 0.6) return "mastery-medium";
+    if (mastery >= 0.4) return "mastery-low";
+    return "mastery-very-low";
 };
 
 // 根据准确率获取样式类
 const getAccuracyClass = (accuracy) => {
-    if (!accuracy && accuracy !== 0) return '';
-    if (accuracy >= 0.85) return 'accuracy-excellent';
-    if (accuracy >= 0.7) return 'accuracy-good';
-    if (accuracy >= 0.5) return 'accuracy-fair';
-    return 'accuracy-poor';
+    if (!accuracy && accuracy !== 0) return "";
+    if (accuracy >= 0.85) return "accuracy-excellent";
+    if (accuracy >= 0.7) return "accuracy-good";
+    if (accuracy >= 0.5) return "accuracy-fair";
+    return "accuracy-poor";
 };
 
 // 根据难度获取样式类
 const getDifficultyClass = (difficulty) => {
-    if (difficulty === '1' || difficulty === 1) return 'difficulty-easy';
-    if (difficulty === '2' || difficulty === 2) return 'difficulty-medium';
-    if (difficulty === '3' || difficulty === 3) return 'difficulty-hard';
-    return 'difficulty-unknown';
+    if (difficulty === "1" || difficulty === 1) return "difficulty-easy";
+    if (difficulty === "2" || difficulty === 2) return "difficulty-medium";
+    if (difficulty === "3" || difficulty === 3) return "difficulty-hard";
+    return "difficulty-unknown";
 };
 
 // 获取学习数据
@@ -1069,7 +1204,9 @@ onMounted(() => {
 /* 卡片内元素延迟动画 */
 .card .progress-item,
 .card .stat-item {
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
     opacity: 0.9;
 }
 
@@ -1310,7 +1447,7 @@ onMounted(() => {
 }
 
 .diagnosis-btn::before {
-    content: '';
+    content: "";
     position: absolute;
     top: -2px;
     left: -2px;
@@ -1323,7 +1460,7 @@ onMounted(() => {
 }
 
 .diagnosis-btn::after {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     left: 0;
@@ -1335,9 +1472,15 @@ onMounted(() => {
 }
 
 @keyframes glowing {
-    0% { background-position: 0 0; }
-    50% { background-position: 400% 0; }
-    100% { background-position: 0 0; }
+    0% {
+        background-position: 0 0;
+    }
+    50% {
+        background-position: 400% 0;
+    }
+    100% {
+        background-position: 0 0;
+    }
 }
 
 .diagnosis-icon {
@@ -1370,7 +1513,7 @@ onMounted(() => {
 }
 
 .diagnosis-error {
-    color: #F56C6C;
+    color: #f56c6c;
     margin-top: 10px;
     font-size: 14px;
     text-align: center;
@@ -1406,7 +1549,7 @@ onMounted(() => {
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
-    border-bottom: 1px solid #EBEEF5;
+    border-bottom: 1px solid #ebeef5;
 }
 
 .modal-header h3 {
@@ -1431,7 +1574,7 @@ onMounted(() => {
 }
 
 .close-btn:hover {
-    background-color: #F2F6FC;
+    background-color: #f2f6fc;
     color: #606266;
 }
 
@@ -1479,7 +1622,7 @@ onMounted(() => {
 .mastery-bar {
     flex: 1;
     height: 20px;
-    background-color: #F0F2F5;
+    background-color: #f0f2f5;
     border-radius: 10px;
     overflow: hidden;
     position: relative;
@@ -1492,15 +1635,15 @@ onMounted(() => {
 }
 
 .mastery-high {
-    background-color: #67C23A;
+    background-color: #67c23a;
 }
 
 .mastery-medium {
-    background-color: #E6A23C;
+    background-color: #e6a23c;
 }
 
 .mastery-low {
-    background-color: #F56C6C;
+    background-color: #f56c6c;
 }
 
 .mastery-very-low {
@@ -1516,25 +1659,25 @@ onMounted(() => {
 
 /* 准确率样式 */
 .accuracy-excellent {
-    color: #4CAF50;
+    color: #4caf50;
     font-weight: bold;
 }
 .accuracy-good {
-    color: #2196F3;
+    color: #2196f3;
     font-weight: bold;
 }
 .accuracy-fair {
-    color: #FF9800;
+    color: #ff9800;
     font-weight: bold;
 }
 .accuracy-poor {
-    color: #F44336;
+    color: #f44336;
     font-weight: bold;
 }
 
 /* 难度样式类 */
 .difficulty-easy {
-    color: #4CAF50;
+    color: #4caf50;
     background-color: rgba(76, 175, 80, 0.1);
     padding: 2px 6px;
     border-radius: 10px;
@@ -1542,7 +1685,7 @@ onMounted(() => {
 }
 
 .difficulty-medium {
-    color: #FF9800;
+    color: #ff9800;
     background-color: rgba(255, 152, 0, 0.1);
     padding: 2px 6px;
     border-radius: 10px;
@@ -1550,7 +1693,7 @@ onMounted(() => {
 }
 
 .difficulty-hard {
-    color: #F44336;
+    color: #f44336;
     background-color: rgba(244, 67, 54, 0.1);
     padding: 2px 6px;
     border-radius: 10px;
@@ -1558,7 +1701,7 @@ onMounted(() => {
 }
 
 .difficulty-unknown {
-    color: #9E9E9E;
+    color: #9e9e9e;
     background-color: rgba(158, 158, 158, 0.1);
     padding: 2px 6px;
     border-radius: 10px;
@@ -1590,7 +1733,7 @@ onMounted(() => {
 
 .question-number {
     font-weight: bold;
-    color: #2196F3;
+    color: #2196f3;
     min-width: 20px;
 }
 
@@ -1615,19 +1758,19 @@ onMounted(() => {
 }
 
 .accuracy-excellent .accuracy-progress {
-    background-color: #4CAF50;
+    background-color: #4caf50 !important;
 }
 
 .accuracy-good .accuracy-progress {
-    background-color: #2196F3;
+    background-color: #2196f3 !important;
 }
 
 .accuracy-fair .accuracy-progress {
-    background-color: #FF9800;
+    background-color: #ff9800;
 }
 
 .accuracy-poor .accuracy-progress {
-    background-color: #F44336;
+    background-color: #f44336;
 }
 
 .accuracy-value {
@@ -1659,12 +1802,12 @@ onMounted(() => {
 }
 
 .weak-tag {
-    background-color: #FDF6EC;
-    color: #E6A23C;
+    background-color: #fdf6ec;
+    color: #e6a23c;
     padding: 4px 12px;
     border-radius: 10px;
     font-size: 14px;
-    border: 1px solid #FCEBBF;
+    border: 1px solid #fcebbf;
 }
 
 /* 学习建议 */
@@ -1675,8 +1818,8 @@ onMounted(() => {
 }
 
 .recommendation-item {
-    background-color: #F0F9EB;
-    border-left: 4px solid #67C23A;
+    background-color: #f0f9eb;
+    border-left: 4px solid #67c23a;
     padding: 10px 12px;
     border-radius: 4px;
     font-size: 14px;
@@ -1694,7 +1837,7 @@ onMounted(() => {
 .stat-item {
     text-align: center;
     padding: 12px;
-    background-color: #F5F7FA;
+    background-color: #f5f7fa;
     border-radius: 4px;
 }
 
@@ -1717,18 +1860,18 @@ onMounted(() => {
     color: #909399;
     padding: 20px;
     font-size: 14px;
-    background-color: #F5F7FA;
+    background-color: #f5f7fa;
     border-radius: 4px;
 }
 
 .modal-footer {
     padding: 16px 20px;
-    border-top: 1px solid #EBEEF5;
+    border-top: 1px solid #ebeef5;
     text-align: right;
 }
 
 .primary-btn {
-    background-color: #409EFF;
+    background-color: #409eff;
     color: white;
     border: none;
     padding: 8px 20px;
@@ -1739,7 +1882,7 @@ onMounted(() => {
 }
 
 .primary-btn:hover {
-    background-color: #66B1FF;
+    background-color: #66b1ff;
 }
 
 /* 返回首页按钮样式 */

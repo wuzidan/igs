@@ -58,7 +58,7 @@
                                 }"
                                 :class="
                                     getProgressColorClass(
-                                        (masteredCount / totalCount) * 100
+                                        (masteredCount / totalCount) * 100,
                                     )
                                 "
                             ></div>
@@ -181,7 +181,7 @@
                             <canvas id="masteryChart"></canvas>
                         </div>
                         <div class="chart-table">
-                            <table>
+                            <table id="data-table">
                                 <thead>
                                     <tr>
                                         <th>课程</th>
@@ -199,14 +199,14 @@
                                         <td>
                                             {{
                                                 getCourseName(
-                                                    knowledge.courseId
+                                                    knowledge.courseId,
                                                 )
                                             }}
                                         </td>
                                         <td>
                                             {{
                                                 getChapterName(
-                                                    knowledge.chapterId
+                                                    knowledge.chapterId,
                                                 )
                                             }}
                                         </td>
@@ -217,13 +217,13 @@
                                                 :class="
                                                     getMasteryColorClass(
                                                         knowledge.mastery,
-                                                        'level'
+                                                        'level',
                                                     )
                                                 "
                                             >
                                                 {{
                                                     getMasteryLevelText(
-                                                        knowledge.mastery
+                                                        knowledge.mastery,
                                                     )
                                                 }}
                                             </span>
@@ -283,7 +283,7 @@
                                             class="mastery-badge"
                                             :class="
                                                 getProgressColorClass(
-                                                    course.avgMastery
+                                                    course.avgMastery,
                                                 )
                                             "
                                         >
@@ -301,7 +301,7 @@
                             >
                                 <div
                                     v-for="chapter in getChaptersByCourse(
-                                        course.id
+                                        course.id,
                                     )"
                                     :key="chapter.id"
                                     class="chapter-card"
@@ -321,7 +321,7 @@
                                                 <span
                                                     >{{
                                                         getKnowledgeByChapter(
-                                                            chapter.id
+                                                            chapter.id,
                                                         ).length
                                                     }}
                                                     知识点</span
@@ -330,13 +330,13 @@
                                                     class="mastery-badge"
                                                     :class="
                                                         getProgressColorClass(
-                                                            chapter.avgMastery
+                                                            chapter.avgMastery,
                                                         )
                                                     "
                                                 >
                                                     {{
                                                         chapter.avgMastery.toFixed(
-                                                            1
+                                                            1,
                                                         )
                                                     }}% 掌握度
                                                 </span>
@@ -352,7 +352,7 @@
                                         <div
                                             class="knowledge-item"
                                             v-for="knowledge in getKnowledgeByChapter(
-                                                chapter.id
+                                                chapter.id,
                                             )"
                                             :key="knowledge.id"
                                             @click="
@@ -362,7 +362,7 @@
                                             <div class="knowledge-icon">
                                                 {{
                                                     getCategoryIcon(
-                                                        knowledge.category
+                                                        knowledge.category,
                                                     )
                                                 }}
                                             </div>
@@ -382,7 +382,7 @@
                                                         }"
                                                         :class="
                                                             getMasteryColorClass(
-                                                                knowledge.mastery
+                                                                knowledge.mastery,
                                                             )
                                                         "
                                                     ></div>
@@ -393,13 +393,13 @@
                                                         :class="
                                                             getMasteryColorClass(
                                                                 knowledge.mastery,
-                                                                'level'
+                                                                'level',
                                                             )
                                                         "
                                                     >
                                                         {{
                                                             getMasteryLevelText(
-                                                                knowledge.mastery
+                                                                knowledge.mastery,
                                                             )
                                                         }}
                                                         ({{
@@ -446,7 +446,7 @@
                                         <td>
                                             {{
                                                 categoryAvgMastery.core.toFixed(
-                                                    1
+                                                    1,
                                                 )
                                             }}%
                                         </td>
@@ -458,7 +458,7 @@
                                         <td>
                                             {{
                                                 categoryAvgMastery.important.toFixed(
-                                                    1
+                                                    1,
                                                 )
                                             }}%
                                         </td>
@@ -472,7 +472,7 @@
                                         <td>
                                             {{
                                                 categoryAvgMastery.general.toFixed(
-                                                    1
+                                                    1,
                                                 )
                                             }}%
                                         </td>
@@ -548,7 +548,7 @@ import request from "../../../utils/request";
 const router = useRouter();
 
 const isLoggedIn = ref(
-    !!(window.localStorage && window.localStorage.getItem("token"))
+    !!(window.localStorage && window.localStorage.getItem("token")),
 );
 
 const handleAuthFailure = async (e) => {
@@ -565,270 +565,6 @@ const handleAuthFailure = async (e) => {
         console.error("路由跳转失败", err);
     }
 };
-
-// ===================== Mock数据定义 =====================
-// 基础统计数据
-const MOCK_BASE_DATA = {
-    coverageRate: 85,
-    masteredCount: 28,
-    totalCount: 35,
-    avgMastery: 78.5,
-};
-
-// 课程列表
-const MOCK_COURSE_LIST = [
-    {
-        id: 1,
-        name: "Vue3 核心原理与实战",
-        avgMastery: 82.3,
-    },
-    {
-        id: 2,
-        name: "TypeScript 进阶开发",
-        avgMastery: 75.8,
-    },
-    {
-        id: 3,
-        name: "前端工程化实践",
-        avgMastery: 70.5,
-    },
-];
-
-// 章节列表
-const MOCK_CHAPTER_LIST = [
-    // Vue3课程章节
-    { id: 101, courseId: 1, name: "Vue3 基础语法", avgMastery: 90.5 },
-    { id: 102, courseId: 1, name: "组合式API", avgMastery: 85.2 },
-    { id: 103, courseId: 1, name: "组件通信与生命周期", avgMastery: 78.9 },
-
-    // TS课程章节
-    { id: 201, courseId: 2, name: "TS 类型系统", avgMastery: 80.1 },
-    { id: 202, courseId: 2, name: "高级类型与泛型", avgMastery: 72.5 },
-    { id: 203, courseId: 2, name: "TS与Vue3结合", avgMastery: 75.3 },
-
-    // 工程化课程章节
-    { id: 301, courseId: 3, name: "Vite 构建工具", avgMastery: 78.6 },
-    { id: 302, courseId: 3, name: "ESLint与Prettier", avgMastery: 65.4 },
-    { id: 303, courseId: 3, name: "CI/CD 自动化部署", avgMastery: 67.8 },
-];
-
-// 知识点列表
-const MOCK_KNOWLEDGE_LIST = [
-    // Vue3 - 基础语法
-    {
-        id: 1001,
-        courseId: 1,
-        chapterId: 101,
-        name: "模板语法与指令",
-        mastery: 95,
-        category: "core",
-        categoryText: "核心知识点",
-        description:
-            "掌握Vue3模板语法，包括插值表达式、指令系统、动态绑定等核心概念，能够熟练运用到实际开发中。",
-        practiceCount: 28,
-        lastPracticed: "2025-06-10",
-    },
-    {
-        id: 1002,
-        courseId: 1,
-        chapterId: 101,
-        name: "响应式数据声明",
-        mastery: 92,
-        category: "core",
-        categoryText: "核心知识点",
-        description:
-            "理解ref和reactive的区别，掌握响应式数据的声明和使用方式，解决响应式丢失问题。",
-        practiceCount: 25,
-        lastPracticed: "2025-06-08",
-    },
-    {
-        id: 1003,
-        courseId: 1,
-        chapterId: 101,
-        name: "计算属性与侦听器",
-        mastery: 88,
-        category: "important",
-        categoryText: "重要知识点",
-        description:
-            "掌握computed和watch的使用场景，理解缓存机制，优化组件性能。",
-        practiceCount: 20,
-        lastPracticed: "2025-06-05",
-    },
-
-    // Vue3 - 组合式API
-    {
-        id: 1004,
-        courseId: 1,
-        chapterId: 102,
-        name: "setup语法糖",
-        mastery: 89,
-        category: "core",
-        categoryText: "核心知识点",
-        description:
-            "熟练使用setup语法糖，理解其执行时机和上下文，掌握<script setup>的各种特性。",
-        practiceCount: 22,
-        lastPracticed: "2025-06-09",
-    },
-    {
-        id: 1005,
-        courseId: 1,
-        chapterId: 102,
-        name: "生命周期钩子",
-        mastery: 82,
-        category: "important",
-        categoryText: "重要知识点",
-        description:
-            "掌握Vue3组合式API中的生命周期钩子函数，理解与选项式API的对应关系。",
-        practiceCount: 18,
-        lastPracticed: "2025-06-07",
-    },
-    {
-        id: 1006,
-        courseId: 1,
-        chapterId: 102,
-        name: "依赖注入provide/inject",
-        mastery: 75,
-        category: "general",
-        categoryText: "一般知识点",
-        description: "理解依赖注入的原理和使用场景，解决深层组件通信问题。",
-        practiceCount: 12,
-        lastPracticed: "2025-06-03",
-    },
-
-    // TS - 类型系统
-    {
-        id: 2001,
-        courseId: 2,
-        chapterId: 201,
-        name: "基础类型与接口",
-        mastery: 85,
-        category: "core",
-        categoryText: "核心知识点",
-        description:
-            "掌握TypeScript基础类型定义，熟练使用interface定义复杂类型结构。",
-        practiceCount: 24,
-        lastPracticed: "2025-06-08",
-    },
-    {
-        id: 2002,
-        courseId: 2,
-        chapterId: 201,
-        name: "类型断言与类型守卫",
-        mastery: 78,
-        category: "important",
-        categoryText: "重要知识点",
-        description:
-            "理解类型断言的使用场景，掌握typeof、instanceof等类型守卫技巧。",
-        practiceCount: 16,
-        lastPracticed: "2025-06-04",
-    },
-
-    // TS - 高级类型
-    {
-        id: 2003,
-        courseId: 2,
-        chapterId: 202,
-        name: "泛型编程",
-        mastery: 70,
-        category: "core",
-        categoryText: "核心知识点",
-        description: "掌握泛型的定义和使用，理解泛型约束、默认类型等高级特性。",
-        practiceCount: 15,
-        lastPracticed: "2025-06-02",
-    },
-    {
-        id: 2004,
-        courseId: 2,
-        chapterId: 202,
-        name: "条件类型与映射类型",
-        mastery: 65,
-        category: "important",
-        categoryText: "重要知识点",
-        description: "学习高级类型操作，掌握条件类型、映射类型的使用技巧。",
-        practiceCount: 10,
-        lastPracticed: "2025-06-01",
-    },
-
-    // 工程化 - Vite
-    {
-        id: 3001,
-        courseId: 3,
-        chapterId: 301,
-        name: "Vite 配置详解",
-        mastery: 82,
-        category: "core",
-        categoryText: "核心知识点",
-        description:
-            "掌握Vite的核心配置项，理解开发服务器、构建优化等关键配置。",
-        practiceCount: 18,
-        lastPracticed: "2025-06-07",
-    },
-    {
-        id: 3002,
-        courseId: 3,
-        chapterId: 301,
-        name: "插件开发与使用",
-        mastery: 75,
-        category: "important",
-        categoryText: "重要知识点",
-        description: "了解Vite插件机制，能够开发简单插件或集成第三方插件。",
-        practiceCount: 11,
-        lastPracticed: "2025-06-03",
-    },
-
-    // 工程化 - 代码规范
-    {
-        id: 3003,
-        courseId: 3,
-        chapterId: 302,
-        name: "ESLint 配置",
-        mastery: 70,
-        category: "general",
-        categoryText: "一般知识点",
-        description: "掌握ESLint的基本配置，理解规则定制和共享配置的使用。",
-        practiceCount: 9,
-        lastPracticed: "2025-05-30",
-    },
-    {
-        id: 3004,
-        courseId: 3,
-        chapterId: 302,
-        name: "Prettier 集成",
-        mastery: 60,
-        category: "general",
-        categoryText: "一般知识点",
-        description: "学习Prettier与ESLint的集成方案，解决代码格式化冲突问题。",
-        practiceCount: 7,
-        lastPracticed: "2025-05-28",
-    },
-
-    // 工程化 - CI/CD
-    {
-        id: 3005,
-        courseId: 3,
-        chapterId: 303,
-        name: "GitHub Actions",
-        mastery: 65,
-        category: "important",
-        categoryText: "重要知识点",
-        description: "了解GitHub Actions基本语法，能够编写简单的CI/CD工作流。",
-        practiceCount: 8,
-        lastPracticed: "2025-05-25",
-    },
-    {
-        id: 3006,
-        courseId: 3,
-        chapterId: 303,
-        name: "自动化部署流程",
-        mastery: 70,
-        category: "general",
-        categoryText: "一般知识点",
-        description: "掌握前端项目自动化部署的基本流程，理解环境变量配置。",
-        practiceCount: 6,
-        lastPracticed: "2025-05-20",
-    },
-];
-// ===================== Mock数据定义结束 =====================
 
 // 总体数据
 const coverageRate = ref(0);
@@ -864,8 +600,15 @@ let masteryChartInstance = null;
 let categoryMasteryChartInstance = null;
 let knowledgeDetailChartInstance = null;
 
+// 缓存映射
+const courseMap = ref({});
+const chapterMap = ref({});
+
+// 图表配置常量
+const MAX_CHART_DATA_POINTS = 20; // 图表最大数据点数量
+
 const apiGetStructure = () => {
-    return request.get("/knowledge/structure/");
+    return request.get("/knowledge/structure");
 };
 
 const normalizeStructureData = (data) => {
@@ -875,7 +618,9 @@ const normalizeStructureData = (data) => {
         : [];
 
     let courseListLocal = Array.isArray(safe.courseList) ? safe.courseList : [];
-    let chapterListLocal = Array.isArray(safe.chapterList) ? safe.chapterList : [];
+    let chapterListLocal = Array.isArray(safe.chapterList)
+        ? safe.chapterList
+        : [];
 
     if (rawKnowledgeList.length > 0 && courseListLocal.length === 0) {
         courseListLocal = [
@@ -924,11 +669,29 @@ const normalizeStructureData = (data) => {
     };
 };
 
+// 更新缓存映射
+const updateCacheMaps = () => {
+    // 构建课程ID到名称的映射
+    const courseMapLocal = {};
+    courseList.value.forEach((course) => {
+        courseMapLocal[course.id] = course.name;
+    });
+    courseMap.value = courseMapLocal;
+
+    // 构建章节ID到名称的映射
+    const chapterMapLocal = {};
+    chapterList.value.forEach((chapter) => {
+        chapterMapLocal[chapter.id] = chapter.name;
+    });
+    chapterMap.value = chapterMapLocal;
+};
+
 // 获取知识点结构数据（带降级逻辑）
 const fetchStructureData = () => {
     return apiGetStructure()
         .then((res) => {
             const data = normalizeStructureData(res.data);
+            console.log(data, "data");
 
             coverageRate.value = data.coverageRate;
             masteredCount.value = data.masteredCount;
@@ -938,6 +701,9 @@ const fetchStructureData = () => {
             courseList.value = data.courseList;
             chapterList.value = data.chapterList;
             knowledgeList.value = data.knowledgeList;
+
+            // 更新缓存映射
+            updateCacheMaps();
 
             structureRecords.value = data;
             updateLoadingProgress(100); // 加载完成
@@ -1039,30 +805,28 @@ const getChaptersByCourse = (courseId) => {
 // 根据章节ID获取知识点列表
 const getKnowledgeByChapter = (chapterId) => {
     return knowledgeList.value.filter(
-        (knowledge) => knowledge.chapterId === chapterId
+        (knowledge) => knowledge.chapterId === chapterId,
     );
 };
 
 // 根据课程ID获取知识点列表
 const getKnowledgeByCourse = (courseId) => {
     const chapterIds = getChaptersByCourse(courseId).map(
-        (chapter) => chapter.id
+        (chapter) => chapter.id,
     );
     return knowledgeList.value.filter((knowledge) =>
-        chapterIds.includes(knowledge.chapterId)
+        chapterIds.includes(knowledge.chapterId),
     );
 };
 
-// 获取课程名称
+// 获取课程名称（使用缓存）
 const getCourseName = (courseId) => {
-    const course = courseList.value.find((item) => item.id === courseId);
-    return course ? course.name : "未知课程";
+    return courseMap.value[courseId] || "未知课程";
 };
 
-// 获取章节名称
+// 获取章节名称（使用缓存）
 const getChapterName = (chapterId) => {
-    const chapter = chapterList.value.find((item) => item.id === chapterId);
-    return chapter ? chapter.name : "未知章节";
+    return chapterMap.value[chapterId] || "未知章节";
 };
 
 // 获取总章节数
@@ -1085,17 +849,17 @@ const filteredKnowledgeList = computed(() => {
     // 按课程筛选
     if (selectedCourseId.value !== "all") {
         const chapterIds = getChaptersByCourse(selectedCourseId.value).map(
-            (chapter) => chapter.id
+            (chapter) => chapter.id,
         );
         filtered = filtered.filter((knowledge) =>
-            chapterIds.includes(knowledge.chapterId)
+            chapterIds.includes(knowledge.chapterId),
         );
     }
 
     // 按章节筛选
     if (selectedChapterId.value !== "all") {
         filtered = filtered.filter(
-            (knowledge) => knowledge.chapterId === selectedChapterId.value
+            (knowledge) => knowledge.chapterId === selectedChapterId.value,
         );
     }
 
@@ -1124,12 +888,31 @@ const filteredKnowledgeList = computed(() => {
     return filtered.sort((a, b) => a.id - b.id);
 });
 
-// 更新筛选条件并重新渲染图表
-const updateFilters = () => {
+// 防抖函数
+const debounce = (func, wait) => {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+};
+
+// 限制数量的图表数据
+const chartData = computed(() => {
+    const data = filteredKnowledgeList.value;
+    return data.slice(0, MAX_CHART_DATA_POINTS);
+});
+
+// 更新筛选条件并重新渲染图表（防抖处理）
+const updateFilters = debounce(() => {
     nextTick(() => {
         updateMasteryChart();
     });
-};
+}, 300);
 
 // 分类统计
 const categoryStats = computed(() => ({
@@ -1143,7 +926,7 @@ const categoryStats = computed(() => ({
 const categoryAvgMastery = computed(() => {
     const getAvg = (category) => {
         const items = knowledgeList.value.filter(
-            (k) => k.category === category
+            (k) => k.category === category,
         );
         return items.length
             ? items.reduce((sum, k) => sum + k.mastery, 0) / items.length
@@ -1160,7 +943,7 @@ const categoryAvgMastery = computed(() => {
 const categoryMaxMastery = computed(() => {
     const getMax = (category) => {
         const items = knowledgeList.value.filter(
-            (k) => k.category === category
+            (k) => k.category === category,
         );
         return items.length ? Math.max(...items.map((k) => k.mastery)) : 0;
     };
@@ -1245,6 +1028,26 @@ const renderKnowledgeDetailChart = (knowledge) => {
     });
 };
 
+// 优化的颜色生成函数
+const getMasteryColor = (mastery) => {
+    if (mastery < 50) {
+        return {
+            backgroundColor: "rgba(249, 115, 22, 0.7)",
+            borderColor: "rgba(189, 54, 54, 0.8)",
+        };
+    } else if (mastery < 75) {
+        return {
+            backgroundColor: "rgba(250, 204, 21, 0.7)",
+            borderColor: "rgba(234, 179, 8, 0.8)",
+        };
+    } else {
+        return {
+            backgroundColor: "rgba(16, 185, 129, 0.7)",
+            borderColor: "rgba(22, 163, 74, 0.8)",
+        };
+    }
+};
+
 // 更新掌握度图表
 const updateMasteryChart = () => {
     const masteryCtx = document.getElementById("masteryChart");
@@ -1254,35 +1057,28 @@ const updateMasteryChart = () => {
         masteryChartInstance.destroy();
     }
 
-    const labels = filteredKnowledgeList.value.map(
+    // 使用限制数量的数据
+    const chartDataList = chartData.value;
+    const labels = chartDataList.map(
         (k) =>
             `${getCourseName(k.courseId)}-${getChapterName(
-                k.chapterId
-            )}-${k.name.substring(0, 8)}`
+                k.chapterId,
+            )}-${k.name.substring(0, 8)}`,
     );
-    const data = filteredKnowledgeList.value.map((k) => k.mastery);
+    const data = chartDataList.map((k) => k.mastery);
 
-    // 创建渐变颜色数组
-    const backgroundColors = filteredKnowledgeList.value.map((k) => {
-        // 创建渐变上下文
-        const gradient = masteryCtx
-            .getContext("2d")
-            .createLinearGradient(0, 0, 0, 400);
+    // 生成颜色数组
+    const backgroundColors = chartDataList.map(
+        (k) => getMasteryColor(k.mastery).backgroundColor,
+    );
+    const borderColors = chartDataList.map(
+        (k) => getMasteryColor(k.mastery).borderColor,
+    );
 
-        // 渐变色设置
-        if (k.mastery < 50) {
-            gradient.addColorStop(0, "rgba(249, 115, 22, 0.55)"); // 橙红色
-            gradient.addColorStop(1, "rgba(189, 54, 54, 1)"); // 深暗红色
-        } else if (k.mastery < 75) {
-            gradient.addColorStop(0, "rgba(250, 204, 21, 0.55)"); // 亮黄色
-            gradient.addColorStop(1, "rgba(234, 179, 8, 1)"); // 深黄色
-        } else {
-            gradient.addColorStop(0, "rgba(16, 185, 129, 0.55)"); // 亮绿色
-            gradient.addColorStop(1, "rgba(22, 163, 74, 1)"); // 深绿色
-        }
-
-        return gradient;
-    });
+    // 如果数据量超过限制，添加提示
+    if (filteredKnowledgeList.value.length > MAX_CHART_DATA_POINTS) {
+        console.log(`数据量过大，仅显示前 ${MAX_CHART_DATA_POINTS} 个知识点`);
+    }
 
     masteryChartInstance = new Chart(masteryCtx, {
         type: "bar",
@@ -1294,11 +1090,7 @@ const updateMasteryChart = () => {
                     data: data,
                     backgroundColor: backgroundColors,
                     borderWidth: 1,
-                    borderColor: filteredKnowledgeList.value.map((k) => {
-                        if (k.mastery < 50) return "rgba(189, 54, 54, 0.8)";
-                        if (k.mastery < 75) return "rgba(234, 179, 8, 0.8)";
-                        return "rgba(22, 163, 74, 0.8)";
-                    }),
+                    borderColor: borderColors,
                     // 添加圆角配置
                     borderRadius: {
                         topLeft: 8, // 左上角圆角
@@ -1315,6 +1107,16 @@ const updateMasteryChart = () => {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    mode: "index",
+                    intersect: false,
+                },
+                legend: {
+                    display: false,
+                },
+            },
             scales: {
                 y: {
                     beginAtZero: true,
@@ -1325,6 +1127,8 @@ const updateMasteryChart = () => {
                     ticks: {
                         maxRotation: 45,
                         minRotation: 45,
+                        autoSkip: true,
+                        maxTicksLimit: 10,
                     },
                 },
             },
@@ -1349,31 +1153,14 @@ const renderCategoryMasteryChart = () => {
         categoryStats.value.general,
     ];
 
-    // 创建渐变色数组（与知识点图表风格一致）
-    const backgroundColors = data.map((_, index) => {
-        const gradient = categoryCtx
-            .getContext("2d")
-            .createLinearGradient(0, 0, 0, 400);
+    // 使用简单颜色（与知识点图表风格一致）
+    const backgroundColors = [
+        "rgba(59, 130, 246, 0.7)", // 亮蓝色
+        "rgba(139, 92, 246, 0.7)", // 亮紫色
+        "rgba(16, 185, 129, 0.7)", // 亮绿色
+    ];
 
-        // 为不同分类定义对应的渐变色
-        if (index === 0) {
-            // 核心知识点
-            gradient.addColorStop(0, "rgba(59, 130, 246, 0.55)"); // 亮蓝色
-            gradient.addColorStop(1, "rgba(30, 64, 175, 1)"); // 深蓝色
-        } else if (index === 1) {
-            // 重要知识点
-            gradient.addColorStop(0, "rgba(139, 92, 246, 0.55)"); // 亮紫色
-            gradient.addColorStop(1, "rgba(99, 102, 241, 1)"); // 深紫色
-        } else {
-            // 一般知识点
-            gradient.addColorStop(0, "rgba(16, 185, 129, 0.55)"); // 亮绿色
-            gradient.addColorStop(1, "rgba(22, 163, 74, 1)"); // 深绿色
-        }
-
-        return gradient;
-    });
-
-    // 边框颜色（与渐变深色部分匹配）
+    // 边框颜色
     const borderColors = [
         "rgba(30, 64, 175, 0.8)",
         "rgba(99, 102, 241, 0.8)",
@@ -1409,6 +1196,15 @@ const renderCategoryMasteryChart = () => {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    mode: "index",
+                    intersect: false,
+                },
+                legend: {
+                    display: false,
+                },
+            },
             scales: {
                 y: {
                     beginAtZero: true,
@@ -1827,7 +1623,9 @@ const goToHome = () => {
 
 .card .progress-item,
 .card .stat-item {
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
     opacity: 0.9;
 }
 
@@ -1961,7 +1759,7 @@ const goToHome = () => {
     border-radius: 8px;
     padding: 10px;
 }
-
+/* 移除冲突的样式规则，统一使用通用表格样式 */
 /* 表格容器 - 修复横向滚动 */
 .chart-table {
     flex: 1;
@@ -1972,6 +1770,7 @@ const goToHome = () => {
     background: #ffffff;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    position: relative;
 }
 
 /* 表格样式 */
@@ -1982,7 +1781,14 @@ table {
     font-size: 14px;
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* 确保thead固定 */
+thead {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
 th {
@@ -1995,9 +1801,11 @@ th {
     text-transform: uppercase;
     letter-spacing: 0.3px;
     border-bottom: 2px solid #e2e8f0;
-    position: sticky; /* 表头固定 */
+    position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: 20;
+    /* 添加阴影效果增强视觉层次感 */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 th:after {
@@ -2022,6 +1830,11 @@ td {
     color: #475569;
     border-bottom: 1px solid #f1f5f9;
     transition: all 0.2s ease;
+}
+
+/* 确保tbody不会影响表头固定 */
+tbody {
+    display: table-row-group;
 }
 
 tbody tr:nth-child(even) {

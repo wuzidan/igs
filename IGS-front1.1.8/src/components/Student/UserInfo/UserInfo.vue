@@ -67,7 +67,7 @@
         <!-- 编辑按钮 -->
         <div class="edit-button-section">
             <button class="edit-btn" @click="toggleEditMode">
-                <span v-if="!isEditing">编辑信息</span>
+                <span v-if="!isEditing" style="color: #fff">编辑信息</span>
                 <span v-if="isEditing">保存</span>
                 <i class="edit-icon" :class="{ 'rotate-icon': isEditing }">✎</i>
             </button>
