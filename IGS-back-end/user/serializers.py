@@ -25,8 +25,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        # 密码加密存储（必须！不能明文）
-        validated_data["password"] = make_password(validated_data.get("password"))
+        # 明文存储密码
         return super().create(validated_data)
 
 # 3. 更新用户序列化器（修改基础资料，不允许改密码）
@@ -39,3 +38,36 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField(required=True)
     password = serializers.CharField(required=True, write_only=True, style={"input_type": "password"})
+
+    def validate(self, attrs):
+        username = attrs.get('username')
+        password = attrs.get('password')
+
+        # 尝试通过用户名或邮箱查找用户
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            try:
+                user = User.objects.get(email=username)
+            except User.DoesNotExist:
+                raise serializers.ValidationError('用户名或密码错误')
+
+        # 验证密码（明文比较）
+        # 直接从数据库中获取密码字段，避免使用 AbstractUser 的 password 属性
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT password FROM user_user WHERE id = %s", [user.id])
+            db_password = cursor.fetchone()[0]
+
+        if db_password != password:
+            raise serializers.ValidationError('用户名或密码错误')
+
+        # 验证用户是否激活
+        if not user.is_active:
+            raise serializers.ValidationError('账号已被禁用')
+
+        attrs['user'] = user
+        return attrs

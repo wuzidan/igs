@@ -31,7 +31,7 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 # Application definition
 # settings.py
-AUTH_USER_MODEL = 'student.User'  # 格式：应用名.模型名
+AUTH_USER_MODEL = 'user.User'  # 格式：应用名.模型名
 
 INSTALLED_APPS = [
     'corsheaders',

@@ -35,19 +35,21 @@ class StudentLoginView(APIView):
         if hasattr(user, "is_active") and not user.is_active:
             return Response({"error": "账号已被禁用"}, status=status.HTTP_403_FORBIDDEN)
 
-        def _is_teacher_like(account_value: str, user_obj) -> bool:
-            acc = (account_value or "").strip()
-            if acc.lower().startswith("teacher") or acc.startswith("T"):
-                return True
-            u_username = str(getattr(user_obj, "username", "") or "")
-            if u_username.lower().startswith("teacher"):
-                return True
-            u_student_id = str(getattr(user_obj, "student_id", "") or "")
-            if u_student_id.startswith("T"):
-                return True
-            return False
+        # 使用role ID判断用户类型
+        def _get_user_role(user_obj) -> int:
+            """获取用户角色ID"""
+            # 检查用户是否有core_user属性（关联到user.User模型）
+            if hasattr(user_obj, "core_user") and user_obj.core_user:
+                return user_obj.core_user.role
+            # 检查用户是否有role属性（直接存储角色ID）
+            if hasattr(user_obj, "role"):
+                return user_obj.role
+            # 默认返回学生角色
+            return 1
 
-        teacher_like = _is_teacher_like(account, user)
+        user_role = _get_user_role(user)
+        teacher_like = (user_role == 2)
+        student_like = (user_role == 1)
         if teacher_like:
             Teacher.objects.get_or_create(
                 user=user,
@@ -71,8 +73,12 @@ class StudentLoginView(APIView):
             )
         if bool(getattr(user, "is_superuser", False)) or bool(getattr(user, "is_staff", False)):
             user_type = "admin"
-        elif teacher_like or Teacher.objects.filter(user=user).exists():
+        elif user_role == 1:
+            user_type = "student"
+        elif user_role == 2:
             user_type = "teacher"
+        elif user_role == 3:
+            user_type = "admin"
         else:
             user_type = "student"
         return Response(
@@ -98,7 +104,14 @@ class StudentInfoView(APIView):
 
     def get(self, request):
         """获取个人信息数据"""
-        user = request.user
+        # 从认证用户关联到学生业务模型
+        try:
+            student_user = request.user.student_user
+        except AttributeError:
+            return Response(
+                {"error": "当前用户不是学生账号"},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         # 格式化教育经历数据
         education_list = [
@@ -109,7 +122,7 @@ class StudentInfoView(APIView):
                 "major": edu.major,
                 "degree": edu.degree,
             }
-            for edu in user.education.all()
+            for edu in student_user.education.all()
         ]
 
         # 格式化技能数据
@@ -118,29 +131,29 @@ class StudentInfoView(APIView):
                 "name": skill.name,
                 "level": skill.level  # 假设存储值为"初级"/"中级"/"高级"
             }
-            for skill in user.skills.all()
+            for skill in student_user.skills.all()
         ]
 
         # 格式化兴趣爱好（假设以逗号分隔存储）
-        hobbies = [hobby.name for hobby in user.hobbies.all()]
+        hobbies = [hobby.name for hobby in student_user.hobbies.all()]
 
         return Response({
             # 头像相关
-            "userAvatarUrl": user.user_avatar_url or "",  # 自定义头像URL
-            "userAvatar": user.user_avatar_emoji or "👨‍💻",  # 默认头像emoji
+            "userAvatarUrl": getattr(student_user, 'user_avatar_url', '') or "",  # 自定义头像URL
+            "userAvatar": getattr(student_user, 'user_avatar_emoji', '') or "👨‍💻",  # 默认头像emoji
 
             # 基本信息
-            "userName": user.name,
-            "studentId": user.student_id,
-            "className": user.class_name,
-            "major": user.major,
-            "birthDate": user.birth_date.strftime("%Y-%m-%d") if user.birth_date else "",
-            "hometown": user.hometown or "",
-            "politicalStatus": user.political_status or "",
-            "email": user.email or "",
-            "phone": user.phone or "",
-            "website": user.website or "",
-            "bio": user.bio or "",
+            "userName": student_user.name,
+            "studentId": student_user.student_id,
+            "className": student_user.class_name,
+            "major": student_user.major,
+            "birthDate": student_user.birth_date.strftime("%Y-%m-%d") if student_user.birth_date else "",
+            "hometown": student_user.hometown or "",
+            "politicalStatus": student_user.political_status or "",
+            "email": student_user.core_user.email or "" if student_user.core_user else "",
+            "phone": student_user.core_user.phone or "" if student_user.core_user else "",
+            "website": student_user.website or "",
+            "bio": student_user.bio or "",
             "hobbies": hobbies,
             "skills": skill_list,
             "education": education_list
@@ -148,18 +161,25 @@ class StudentInfoView(APIView):
 
     def put(self, request):
         """更新个人信息（部分字段示例）"""
-        user = request.user
+        # 从认证用户关联到学生业务模型
+        try:
+            student_user = request.user.student_user
+        except AttributeError:
+            return Response(
+                {"error": "当前用户不是学生账号"},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         # 处理可更新字段（根据实际需求扩展）
         update_data = request.data
         if "userName" in update_data:
-            user.first_name = update_data["userName"]
-        if "email" in update_data:
-            user.email = update_data["email"]
-        if "phone" in update_data:
-            user.phone = update_data["phone"]
+            student_user.first_name = update_data["userName"]
+        if "email" in update_data and student_user.core_user:
+            student_user.core_user.email = update_data["email"]
+        if "phone" in update_data and student_user.core_user:
+            student_user.core_user.phone = update_data["phone"]
         if "bio" in update_data:
-            user.bio = update_data["bio"]
+            student_user.bio = update_data["bio"]
         if "hobbies" in update_data:
             hobbies_payload = update_data["hobbies"]
             if hobbies_payload is None:
@@ -167,10 +187,14 @@ class StudentInfoView(APIView):
             if isinstance(hobbies_payload, str):
                 hobbies_payload = [h.strip() for h in hobbies_payload.split(",") if h.strip()]
 
-            Hobby.objects.filter(user=user).delete()
+            Hobby.objects.filter(user=student_user).delete()
             for hobby_name in hobbies_payload:
                 if hobby_name:
-                    Hobby.objects.create(user=user, name=hobby_name)
+                    Hobby.objects.create(user=student_user, name=hobby_name)
 
-        user.save()
+        # 保存学生业务模型
+        student_user.save()
+        # 保存关联的用户模型（如果有修改）
+        if student_user.core_user:
+            student_user.core_user.save()
         return Response({"message": "信息更新成功"})

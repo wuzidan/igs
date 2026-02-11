@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'app01.apps.App01Config',
     'student.apps.StudentConfig',
+    'teacher.apps.TeacherConfig',
     'question.apps.QuestionConfig',
     'knowledge.apps.KnowledgeConfig',
     'historyRecord.apps.HistoryrecordConfig',

@@ -2,7 +2,7 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 # 跨模块导入学生、教师模型
-from student.models import User as StudentModel
+from student.models import User
 from teacher.models import Teacher as TeacherModel
 
 # 1. 班级周进度模型（对应前端 progressData）
@@ -73,4 +73,7 @@ class ClassInfo(models.Model):
     @property
     def student_count(self):
         """动态计算班级学生数（通过学生模型的反向关联）"""
-        return StudentModel.objects.filter(class_name=self.name).count()
+        try:
+            return User.objects.filter(class_info=self).count()
+        except Exception:
+            return 0

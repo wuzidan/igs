@@ -105,38 +105,64 @@ class StudentManagementViewSet(viewsets.ViewSet):
         """
         获取学生列表 - 匹配 GET /api/classes/{class_id}/students/
         """
-        class_obj = self._get_class(class_id)
-        if isinstance(class_obj, Response):
-            return class_obj
+        try:
+            class_obj = self._get_class(class_id)
+            if isinstance(class_obj, Response):
+                return class_obj
 
-        # 搜索逻辑
-        search_keyword = request.query_params.get("search", "")
-        students_queryset = StudentModel.objects.filter(class_name=class_obj.name)
-        if search_keyword:
-            students_queryset = students_queryset.filter(
-                Q(first_name__icontains=search_keyword) |
-                Q(student_id__icontains=search_keyword)
+            # 搜索逻辑
+            search_keyword = request.query_params.get("search", "")
+            # 使用外键关联查询学生
+            students_queryset = StudentModel.objects.filter(class_info=class_obj)
+            if search_keyword:
+                students_queryset = students_queryset.filter(
+                    Q(first_name__icontains=search_keyword) |
+                    Q(student_id__icontains=search_keyword)
+                )
+
+            # 分页
+            paginator = self.pagination_class()
+            paginated_students = paginator.paginate_queryset(students_queryset, request)
+
+            serializer = StudentDetailSerializer(paginated_students, many=True)
+
+            # 安全访问分页属性
+            try:
+                current_page = paginator.page.number
+                page_size = paginator.page.paginator.per_page
+                total_pages = paginator.page.paginator.num_pages
+                total_count = paginator.page.paginator.count
+            except AttributeError:
+                # 处理分页器属性访问错误
+                current_page = 1
+                page_size = paginator.page_size
+                total_pages = 0
+                total_count = 0
+
+            return paginator.get_paginated_response({
+                "students": serializer.data,
+                "pagination": {
+                    "current_page": current_page,
+                    "page_size": page_size,
+                    "total_pages": total_pages,
+                    "total_count": total_count
+                },
+                "search_info": {
+                    "keyword": search_keyword,
+                    "result_count": total_count
+                }
+            })
+        except Exception as e:
+            # 捕获并处理所有异常
+            return Response(
+                {
+                    "error_code": "INTERNAL_SERVER_ERROR",
+                    "message": "获取学生列表时发生错误",
+                    "details": str(e),
+                    "timestamp": timezone.now().isoformat()
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-        # 分页
-        paginator = self.pagination_class()
-        paginated_students = paginator.paginate_queryset(students_queryset, request)
-
-        serializer = StudentDetailSerializer(paginated_students, many=True)
-
-        return paginator.get_paginated_response({
-            "students": serializer.data,
-            "pagination": {
-                "current_page": paginator.page.number,  # 改为下划线命名
-                "page_size": paginator.page.paginator.per_page,
-                "total_pages": paginator.page.paginator.num_pages,
-                "total_count": paginator.page.paginator.count
-            },
-            "search_info": {
-                "keyword": search_keyword,
-                "result_count": paginator.page.paginator.count
-            }
-        })
 
     def create(self, request, class_id=None):
         """
@@ -176,6 +202,7 @@ class StudentManagementViewSet(viewsets.ViewSet):
             phone=serializer.validated_data.get("phone", ""),
             email=serializer.validated_data.get("email", ""),
             class_name=class_obj.name,
+            class_info=class_obj,  # 设置外键关联
             password="123",
         )
 
@@ -235,7 +262,8 @@ class StudentManagementViewSet(viewsets.ViewSet):
             )
 
         student.class_name = ""
-        student.save(update_fields=["class_name"])
+        student.class_info = None  # 清除外键关联
+        student.save(update_fields=["class_name", "class_info"])
 
         # 返回204 No Content，符合RESTful规范
         return Response(status=status.HTTP_204_NO_CONTENT)
