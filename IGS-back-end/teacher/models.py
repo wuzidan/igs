@@ -36,6 +36,8 @@ class Teacher(models.Model):
     )
     # 原有字段保留
     teacher_id = models.CharField(_("工号"), max_length=20, unique=True, help_text="教师唯一标识")
+    name = models.CharField(_("姓名"), max_length=150, blank=True, null=True)
+    email = models.EmailField(_("邮箱"), max_length=254, blank=True, null=True)
     title = models.CharField(_("职称"), max_length=50, help_text="如：教授、讲师")
     department = models.CharField(_("所属院系"), max_length=100, help_text="如：计算机学院")
     office_address = models.CharField(_("办公室地址"), max_length=200, blank=True, null=True)
