@@ -1,74 +1,52 @@
-
-from django.contrib.auth.models import AbstractUser
-from django.contrib.auth.models import Group, Permission
 from django.db import models
-from django.utils.encoding import force_str
 from django.conf import settings
 from question.models import Question
 
-# 用户主模型（扩展AbstractUser）
-class User(AbstractUser):
-    groups = models.ManyToManyField(
-        Group,
-        related_name="student_user_set",
-        related_query_name="student_user",
-        blank=True,
-        help_text=(
-            "The groups this user belongs to. A user will get all permissions "
-            "granted to each of their groups."
-        ),
-        verbose_name="groups",
-    )
-    user_permissions = models.ManyToManyField(
-        Permission,
-        related_name="student_user_set",
-        related_query_name="student_user",
-        blank=True,
-        help_text="Specific permissions for this user.",
-        verbose_name="user permissions",
-    )
 
-    # 存储明文密码
-    def set_password(self, raw_password):
-        self.password = raw_password
-        self._password = raw_password
+from django.contrib.auth.models import AbstractUser, Group, Permission
+from django.utils.translation import gettext_lazy as _
+
+# 学生业务模型（与User模型一对一关联）
+class User(AbstractUser):
+    """
+    学生业务模型：存储学生特有的业务数据
+    登录相关信息存储在 user.User 模型中
+    """
     
-    # 密码验证方法，直接比较明文
-    def check_password(self, raw_password):
-        return force_str(self.password) == force_str(raw_password)
-    # 原有字段
+    # 与用户模型的一对一关联
+    core_user = models.OneToOneField(
+        'user.User',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='student_user'
+    )
+    
+    # 学号字段
     student_id = models.CharField(
         "学号",
         max_length=20,
         unique=True,
         help_text="学生的唯一标识符"
     )
-    created_at = models.DateTimeField(
-        "创建时间",
-        auto_now_add=True,
-        help_text="用户账户创建时间"
-    )
-
-    # 新增基本信息字段
-    user_avatar_url = models.URLField(
-        "自定义头像URL",
-        max_length=255,
-        blank=True,
-        null=True,
-        help_text="用户上传的头像图片URL"
-    )
-    user_avatar_emoji = models.CharField(
-        "默认头像emoji",
-        max_length=10,
-        default="👨‍💻",
-        help_text="默认显示的emoji头像"
-    )
+    
+    # 班级相关字段
     class_name = models.CharField(
         "班级",
         max_length=50,
         blank=True,
         help_text="如：计算机科学与技术 2023级"
     )
+    class_info = models.ForeignKey(
+        'classInfo.ClassInfo',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="students",
+        verbose_name="关联班级"
+    )
+    
+    # 学生特有字段
     major = models.CharField(
         "专业",
         max_length=50,
@@ -93,12 +71,6 @@ class User(AbstractUser):
         blank=True,
         help_text="如：团员、党员"
     )
-    phone = models.CharField(
-        "手机号",
-        max_length=20,
-        blank=True,
-        help_text="用户联系电话"
-    )
     website = models.URLField(
         "个人网站",
         max_length=255,
@@ -112,14 +84,32 @@ class User(AbstractUser):
         help_text="用户的自我描述"
     )
 
-    # 覆盖默认配置
-    USERNAME_FIELD = 'student_id'
-    REQUIRED_FIELDS = ['email', 'first_name']  # first_name用作真实姓名
+    # 覆盖 AbstractUser 的字段
+    groups = models.ManyToManyField(
+        Group,
+        related_name='student_user_set',
+        related_query_name='student_user',
+        blank=True,
+        help_text=(
+            "The groups this user belongs to. A user will get all permissions "
+            "granted to each of their groups."
+        ),
+        verbose_name="groups",
+    )
+    user_permissions = models.ManyToManyField(
+        Permission,
+        related_name='student_user_set',
+        related_query_name='student_user',
+        blank=True,
+        help_text="Specific permissions for this user.",
+        verbose_name="user permissions",
+    )
 
     class Meta:
-        verbose_name = "用户"
-        verbose_name_plural = "用户"
-        ordering = ['-created_at']
+        verbose_name = "学生"
+        verbose_name_plural = "学生"
+        ordering = ['student_id']
+        db_table = 'student_user'
 
     @property
     def name(self):
@@ -133,10 +123,10 @@ class User(AbstractUser):
 # 爱好模型（与User为一对多关系）
 class Hobby(models.Model):
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        'User',
         on_delete=models.CASCADE,
         related_name="hobbies",
-        verbose_name="关联用户"
+        verbose_name="关联学生"
     )
     name = models.CharField(
         "爱好名称",
@@ -147,7 +137,8 @@ class Hobby(models.Model):
     class Meta:
         verbose_name = "爱好"
         verbose_name_plural = "爱好"
-        unique_together = ('user', 'name')  # 同一用户的爱好不重复
+        unique_together = ('user', 'name')  # 同一学生的爱好不重复
+        db_table = 'student_hobby'
 
     def __str__(self):
         return f"{self.user.name}的爱好：{self.name}"
@@ -161,10 +152,10 @@ class Skill(models.Model):
         ("高级", "高级"),
     ]
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        'User',
         on_delete=models.CASCADE,
         related_name="skills",
-        verbose_name="关联用户"
+        verbose_name="关联学生"
     )
     name = models.CharField(
         "技能名称",
@@ -181,7 +172,8 @@ class Skill(models.Model):
     class Meta:
         verbose_name = "技能"
         verbose_name_plural = "技能"
-        unique_together = ('user', 'name')  # 同一用户的技能不重复
+        unique_together = ('user', 'name')  # 同一学生的技能不重复
+        db_table = 'student_skill'
 
     def __str__(self):
         return f"{self.user.name}的技能：{self.name}（{self.level}）"
@@ -190,10 +182,10 @@ class Skill(models.Model):
 # 教育经历模型（与User为一对多关系）
 class Education(models.Model):
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        'User',
         on_delete=models.CASCADE,
         related_name="education",
-        verbose_name="关联用户"
+        verbose_name="关联学生"
     )
     school = models.CharField(
         "学校名称",
@@ -223,6 +215,7 @@ class Education(models.Model):
         verbose_name = "教育经历"
         verbose_name_plural = "教育经历"
         ordering = ['-period_s']  # 按入学时间倒序排列
+        db_table = 'student_education'
 
     def __str__(self):
         return f"{self.user.name}的教育经历：{self.school} {self.degree}"

@@ -10,7 +10,7 @@ from .models import ClassInfo, ClassWeeklyProgress, KnowledgeMastery
 class StudentListSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="first_name", read_only=True)
     studentId = serializers.CharField(source="student_id", read_only=True)
-    joinTime = serializers.DateTimeField(source="created_at", read_only=True)
+    joinTime = serializers.DateTimeField(source="date_joined", read_only=True)
 
     class Meta:
         model = StudentModel
@@ -20,11 +20,11 @@ class StudentListSerializer(serializers.ModelSerializer):
 class StudentDetailSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="first_name", read_only=True)
     studentId = serializers.CharField(source="student_id", read_only=True)
-    joinTime = serializers.DateTimeField(source="created_at", read_only=True)
+    joinTime = serializers.DateTimeField(source="date_joined", read_only=True)
 
     class Meta:
         model = StudentModel
-        fields = ["id", "name", "studentId", "phone", "email", "joinTime"]
+        fields = ["id", "name", "studentId", "email", "joinTime"]
 
 
 # 1. 班级详情序列化器（含学生列表、班主任信息，给前端班级管理页用）
@@ -47,8 +47,11 @@ class ClassDetailSerializer(serializers.ModelSerializer):
 
     def get_student_list(self, obj):
         """获取班级学生列表"""
-        students = StudentModel.objects.filter(class_name=obj.name)
-        return StudentListSerializer(students, many=True).data
+        try:
+            students = StudentModel.objects.filter(class_info=obj)
+            return StudentListSerializer(students, many=True).data
+        except Exception as e:
+            return []
 
 
 # 2. 班级编辑序列化器（仅允许修改前端可编辑的字段）

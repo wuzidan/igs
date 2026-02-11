@@ -36,9 +36,19 @@ class CustomLoginView(ObtainAuthToken):
         user = serializer.validated_data["user"]
         # 生成/获取Token（用于后续接口认证）
         token, created = Token.objects.get_or_create(user=user)
+        # 根据角色ID判断用户类型
+        if user.role == 1:
+            user_type = "student"
+        elif user.role == 2:
+            user_type = "teacher"
+        elif user.role == 3:
+            user_type = "admin"
+        else:
+            user_type = "student"
         # 返回Token+用户基础信息
         return Response({
             "token": token.key,
+            "userType": user_type,
             "user": UserBaseSerializer(user).data
         }, status=status.HTTP_200_OK)
 

@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from classInfo.models import ClassInfo
 from question.models import Exercise, PracticeRecord, Question
-from student.models import User as StudentModel
+from student.models import User
 from .models import Teacher, Subject
 from .serializers import TeacherProfileSerializer, SubjectSerializer
 
@@ -148,9 +148,9 @@ class TeacherDashboardView(APIView):
         class_qs = ClassInfo.objects.filter(head_teacher=teacher)
         class_count = class_qs.count()
 
-        class_names = list(class_qs.values_list("name", flat=True))
+        # 使用外键关联查询学生数量
         student_count = (
-            StudentModel.objects.filter(class_name__in=class_names).count() if class_names else 0
+            User.objects.filter(class_info__in=class_qs).count() if class_qs else 0
         )
 
         question_count = Exercise.objects.count()
@@ -159,10 +159,27 @@ class TeacherDashboardView(APIView):
         for cls in class_qs:
             last_progress = cls.weekly_progress.order_by("-week").first()
             progress_value = int(getattr(last_progress, "progress", 0) or 0)
+            
+            # 使用外键关联获取班级学生列表
+            students = User.objects.filter(class_info=cls)
+            student_list = [
+                {
+                    "id": student.id,
+                    "studentId": student.student_id,
+                    "name": student.core_user.first_name or student.core_user.username,
+                    "class_name": student.class_name
+                }
+                for student in students
+            ]
+            
             class_progress_data.append(
                 {
                     "id": cls.id,
                     "className": cls.name,
+                    "code": cls.code,
+                    "courseName": cls.course_name,
+                    "studentCount": len(student_list),
+                    "students": student_list,
                     "progress": max(0, min(100, progress_value)),
                 }
             )

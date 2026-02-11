@@ -1,8 +1,7 @@
 # notification/models.py
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from user.models import User  # 基础用户模型（教师是User的子角色）
-from student.models import User  # 学生模型（关联details中的学生信息）
+from user.models import User  # 基础用户模型（所有用户共用）
 from question.models import Exercise  # 习题模型（关联details中的习题信息）
 from question.models import PracticeRecord  # 练习记录（关联答题数量等）
 
