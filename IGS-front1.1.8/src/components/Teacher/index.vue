@@ -116,7 +116,7 @@
                         <!-- 班级管理 -->
                         <div
                             class="feature-card floating-card"
-                            @click="navigateTo('/teacher/class/tracking')"
+                            @click="navigateTo('/teacher/class/info')"
                         >
                             <div class="feature-hover-effect"></div>
                             <div class="feature-icon-container">

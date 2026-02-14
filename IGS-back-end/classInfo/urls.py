@@ -14,10 +14,12 @@ router.register(
 )
 
 urlpatterns = [
-    path('', include(router.urls)),
+    # 班级创建
     path('classes/', views.ClassCreateView.as_view(), name='class-create'),
     # 班级详情和编辑
     path('classes/<str:class_id>/', views.ClassDetailView.as_view(), name='class-detail'),
+    # 其他路由
+    path('', include(router.urls)),
 ]
 
 
