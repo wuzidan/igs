@@ -1,6 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import serializers
+from rest_framework import status
 from django.db.models import Avg, Count, Sum
 import random
 
@@ -8,6 +10,156 @@ from student.models import User
 from .models import KnowledgePoint, Course, Chapter, CourseChapter, KnowledgeTopics
 from question.models import Exercise, Challenge
 
+class CourseSerializer(serializers.ModelSerializer):
+    """课程序列化器"""
+    class Meta:
+        model = Course
+        fields = ['id', 'name', 'description']
+        read_only_fields = ['id']
+
+
+class CourseManagementView(APIView):
+    """课程管理API接口"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """获取课程列表，支持搜索，只返回当前登录老师的课程"""
+        search_keyword = request.query_params.get('search', '')
+        
+        # 获取当前登录用户
+        user = request.user
+        
+        # 构建查询
+        queryset = Course.objects.all()
+        
+        # 过滤出当前登录老师的课程
+        try:
+            # 从用户关联到老师
+            from teacher.models import Teacher
+            teacher = Teacher.objects.filter(user=user).first()
+            if teacher:
+                # 只返回与该老师关联的课程
+                queryset = queryset.filter(course_teachers__teacher=teacher)
+        except Exception as e:
+            print(f"获取老师课程失败: {e}")
+        
+        # 如果有搜索关键词，添加搜索条件
+        if search_keyword:
+            queryset = queryset.filter(name__icontains=search_keyword)
+        
+        # 序列化课程数据
+        serializer = CourseSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    def post(self, request):
+        """添加新课程，自动关联到当前登录老师"""
+        serializer = CourseSerializer(data=request.data)
+        if serializer.is_valid():
+            # 保存课程
+            course = serializer.save()
+            
+            # 关联到当前登录老师
+            try:
+                from teacher.models import Teacher
+                user = request.user
+                
+                # 确保教师实例存在
+                teacher = Teacher.objects.filter(user=user).first()
+                if not teacher:
+                    # 尝试创建教师实例
+                    try:
+                        teacher = Teacher.objects.create(
+                            user=user,
+                            teacher_id=f"T{user.id:06d}",
+                            title="未设置",
+                            department="未设置"
+                        )
+                        print(f"自动创建教师实例: {teacher}")
+                    except Exception as create_error:
+                        print(f"创建教师实例失败: {create_error}")
+                        # 即使教师实例创建失败，课程仍然创建成功
+                
+                if teacher:
+                    # 创建课程与老师的关联
+                    from .models import CourseTeacher
+                    CourseTeacher.objects.create(
+                        course=course,
+                        teacher=teacher
+                    )
+                    print(f"课程关联教师成功: 课程ID={course.id}, 教师ID={teacher.teacher_id}")
+                else:
+                    print(f"教师实例不存在，课程未关联: 课程ID={course.id}")
+            except Exception as e:
+                print(f"关联老师失败: {e}")
+            
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def patch(self, request, pk):
+        """编辑课程，只能编辑自己的课程"""
+        try:
+            course = Course.objects.get(pk=pk)
+            
+            # 检查是否是当前老师的课程
+            from teacher.models import Teacher
+            user = request.user
+            teacher = Teacher.objects.filter(user=user).first()
+            if teacher:
+                # 检查课程是否与该老师关联
+                if not course.course_teachers.filter(teacher=teacher).exists():
+                    return Response({'error': '无权编辑此课程'}, status=status.HTTP_403_FORBIDDEN)
+        except Course.DoesNotExist:
+            return Response({'error': '课程不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': '操作失败'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = CourseSerializer(course, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request, pk):
+        """删除课程，只能删除自己的课程"""
+        try:
+            course = Course.objects.get(pk=pk)
+            
+            # 检查是否是当前老师的课程
+            from teacher.models import Teacher
+            user = request.user
+            
+            # 确保教师实例存在
+            teacher = Teacher.objects.filter(user=user).first()
+            if not teacher:
+                # 尝试创建教师实例
+                try:
+                    teacher = Teacher.objects.create(
+                        user=user,
+                        teacher_id=f"T{user.id:06d}",
+                        title="未设置",
+                        department="未设置"
+                    )
+                    print(f"自动创建教师实例: {teacher}")
+                except Exception as create_error:
+                    print(f"创建教师实例失败: {create_error}")
+                    return Response({'error': '教师实例不存在，无法删除课程'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # 检查课程是否与该老师关联
+            if not course.course_teachers.filter(teacher=teacher).exists():
+                print(f"课程与教师无关联: 课程ID={course.id}, 教师ID={teacher.teacher_id}")
+                return Response({'error': '无权删除此课程'}, status=status.HTTP_403_FORBIDDEN)
+            
+        except Course.DoesNotExist:
+            print(f"课程不存在: {pk}")
+            return Response({'error': '课程不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"删除课程失败: {e}")
+            return Response({'error': f'操作失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # 删除课程
+        course.delete()
+        print(f"课程删除成功: 课程ID={pk}")
+        return Response({'message': '课程删除成功'}, status=status.HTTP_204_NO_CONTENT)
 
 class KnowledgeStructureView(APIView):
     # """知识点结构数据接口"""

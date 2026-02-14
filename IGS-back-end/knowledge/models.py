@@ -1,6 +1,9 @@
 from django.db import models
 from django.conf import settings
 
+# 导入Teacher模型
+from teacher.models import Teacher
+
 
 class KnowledgePoint(models.Model):
     """知识点模型"""
@@ -117,6 +120,8 @@ class Course(models.Model):
     )
     description = models.TextField(
         "课程描述",
+        null=True,
+        blank=True,
         help_text="对课程的详细说明"
     )
     learning_notes = models.TextField(
@@ -127,10 +132,12 @@ class Course(models.Model):
     )
     created_at = models.DateTimeField(
         "创建时间",
+        auto_now_add=True,
         help_text="课程创建时间"
     )
     publish_time = models.DateTimeField(
         "发布时间",
+        auto_now_add=True,
         help_text="课程发布时间"
     )
     visits = models.IntegerField(
@@ -163,6 +170,7 @@ class Chapter(models.Model):
     )
     created_at = models.DateTimeField(
         "创建时间",
+        auto_now_add=True,
         help_text="章节创建时间"
     )
 
@@ -272,3 +280,34 @@ class CourseExercise(models.Model):
         ordering = ["course", "position"]
         unique_together = ("course", "exercise")  # 确保一门课程中一个练习题只出现一次
         db_table = "course_exercise"  # 显式指定表名
+
+
+class CourseTeacher(models.Model):
+    """课程与老师关联表"""
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="course_teachers",
+        help_text="关联的课程"
+    )
+    teacher = models.ForeignKey(
+        Teacher,
+        on_delete=models.CASCADE,
+        related_name="teacher_courses",
+        help_text="关联的老师"
+    )
+    created_at = models.DateTimeField(
+        "创建时间",
+        auto_now_add=True,
+        help_text="记录创建时间"
+    )
+
+    class Meta:
+        verbose_name = "课程与老师关联"
+        verbose_name_plural = "课程与老师关联"
+        ordering = ["course", "teacher"]
+        unique_together = [("course", "teacher")]  # 确保一门课程与一个老师只关联一次
+        db_table = "course_teacher"  # 显式指定表名
+
+    def __str__(self):
+        return f"{self.course.name} - {self.teacher.name}"

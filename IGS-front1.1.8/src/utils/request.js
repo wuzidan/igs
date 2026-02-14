@@ -12,6 +12,13 @@ const instance = axios.create({
 // 拦截器 - 请求拦截器
 instance.interceptors.request.use(
     config => {
+        console.log('发送请求:', {
+            url: config.url,
+            method: config.method,
+            data: config.data,
+            params: config.params
+        });
+        
         const token = window.localStorage ? window.localStorage.getItem("token") : null
         if (token) {
             config.headers = config.headers || {}
@@ -33,9 +40,16 @@ instance.interceptors.request.use(
                 config.headers["Content-Type"] = "application/x-www-form-urlencoded"
             }
         }
+        
+        console.log('请求配置:', {
+            headers: config.headers,
+            contentType: config.headers["Content-Type"]
+        });
+        
         return config
     },
     error => {
+        console.error('请求错误:', error);
         return Promise.reject(error)
     }
 )
@@ -43,7 +57,8 @@ instance.interceptors.request.use(
 // 拦截器 - 响应拦截器
 instance.interceptors.response.use(
     response => {
-        return response.status === 200 ? Promise.resolve(response) : Promise.reject(response)
+        // 接受所有2xx系列的成功状态码
+        return response.status >= 200 && response.status < 300 ? Promise.resolve(response) : Promise.reject(response)
     },
     error => {
         const { response } = error;
