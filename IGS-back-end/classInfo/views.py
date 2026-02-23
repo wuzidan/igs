@@ -6,6 +6,14 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
+import threading
+import time
+import logging
+
+_knowledge_chart_cache = {}
+_knowledge_chart_lock = threading.Lock()
+_knowledge_chart_computing = False
+_logger = logging.getLogger(__name__)
 
 from .models import ClassInfo
 from .serializers import (
@@ -260,7 +268,175 @@ class ClassAndChartViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(chart_data)
 
     # 3. 获取知识点掌握度图表数据（对应前端createKnowledgeChart）
+    #    使用内存缓存：首次请求立即返回静态数据，后台异步计算 AAKT 结果并缓存
     @action(detail=False, methods=['get'], url_path='knowledge-chart')
     def knowledge_chart(self, request):
-        chart_data = KnowledgeChartSerializer.get_chart_data()
-        return Response(chart_data)
+        global _knowledge_chart_computing
+
+        cache_key = 'aakt_knowledge_chart'
+        cached = _knowledge_chart_cache.get(cache_key)
+
+        if cached is not None:
+            # 缓存命中，直接返回（附加缓存时间戳供调试）
+            return Response(cached)
+
+        # 缓存未命中：立即返回静态数据，同时触发后台计算
+        with _knowledge_chart_lock:
+            if not _knowledge_chart_computing:
+                _knowledge_chart_computing = True
+                t = threading.Thread(
+                    target=self._compute_and_cache_knowledge_chart,
+                    daemon=True,
+                )
+                t.start()
+
+        fallback = KnowledgeChartSerializer.get_chart_data()
+        return Response(fallback)
+
+    def _compute_and_cache_knowledge_chart(self):
+        """后台线程：运行 AAKT 聚合诊断并将结果写入内存缓存"""
+        global _knowledge_chart_computing
+        try:
+            result = self._get_aakt_knowledge_chart()
+            if result is not None:
+                _knowledge_chart_cache['aakt_knowledge_chart'] = result
+                _logger.info("AAKT knowledge chart cached with %d labels", len(result.get('labels', [])))
+        except Exception as e:
+            _logger.error("Background AAKT knowledge chart computation failed: %s", e)
+        finally:
+            with _knowledge_chart_lock:
+                _knowledge_chart_computing = False
+
+    def _get_aakt_knowledge_chart(self):
+        """
+        使用 AAKT 模型聚合该教师管理班级中有练习记录的学生的知识点掌握度，
+        生成与前端 knowledgeData 格式兼容的图表数据。
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        try:
+            from question.models import PracticeRecord
+            from model_integration.views import (
+                get_diagnosis_from_model, load_model,
+                MODEL_AVAILABLE, MODEL,
+            )
+
+            if not MODEL_AVAILABLE and MODEL is None:
+                try:
+                    load_model()
+                except Exception:
+                    pass
+
+            # 获取有练习记录的学生ID列表
+            # 注意：PracticeRecord.student FK 指向 user.User (AUTH_USER_MODEL)，
+            # 而 class_info 在 student.models.User 上，无法直接跨表 join。
+            # 先获取该教师班级内的学生 core_user ID，再筛选有记录的。
+            class_qs = self.get_queryset()
+            class_student_core_ids = list(
+                StudentModel.objects
+                .filter(class_info__in=class_qs, core_user__isnull=False)
+                .values_list('core_user_id', flat=True)
+            )
+            if class_student_core_ids:
+                students_with_records = (
+                    PracticeRecord.objects
+                    .filter(student_id__in=class_student_core_ids)
+                    .values_list('student_id', flat=True)
+                    .distinct()
+                )
+            else:
+                students_with_records = PracticeRecord.objects.none()
+
+            # 如果教师班级内没有练习记录，扩大到全局有记录的学生
+            if not students_with_records.exists():
+                students_with_records = (
+                    PracticeRecord.objects
+                    .values_list('student_id', flat=True)
+                    .distinct()
+                )
+            if not students_with_records.exists():
+                return None
+
+            # 收集所有学生的交互数据并聚合诊断
+            all_mastery = {}  # tag_name -> [mastery_values]
+            excellent_mastery = {}  # tag_name -> [mastery_values] (accuracy > 0.7)
+            student_ids = list(students_with_records[:50])  # 限制最多50个学生
+
+            for sid in student_ids:
+                interactions = []
+                records = PracticeRecord.objects.filter(student_id=sid).order_by('date')
+                for record in records:
+                    for q in record.questions.all():
+                        model_qid = None
+                        try:
+                            if (getattr(q, "exercise", None) is not None
+                                    and getattr(q.exercise, "exercise_id", None) is not None):
+                                model_qid = q.exercise.exercise_id
+                        except Exception:
+                            model_qid = None
+                        interactions.append({
+                            'question_id': model_qid if model_qid is not None else q.id,
+                            'correct': q.correct,
+                        })
+
+                if not interactions:
+                    continue
+
+                try:
+                    diag, _ = get_diagnosis_from_model(interactions, user_id=sid)
+                except Exception:
+                    continue
+
+                mastery_per_tag = diag.get("mastery_per_tag", {})
+                accuracy = diag.get("accuracy") or 0
+
+                for tag, val in mastery_per_tag.items():
+                    all_mastery.setdefault(tag, []).append(val)
+                    if accuracy >= 0.7:
+                        excellent_mastery.setdefault(tag, []).append(val)
+
+            if not all_mastery:
+                return None
+
+            # 构建图表数据，限制最多展示 20 个知识点
+            MAX_CHART_TAGS = 20
+            # 按平均掌握度排序，取最弱的 MAX_CHART_TAGS 个
+            sorted_tags = sorted(
+                all_mastery.keys(),
+                key=lambda t: sum(all_mastery[t]) / len(all_mastery[t])
+            )
+            if len(sorted_tags) > MAX_CHART_TAGS:
+                sorted_tags = sorted_tags[:MAX_CHART_TAGS]
+
+            labels = sorted_tags
+            overall_data = [
+                round(sum(all_mastery[tag]) / len(all_mastery[tag]) * 100, 1)
+                for tag in sorted_tags
+            ]
+            excellent_data = [
+                round(sum(excellent_mastery.get(tag, all_mastery[tag])) / len(excellent_mastery.get(tag, all_mastery[tag])) * 100, 1)
+                for tag in sorted_tags
+            ]
+
+            datasets = [
+                {
+                    "label": "整体掌握度",
+                    "data": overall_data,
+                    "backgroundColor": "rgba(52, 152, 219, 0.6)",
+                    "borderColor": "rgba(52, 152, 219, 1)",
+                    "borderWidth": 1,
+                },
+                {
+                    "label": "优秀学生掌握度",
+                    "data": excellent_data,
+                    "backgroundColor": "rgba(46, 204, 113, 0.6)",
+                    "borderColor": "rgba(46, 204, 113, 1)",
+                    "borderWidth": 1,
+                },
+            ]
+
+            return {"labels": labels, "datasets": datasets}
+
+        except Exception as e:
+            logger.error("AAKT knowledge chart aggregation failed: %s", str(e))
+            return None

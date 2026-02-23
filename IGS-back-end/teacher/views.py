@@ -1,5 +1,7 @@
 # teacher/api/views.py
 import os
+import logging
+from datetime import datetime
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.db.models import Avg
@@ -14,6 +16,7 @@ from student.models import User
 from .models import Teacher, Subject
 from .serializers import TeacherProfileSerializer, SubjectSerializer
 
+logger = logging.getLogger(__name__)
 
 def _is_teacher_user(user) -> bool:
     if user is None:
@@ -224,3 +227,180 @@ class TeacherDashboardView(APIView):
                 "classProgressData": class_progress_data,
             }
         )
+
+
+class StudentKnowledgeMasteryView(APIView):
+    """
+    教师端查看学生知识点掌握程度
+    通过调用 model_integration 中的 AAKT 模型诊断逻辑，
+    获取指定学生的知识点掌握度数据。
+
+    GET /teacher/student-knowledge-mastery/?student_id=<int>
+    """
+    permission_classes = [IsAuthenticated]
+
+    # 知识点对应的颜色映射，用于前端进度条展示
+    SKILL_COLORS = [
+        "#3498db", "#e74c3c", "#2ecc71", "#9b59b6",
+        "#f39c12", "#1abc9c", "#e67e22", "#34495e",
+        "#16a085", "#c0392b", "#2980b9", "#8e44ad",
+        "#27ae60", "#d35400", "#2c3e50", "#f1c40f",
+    ]
+
+    def _collect_student_interactions(self, student_user):
+        """收集学生的答题交互数据，用于 AAKT 模型输入
+        注意：PracticeRecord.student FK 指向 user.User (AUTH_USER_MODEL)，
+        而 student_user 是 student.models.User，需要通过 core_user 关联查询。
+        """
+        interactions = []
+
+        # PracticeRecord.student 是 user.User 的 FK
+        # 尝试通过 core_user 获取对应的 user.User 实例
+        auth_user = getattr(student_user, 'core_user', None)
+        if auth_user is None:
+            # 回退：直接用 student_user.id 按 student_id 查询
+            practice_records = PracticeRecord.objects.filter(
+                student_id=student_user.id
+            ).order_by('date')
+        else:
+            practice_records = PracticeRecord.objects.filter(
+                student=auth_user
+            ).order_by('date')
+
+        for record in practice_records:
+            for question in record.questions.all():
+                model_qid = None
+                try:
+                    if (getattr(question, "exercise", None) is not None
+                            and getattr(question.exercise, "exercise_id", None) is not None):
+                        model_qid = question.exercise.exercise_id
+                except Exception:
+                    model_qid = None
+                interactions.append({
+                    'question_id': model_qid if model_qid is not None else question.id,
+                    'correct': question.correct,
+                })
+
+        return interactions
+
+    def _mastery_to_skills(self, mastery_per_tag: dict, max_display: int = 20) -> list:
+        """将 mastery_per_tag 字典转换为前端 skills 数组格式
+        当知识点过多时，取最弱和最强的各 max_display/2 个展示。
+        """
+        all_skills = []
+        for tag_name, mastery_value in mastery_per_tag.items():
+            all_skills.append({
+                "name": tag_name,
+                "level": round(mastery_value * 100, 1),
+            })
+        # 按掌握度升序排列
+        all_skills.sort(key=lambda s: s["level"])
+
+        # 如果知识点过多，取最弱和最强的各一半
+        if len(all_skills) > max_display:
+            half = max_display // 2
+            all_skills = all_skills[:half] + all_skills[-half:]
+
+        # 分配颜色
+        color_list = self.SKILL_COLORS
+        for idx, skill in enumerate(all_skills):
+            skill["color"] = color_list[idx % len(color_list)]
+
+        return all_skills
+
+    def get(self, request):
+        # 验证教师身份
+        teacher = _ensure_teacher_profile(request.user)
+        if teacher is None:
+            return Response(
+                {"error": "当前用户未关联教师档案"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # 获取学生 ID 参数
+        student_id = request.query_params.get("student_id")
+        if not student_id:
+            return Response(
+                {"error": "缺少必需参数 student_id"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            student_id = int(student_id)
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "student_id 必须是整数"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 查找学生（student.models.User 存储业务数据）
+        try:
+            student_user = User.objects.get(id=student_id)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "学生不存在"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # 权限校验：学生必须属于该教师管理的班级
+        teacher_classes = ClassInfo.objects.filter(head_teacher=teacher)
+        student_class_id = getattr(
+            getattr(student_user, 'class_info', None), 'id', None
+        )
+        if student_class_id is None or not teacher_classes.filter(id=student_class_id).exists():
+            # 宽松模式：DEBUG 下跳过校验
+            if not getattr(settings, "DEBUG", False):
+                return Response(
+                    {"error": "该学生不属于您管理的班级"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        # 收集学生交互数据
+        interactions = self._collect_student_interactions(student_user)
+        logger.info(
+            "Student %s has %d interactions for AAKT diagnosis",
+            student_id, len(interactions),
+        )
+
+        # 调用 model_integration 中已有的 AAKT 诊断逻辑
+        try:
+            from model_integration.views import (
+                get_diagnosis_from_model,
+                load_model,
+                MODEL_AVAILABLE,
+                MODEL,
+            )
+
+            # 确保模型已加载
+            if not MODEL_AVAILABLE and MODEL is None:
+                load_model()
+
+            diagnosis_result, recommendations = get_diagnosis_from_model(
+                interactions, user_id=student_id
+            )
+        except Exception as e:
+            logger.error("AAKT diagnosis failed for student %s: %s", student_id, str(e))
+            return Response(
+                {"error": f"知识点诊断失败: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # 转换为前端 skills 格式
+        mastery_per_tag = diagnosis_result.get("mastery_per_tag", {})
+        skills = self._mastery_to_skills(mastery_per_tag)
+
+        return Response({
+            "status": "success",
+            "student_id": student_id,
+            "student_name": getattr(student_user, 'name', None) or student_user.first_name or student_user.username,
+            "skills": skills,
+            "weakest_tags": diagnosis_result.get("weakest_tags", []),
+            "recommendations": recommendations,
+            "diagnosis_info": {
+                "total_interactions": diagnosis_result.get("total_interactions", 0),
+                "valid_interactions": diagnosis_result.get("valid_interactions", 0),
+                "model_status": diagnosis_result.get("model_status", "unknown"),
+                "accuracy": diagnosis_result.get("accuracy"),
+            },
+            "timestamp": datetime.now().isoformat(),
+        })
