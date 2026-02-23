@@ -129,7 +129,14 @@ class KnowledgeGraphWriteSerializer(serializers.ModelSerializer):
         nodes = validated_data.pop("nodes", [])
         relationships = validated_data.pop("relationships", [])
 
-        validated_data["domain_id"] = domain_id
+        # 正确设置domain字段
+        from .models import GraphDomain
+        try:
+            domain = GraphDomain.objects.get(id=domain_id)
+            validated_data["domain"] = domain
+        except GraphDomain.DoesNotExist:
+            raise serializers.ValidationError("domainId不存在")
+
         validated_data["content"] = {
             "nodes": nodes if isinstance(nodes, list) else [],
             "relationships": relationships if isinstance(relationships, list) else [],
@@ -142,7 +149,12 @@ class KnowledgeGraphWriteSerializer(serializers.ModelSerializer):
         relationships = validated_data.pop("relationships", None)
 
         if domain_id is not None:
-            instance.domain_id = domain_id
+            from .models import GraphDomain
+            try:
+                domain = GraphDomain.objects.get(id=domain_id)
+                instance.domain = domain
+            except GraphDomain.DoesNotExist:
+                raise serializers.ValidationError("domainId不存在")
 
         content = getattr(instance, "content", None)
         if not isinstance(content, dict):
