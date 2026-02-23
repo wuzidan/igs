@@ -26,7 +26,7 @@
                     >
                 </div>
                 <ul class="submenu" v-if="activeMenu === 'class'">
-                    <li>
+                    <!-- <li>
                         <router-link
                             to="/teacher/class/tracking"
                             :class="{
@@ -36,7 +36,7 @@
                         >
                             <span class="submenu-dot"></span>追踪状态
                         </router-link>
-                    </li>
+                    </li> -->
                     <li>
                         <router-link
                             to="/teacher/class/info"

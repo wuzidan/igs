@@ -194,7 +194,8 @@ const domains = ref([]);
 
 const fetchDomains = async () => {
     const resp = await request.get("/graphs/domains/");
-    const list = resp?.data;
+    const data = resp?.data || {};
+    const list = data.results || data;
     domains.value = Array.isArray(list) ? list : [];
 };
 
@@ -280,7 +281,13 @@ const submitGraph = async () => {
         }
         router.push(`/teacher/graphs/edit/${id}`);
     } catch (e) {
-        await handleAuthFailure(e);
+        console.error("创建图谱失败", e);
+        // 只在认证错误时调用handleAuthFailure
+        if (e.response?.status === 401 || e.response?.status === 403) {
+            await handleAuthFailure(e);
+        } else {
+            alert(`创建图谱失败：${e.message || "未知错误"}`);
+        }
     }
 };
 
@@ -326,7 +333,13 @@ const saveAsDraft = async () => {
         alert("已保存为草稿");
         router.push(`/teacher/graphs/graph`);
     } catch (e) {
-        await handleAuthFailure(e);
+        console.error("保存草稿失败", e);
+        // 只在认证错误时调用handleAuthFailure
+        if (e.response?.status === 401 || e.response?.status === 403) {
+            await handleAuthFailure(e);
+        } else {
+            alert(`保存草稿失败：${e.message || "未知错误"}`);
+        }
     }
 };
 

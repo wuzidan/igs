@@ -242,7 +242,8 @@ const normalizeGraph = (g) => {
 
 const fetchDomains = async () => {
     const resp = await request.get("/graphs/domains/");
-    const list = resp?.data;
+    const data = resp?.data || {};
+    const list = data.results || data;
     domains.value = Array.isArray(list) ? list : [];
 };
 

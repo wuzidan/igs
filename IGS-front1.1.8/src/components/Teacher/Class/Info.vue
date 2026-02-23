@@ -86,7 +86,18 @@
                 </div>
                 <div class="info-row">
                     <div class="info-label">班级代码:</div>
-                    <div class="info-value">{{ classCode }}</div>
+                    <div class="info-value">
+                        {{ classCode }}
+                        <el-button size="small" type="primary" @click="copyClassCode" style="margin-left: 10px;">
+                            复制代码
+                        </el-button>
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">提示:</div>
+                    <div class="info-value" style="color: #666; font-size: 14px;">
+                        请将此班级代码告知学生，学生可通过代码加入班级。
+                    </div>
                 </div>
                 <div class="info-row">
                     <div class="info-label">创建时间:</div>
@@ -107,7 +118,6 @@
             </div>
             <div class="card-footer">
                 <el-button type="warning" @click="showEditClassDialog" :loading="loading">编辑班级信息</el-button>
-                <el-button type="success" @click="showAddStudentDialog" :loading="loading">添加学生</el-button>
                 <el-button type="danger" :disabled="!selectedClassId" @click="showDeleteConfirm" :loading="loading">删除班级</el-button>
             </div>
         </div>
@@ -195,9 +205,6 @@
             <el-form-item label="班级名称" prop="name">
                 <el-input v-model="editClassForm.name" placeholder="请输入班级名称" />
             </el-form-item>
-            <el-form-item label="班级代码" prop="code">
-                <el-input v-model="editClassForm.code" placeholder="请输入班级代码" />
-            </el-form-item>
             <el-form-item label="课程名称" prop="course_id">
                 <el-select v-model="editClassForm.course_id" placeholder="请选择课程" :loading="courseLoading">
                     <el-option v-for="course in courses" :key="course.id" :label="course.name" :value="String(course.id)"></el-option>
@@ -208,34 +215,6 @@
             <span class="dialog-footer">
                 <el-button @click="editClassDialogVisible = false">取消</el-button>
                 <el-button type="primary" @click="handleEditClass">确定</el-button>
-            </span>
-        </template>
-    </el-dialog>
-
-    <!-- 添加学生对话框 -->
-    <el-dialog
-        v-model="addStudentDialogVisible"
-        title="添加学生"
-        width="500px"
-    >
-        <el-form :model="addStudentForm" :rules="addStudentRules" ref="addStudentFormRef">
-            <el-form-item label="学号" prop="student_id">
-                <el-input v-model="addStudentForm.student_id" placeholder="请输入学号" />
-            </el-form-item>
-            <el-form-item label="姓名" prop="name">
-                <el-input v-model="addStudentForm.name" placeholder="请输入姓名" />
-            </el-form-item>
-            <el-form-item label="手机号" prop="phone">
-                <el-input v-model="addStudentForm.phone" placeholder="请输入手机号" />
-            </el-form-item>
-            <el-form-item label="邮箱" prop="email">
-                <el-input v-model="addStudentForm.email" placeholder="请输入邮箱" />
-            </el-form-item>
-        </el-form>
-        <template #footer>
-            <span class="dialog-footer">
-                <el-button @click="addStudentDialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="handleAddStudent">确定</el-button>
             </span>
         </template>
     </el-dialog>
@@ -389,7 +368,6 @@ const totalCount = ref(0);
 // 对话框状态
 const createClassDialogVisible = ref(false);
 const editClassDialogVisible = ref(false);
-const addStudentDialogVisible = ref(false);
 
 // 表单数据
 const createClassForm = ref({
@@ -403,12 +381,7 @@ const editClassForm = ref({
     course_id: ''
 });
 
-const addStudentForm = ref({
-    student_id: '',
-    name: '',
-    phone: '',
-    email: ''
-});
+
 
 // 表单验证规则
 const createClassRules = ref({
@@ -421,17 +394,9 @@ const editClassRules = ref({
     course_id: [{ required: true, message: '请选择课程', trigger: 'change' }]
 });
 
-const addStudentRules = ref({
-    student_id: [{ required: true, message: '请输入学号', trigger: 'blur' }],
-    name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-    phone: [{ pattern: /^1[3-9]\\d{9}$/, message: '请输入正确的手机号', trigger: 'blur', required: false }],
-    email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur', required: false }]
-});
-
 // 表单引用
 const createClassFormRef = ref(null);
 const editClassFormRef = ref(null);
-const addStudentFormRef = ref(null);
 
 const fetchClassList = async () => {
     if (!isLoggedIn.value) return;
@@ -597,6 +562,17 @@ const showCreateClassDialog = () => {
     createClassDialogVisible.value = true;
 };
 
+// 复制班级代码
+const copyClassCode = async () => {
+    try {
+        await navigator.clipboard.writeText(classCode.value);
+        ElMessage.success('班级代码已复制到剪贴板');
+    } catch (e) {
+        console.error('复制失败', e);
+        ElMessage.error('复制失败，请手动复制');
+    }
+};
+
 // 处理创建班级
 const handleCreateClass = async () => {
     if (!isLoggedIn.value) return;
@@ -611,13 +587,21 @@ const handleCreateClass = async () => {
             
             // 获取教师信息
             console.log('获取教师信息...');
-            const teacherResp = await request.get("/teacher/profile/");
-            const teacherData = teacherResp?.data || {};
-            const teacherId = teacherData.teacherId || '';
-            console.log('教师信息:', teacherData);
-            console.log('教师ID:', teacherId);
-            
-            if (!teacherId) {
+            let teacherId = '';
+            try {
+                const teacherResp = await request.get("/teacher/profile/");
+                console.log('教师信息API响应:', teacherResp);
+                const teacherData = teacherResp?.data || {};
+                console.log('教师信息数据:', teacherData);
+                teacherId = teacherData.teacherId || '';
+                console.log('教师ID:', teacherId);
+                
+                if (!teacherId) {
+                    ElMessage.error('获取教师信息失败，请稍后重试');
+                    return;
+                }
+            } catch (e) {
+                console.error('获取教师信息失败:', e);
                 ElMessage.error('获取教师信息失败，请稍后重试');
                 return;
             }
@@ -639,51 +623,44 @@ const handleCreateClass = async () => {
                 return;
             }
             
-            // 查询该教师在该课程下已有的班级数量
-            console.log('查询已有班级...');
-            const classesResp = await request.get("/classInfo/classes/");
-            const classesData = classesResp?.data || [];
-            console.log('已有班级数量:', classesData.length);
-            
-            const existingClasses = classesData.filter(cls => {
-                // 解析已有班级编码，提取课程ID和教师ID
-                const codeParts = cls.code?.split('-') || [];
-                return codeParts[1] === courseId && codeParts[2] === teacherId;
-            });
-            console.log('该教师在该课程下的已有班级数量:', existingClasses.length);
-            
-            // 计算编号（格式为两位数）
-            const serialNumber = String(existingClasses.length + 1).padStart(2, '0');
-            console.log('生成的编号:', serialNumber);
-            
-            // 生成符合固定格式的班级编码：COURSE-课程id-教师id-编号
-            const code = `COURSE-${courseId}-${teacherId}-${serialNumber}`;
+            // 直接生成唯一的班级编码，使用时间戳确保唯一性
+            console.log('生成班级编码...');
+            const timestamp = Date.now().toString().slice(-4);
+            // 生成符合固定格式的班级编码：COURSE-课程id-教师id-时间戳
+            const code = `COURSE-${courseId}-${teacherId}-${timestamp}`;
             console.log('生成的班级编码:', code);
             
+            // 发送创建班级请求
             console.log('发送创建班级请求...');
-            const resp = await request.post("/classInfo/classes/", {
-                name: createClassForm.value.name,
-                code: code,
-                course_name: courseName
-            });
-            console.log('创建班级响应:', resp);
-            
-            const newId = resp?.data?.id;
-            console.log('新班级ID:', newId);
-            
-            createClassDialogVisible.value = false;
-            
-            await fetchClassList();
-            if (newId) {
-                selectedClassId.value = String(newId);
-            } else if (!selectedClassId.value && classes.value.length > 0) {
-                selectedClassId.value = String(classes.value[0].id);
+            try {
+                const resp = await request.post("/classInfo/classes/", {
+                    name: createClassForm.value.name,
+                    code: code,
+                    course_name: courseName
+                });
+                console.log('创建班级响应:', resp);
+                
+                const newId = resp?.data?.id;
+                console.log('新班级ID:', newId);
+                
+                createClassDialogVisible.value = false;
+                
+                await fetchClassList();
+                if (newId) {
+                    selectedClassId.value = String(newId);
+                } else if (!selectedClassId.value && classes.value.length > 0) {
+                    selectedClassId.value = String(classes.value[0].id);
+                }
+                await fetchClassDetail();
+                await fetchStudents();
+                
+                ElMessage.success('班级创建成功');
+                console.log('班级创建成功');
+            } catch (e) {
+                console.error('创建班级失败:', e);
+                ElMessage.error('班级创建失败，请稍后重试');
+                return;
             }
-            await fetchClassDetail();
-            await fetchStudents();
-            
-            ElMessage.success('班级创建成功');
-            console.log('班级创建成功');
         } catch (e) {
             console.error("创建班级失败", e);
             ElMessage.error('班级创建失败，请稍后重试');
@@ -737,48 +714,7 @@ const handleEditClass = async () => {
     });
 };
 
-// 显示添加学生对话框
-const showAddStudentDialog = () => {
-    if (!selectedClassId.value) {
-        ElMessage.warning('请先选择一个班级');
-        return;
-    }
-    
-    addStudentForm.value = {
-        student_id: '',
-        name: '',
-        phone: '',
-        email: ''
-    };
-    addStudentDialogVisible.value = true;
-};
 
-// 处理添加学生
-const handleAddStudent = async () => {
-    if (!isLoggedIn.value) return;
-    if (!selectedClassId.value) return;
-    if (!addStudentFormRef.value) return;
-    
-    addStudentFormRef.value.validate(async (valid) => {
-        if (!valid) return;
-        
-        try {
-            await request.post(`/classInfo/classes/${selectedClassId.value}/students/`, {
-                student_id: addStudentForm.value.student_id,
-                name: addStudentForm.value.name,
-                phone: addStudentForm.value.phone,
-                email: addStudentForm.value.email,
-            });
-            addStudentDialogVisible.value = false;
-            await fetchClassDetail();
-            await fetchStudents();
-            ElMessage.success('学生添加成功');
-        } catch (e) {
-            ElMessage.error('学生添加失败');
-            await handleAuthFailure(e);
-        }
-    });
-};
 
 // 显示删除确认对话框
 const showDeleteConfirm = () => {
