@@ -8,6 +8,7 @@ venv/
 env/
 ENV/
 .env
+.venv/
 
 # Django
 *.log
