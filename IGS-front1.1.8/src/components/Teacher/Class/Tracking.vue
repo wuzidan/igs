@@ -274,6 +274,29 @@
                     class="recommendations-section"
                 >
                     <h4>AAKT模型学习建议</h4>
+                    <div
+                        v-if="currentStudent.diagnosisInfo"
+                        class="diagnosis-quality-panel"
+                    >
+                        <div class="diagnosis-badges">
+                            <span class="diagnosis-badge" :class="getConfidenceBadgeClass(currentStudent.diagnosisInfo.confidence_level)">
+                                置信等级：{{ getConfidenceLabel(currentStudent.diagnosisInfo.confidence_level) }}
+                            </span>
+                            <span class="diagnosis-badge" :class="currentStudent.diagnosisInfo.formal_diagnosis ? 'success' : 'warning'">
+                                {{ currentStudent.diagnosisInfo.formal_diagnosis ? '正式诊断' : '参考诊断' }}
+                            </span>
+                            <span class="diagnosis-badge" :class="currentStudent.diagnosisInfo.used_model_inference ? 'info' : 'neutral'">
+                                {{ currentStudent.diagnosisInfo.used_model_inference ? '模型推理' : '非模型直推' }}
+                            </span>
+                        </div>
+
+                        <div v-if="currentStudent.diagnosisInfo.low_confidence" class="diagnosis-alert warning">
+                            当前结果为低置信度诊断，建议继续积累练习数据后再评估。
+                        </div>
+                        <div v-if="currentStudent.diagnosisInfo.stability_warning" class="diagnosis-alert danger">
+                            {{ currentStudent.diagnosisInfo.stability_warning }}
+                        </div>
+                    </div>
                     <ul class="recommendations-list">
                         <li
                             v-for="(rec, idx) in currentStudent.recommendations"
@@ -290,6 +313,7 @@
                         <span>交互记录: {{ currentStudent.diagnosisInfo.total_interactions || 0 }}条</span>
                         <span>有效记录: {{ currentStudent.diagnosisInfo.valid_interactions || 0 }}条</span>
                         <span>诊断模式: {{ currentStudent.diagnosisInfo.model_status || '-' }}</span>
+                        <span>最少样本: {{ currentStudent.diagnosisInfo.min_required_interactions || '-' }}条</span>
                     </div>
                 </div>
 
@@ -359,6 +383,20 @@ const formatDate = (dateString) => {
 const getClassName = (classId) => {
     const cls = classes.value.find((c) => c.id === classId);
     return cls ? cls.name : "未知班级";
+};
+
+const getConfidenceLabel = (level) => {
+    if (level === "high") return "高";
+    if (level === "medium") return "中";
+    if (level === "low") return "低";
+    return "未知";
+};
+
+const getConfidenceBadgeClass = (level) => {
+    if (level === "high") return "success";
+    if (level === "medium") return "warning";
+    if (level === "low") return "danger";
+    return "neutral";
 };
 
 // 班级整体进度数据
@@ -1718,5 +1756,68 @@ onUnmounted(() => {
     flex-wrap: wrap;
     font-size: 12px;
     color: #64748b;
+}
+
+.diagnosis-quality-panel {
+    margin-bottom: 14px;
+}
+
+.diagnosis-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.diagnosis-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.diagnosis-badge.success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.diagnosis-badge.warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.diagnosis-badge.danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.diagnosis-badge.info {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.diagnosis-badge.neutral {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.diagnosis-alert {
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.diagnosis-alert.warning {
+    background: #fff7ed;
+    color: #9a3412;
+}
+
+.diagnosis-alert.danger {
+    background: #fef2f2;
+    color: #b91c1c;
 }
 </style>

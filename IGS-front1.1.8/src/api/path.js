@@ -2,6 +2,7 @@ const base = {
     //baseURL: "https://mock.presstime.cn/mock/689a0e8c09b6bb83e73c1fca/IGSFRONT",
     baseURL: "http://localhost:8000",
     history: "/historyRecord/getHistoryRecord/",
+    submitPracticeRecord: "/historyRecord/submitPracticeRecord/",
     structure: "/knowledge/structure/",
     visualization: "/visualization/display/",
     studentinfo: "/student/studentInfo/",

@@ -1,14 +1,19 @@
 # views.py
+import json
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.db.models import Avg
+from django.utils import timezone
+from rest_framework import status
 from rest_framework import generics
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from question.models import Question
+from question.models import DifficultyLevel, Exercise, PracticeRecord, PracticeType, Question, QuestionType
 from .models import HistoryRecord
 
 
-class historyRecord(APIView):
+class HistoryRecordView(APIView):
     """
     提供前端所需的所有统计数据和作答记录
     """
@@ -161,3 +166,177 @@ class historyRecord(APIView):
         return accuracy
 
 
+historyRecord = HistoryRecordView
+
+
+class SubmitPracticeRecordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _resolve_exercise(self, question_data):
+        content_value = str(question_data.get("content") or "").strip()
+        exercise_pk_candidates = [
+            question_data.get("exercise_pk"),
+            question_data.get("exercisePk"),
+        ]
+        exercise_id_candidates = [
+            question_data.get("exercise_id"),
+            question_data.get("exerciseId"),
+        ]
+        source_question_candidates = [
+            question_data.get("question_id"),
+            question_data.get("questionId"),
+            question_data.get("id"),
+        ]
+
+        for candidate in exercise_pk_candidates:
+            if candidate in (None, ""):
+                continue
+            try:
+                exercise = Exercise.objects.filter(pk=int(candidate)).first()
+                if exercise is not None:
+                    return exercise
+            except (TypeError, ValueError):
+                pass
+
+        for candidate in exercise_id_candidates:
+            if candidate in (None, ""):
+                continue
+            exercise = Exercise.objects.filter(exercise_id=str(candidate)).first()
+            if exercise is not None:
+                return exercise
+
+            try:
+                exercise = Exercise.objects.filter(pk=int(candidate)).first()
+                if exercise is not None:
+                    return exercise
+            except (TypeError, ValueError):
+                pass
+
+        for candidate in source_question_candidates:
+            if candidate in (None, ""):
+                continue
+
+            try:
+                source_question = Question.objects.select_related("exercise").filter(pk=int(candidate)).first()
+                if source_question is not None and source_question.exercise is not None:
+                    return source_question.exercise
+                if source_question is not None and not content_value:
+                    content_value = str(source_question.content or "").strip()
+            except (TypeError, ValueError):
+                pass
+
+        if content_value:
+            matched_question = (
+                Question.objects.select_related("exercise")
+                .filter(content=content_value, exercise__isnull=False)
+                .order_by("-id")
+                .first()
+            )
+            if matched_question is not None and matched_question.exercise is not None:
+                return matched_question.exercise
+
+            matched_exercise = Exercise.objects.filter(name=content_value).first()
+            if matched_exercise is not None:
+                return matched_exercise
+
+        return None
+
+    def post(self, request):
+        payload = request.data
+        questions = payload.get("questions", [])
+        if isinstance(questions, str):
+            try:
+                questions = json.loads(questions)
+            except json.JSONDecodeError:
+                return Response({"error": "questions 字段必须是合法 JSON"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not isinstance(questions, list) or not questions:
+            return Response({"error": "questions 不能为空"}, status=status.HTTP_400_BAD_REQUEST)
+
+        practice_type = payload.get("practice_type") or payload.get("type") or PracticeType.PRACTICE
+        if practice_type not in PracticeType.values:
+            practice_type = PracticeType.PRACTICE
+
+        duration_value = payload.get("duration_minutes") or payload.get("durationMinutes") or 1
+        try:
+            duration_minutes = max(1, int(duration_value))
+        except (TypeError, ValueError):
+            duration_minutes = 1
+
+        submitted_at = timezone.now()
+        correct_count = sum(1 for item in questions if isinstance(item, dict) and bool(item.get("correct")))
+        explicit_score = payload.get("score")
+        try:
+            score = int(round(float(explicit_score))) if explicit_score is not None else round(correct_count * 100 / len(questions))
+        except (TypeError, ValueError, ZeroDivisionError):
+            score = round(correct_count * 100 / len(questions)) if questions else 0
+        score = max(0, min(100, score))
+
+        created_questions = 0
+        mapped_questions = 0
+
+        with transaction.atomic():
+            practice_record = PracticeRecord.objects.create(
+                student=request.user,
+                type=practice_type,
+                date=submitted_at,
+                score=score,
+                duration_minutes=duration_minutes,
+            )
+
+            for index, question_data in enumerate(questions):
+                if not isinstance(question_data, dict):
+                    continue
+
+                question_type = question_data.get("type") or QuestionType.SINGLE_CHOICE
+                if question_type not in QuestionType.values:
+                    question_type = QuestionType.SINGLE_CHOICE
+
+                difficulty = question_data.get("difficulty") or DifficultyLevel.MEDIUM
+                if difficulty not in DifficultyLevel.values:
+                    difficulty = DifficultyLevel.MEDIUM
+
+                exercise = self._resolve_exercise(question_data)
+                if exercise is not None:
+                    mapped_questions += 1
+
+                Question.objects.create(
+                    record=practice_record,
+                    exercise=exercise,
+                    type=question_type,
+                    difficulty=difficulty,
+                    content=str(question_data.get("content") or f"题目 {index + 1}"),
+                    correct=bool(question_data.get("correct")),
+                    user_answer=question_data.get("user_answer", question_data.get("userAnswer")),
+                    correct_answer=question_data.get("correct_answer", question_data.get("correctAnswer", [])),
+                    options=question_data.get("options"),
+                    analysis=question_data.get("analysis") or "",
+                )
+                created_questions += 1
+
+            if created_questions == 0:
+                return Response({"error": "没有可保存的题目数据"}, status=status.HTTP_400_BAD_REQUEST)
+
+            HistoryRecord.objects.create(
+                user=request.user,
+                type="练习" if practice_type == PracticeType.PRACTICE else "考试",
+                date=submitted_at,
+                score=score,
+                duration=f"{duration_minutes}分钟",
+                expanded=False,
+            )
+
+        return Response(
+            {
+                "status": "success",
+                "practice_record_id": practice_record.id,
+                "saved_questions": created_questions,
+                "mapped_questions": mapped_questions,
+                "unmapped_questions": max(created_questions - mapped_questions, 0),
+                "correct_questions": correct_count,
+                "score": score,
+                "duration_minutes": duration_minutes,
+                "submitted_at": submitted_at.isoformat(),
+            },
+            status=status.HTTP_201_CREATED,
+        )

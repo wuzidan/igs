@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+# classInfo/views.py 调整建议
+>>>>>>> 82a490f (完善“教师端查看学生知识点掌握情况”的功能)
 from django.shortcuts import render
 from django.db.models import Q
 from rest_framework import viewsets, status, generics
@@ -171,6 +175,59 @@ class StudentManagementViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+<<<<<<< HEAD
+=======
+    def create(self, request, class_id=None):
+        """
+        添加学生 - 匹配 POST /api/classes/{class_id}/students/
+        """
+        class_obj = self._get_class(class_id)
+        if isinstance(class_obj, Response):
+            return class_obj
+
+        serializer = ClassAddStudentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "error_code": "INVALID_PARAMETERS",
+                    "message": "请求参数验证失败",
+                    "details": serializer.errors,
+                    "timestamp": timezone.now().isoformat()
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 检查学号是否已存在
+        if StudentModel.objects.filter(student_id=serializer.validated_data["student_id"]).exists():
+            return Response(
+                {
+                    "error_code": "STUDENT_ID_EXISTS",
+                    "message": f"学号 {serializer.validated_data['student_id']} 已存在",
+                    "timestamp": timezone.now().isoformat()
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        student = StudentModel.objects.create(
+            student_id=serializer.validated_data["student_id"],
+            username=serializer.validated_data["student_id"],
+            first_name=serializer.validated_data["name"],
+            phone=serializer.validated_data.get("phone", ""),
+            email=serializer.validated_data.get("email", ""),
+            class_name=class_obj.name,
+            class_info=class_obj,  # 设置外键关联
+            password="123",
+        )
+
+        try:
+            student.set_password("123")
+            student.save(update_fields=["password"])
+        except Exception:
+            pass
+
+        return Response(StudentDetailSerializer(student).data, status=status.HTTP_201_CREATED)
+
+>>>>>>> 82a490f (完善“教师端查看学生知识点掌握情况”的功能)
     def retrieve(self, request, class_id=None, pk=None):
         """
         获取学生详情 - 新增接口，匹配 GET /api/classes/{class_id}/students/{student_id}/

@@ -72,6 +72,11 @@ const routes = [
         component: () => import('../components/Teacher/Class/Info.vue'),
       },
       {
+        path: 'class/student/:studentId',
+        name: 'class-student-detail',
+        component: () => import('../components/Teacher/Class/StudentDetail.vue'),
+      },
+      {
         path: 'exercise/existing',
         name: 'exercise-existing',
         component: () => import('../components/Teacher/Exercise/Existing.vue'),

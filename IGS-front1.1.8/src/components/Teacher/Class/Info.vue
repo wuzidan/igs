@@ -321,16 +321,23 @@ const isLoggedIn = ref(
 
 const handleAuthFailure = async (e) => {
     console.error("请求失败", e);
-    isLoggedIn.value = false;
-    try {
-        window.localStorage && window.localStorage.removeItem("token");
-    } catch (err) {
-        console.error("清理登录状态失败", err);
-    }
-    try {
-        router.push("/login");
-    } catch (err) {
-        console.error("路由跳转失败", err);
+    // 只有真正的 401 未授权错误才跳转登录页
+    // 500/网络错误/超时不应清除登录状态
+    const status = e?.originalError?.response?.status || e?.response?.status;
+    if (status === 401) {
+        isLoggedIn.value = false;
+        try {
+            window.localStorage && window.localStorage.removeItem("token");
+        } catch (err) {
+            console.error("清理登录状态失败", err);
+        }
+        try {
+            router.push("/login");
+        } catch (err) {
+            console.error("路由跳转失败", err);
+        }
+    } else {
+        console.warn("非认证错误，保持登录状态:", e?.message || e);
     }
 };
 
@@ -735,6 +742,16 @@ const showEditClassDialog = () => {
     editClassDialogVisible.value = true;
 };
 
+// 显示添加学生对话框
+const showAddStudentDialog = () => {
+    if (!selectedClassId.value) {
+        ElMessage.warning('请先选择一个班级');
+        return;
+    }
+    addStudentForm.value = { student_id: '', name: '', phone: '', email: '' };
+    addStudentDialogVisible.value = true;
+};
+
 // 处理编辑班级
 const handleEditClass = async () => {
     if (!isLoggedIn.value) return;
@@ -820,7 +837,11 @@ const handleDeleteClass = async () => {
 
 // 查看学生
 const viewStudent = (studentId) => {
-    router.push(`/teacher/class/student/${studentId}`);
+    router.push({
+        name: 'class-student-detail',
+        params: { studentId: String(studentId) },
+        query: selectedClassId.value ? { classId: String(selectedClassId.value) } : {},
+    });
 };
 
 // 移除学生

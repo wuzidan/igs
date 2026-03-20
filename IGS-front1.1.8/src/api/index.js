@@ -5,6 +5,16 @@ const api = {
     getHistory() {
         return axios.get(path.history)
     },
+    getHomework() {
+        return axios.get(path.quiz)
+    },
+    submitPracticeRecord(payload) {
+        return axios.post(path.submitPracticeRecord, payload, {
+            headers: {
+                "Content-Type": "application/json"
+            }
+        })
+    },
     getStructure() {
         return axios.get(path.structure)
     },

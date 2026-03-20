@@ -46,6 +46,248 @@ NUM_QUESTIONS = 0
 NUM_TAGS = 0
 DEVICE = None
 MODEL_AVAILABLE = False
+MIN_FORMAL_DIAGNOSIS_INTERACTIONS = 20
+HIGH_CONFIDENCE_DIAGNOSIS_INTERACTIONS = 30
+PRIOR_MASTERY_STRENGTH = 8
+DEFAULT_PRIOR_ACCURACY = 0.6
+MAX_DIAGNOSIS_HISTORY_USERS = 200
+DIAGNOSIS_HISTORY = {}
+
+
+def _safe_float(value, default=0.0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _get_accuracy_prior(accuracy):
+    accuracy_value = _safe_float(accuracy, DEFAULT_PRIOR_ACCURACY)
+    return float(np.clip(0.25 + accuracy_value * 0.55, 0.2, 0.9))
+
+
+def _smooth_mastery_value(raw_score, accuracy, evidence_count):
+    prior_value = _get_accuracy_prior(accuracy)
+    evidence = max(0, int(evidence_count or 0))
+    observation_weight = evidence / float(evidence + PRIOR_MASTERY_STRENGTH) if evidence > 0 else 0.0
+    blended_score = prior_value * (1.0 - observation_weight) + _safe_float(raw_score, prior_value) * observation_weight
+    return round(float(np.clip(blended_score, 0.1, 0.95)), 3)
+
+
+def _smooth_mastery_map(mastery_per_tag, accuracy, evidence_count):
+    if not isinstance(mastery_per_tag, dict):
+        return {}
+    return {
+        tag: _smooth_mastery_value(score, accuracy, evidence_count)
+        for tag, score in mastery_per_tag.items()
+    }
+
+
+def _compute_confidence(total_interactions, valid_interactions, used_model):
+    total = max(0, int(total_interactions or 0))
+    valid = max(0, int(valid_interactions or 0))
+    total_component = min(total / float(MIN_FORMAL_DIAGNOSIS_INTERACTIONS), 1.0)
+    valid_component = min(valid / float(max(int(MIN_FORMAL_DIAGNOSIS_INTERACTIONS * 0.6), 1)), 1.0)
+    model_component = 1.0 if used_model else 0.55
+    confidence_score = round(
+        float(np.clip(0.45 * total_component + 0.35 * valid_component + 0.20 * model_component, 0.0, 1.0)),
+        3,
+    )
+
+    formal_diagnosis = total >= MIN_FORMAL_DIAGNOSIS_INTERACTIONS and valid > 0
+    if (not formal_diagnosis) or confidence_score < 0.55:
+        confidence_level = "low"
+    elif confidence_score < 0.8 or total < HIGH_CONFIDENCE_DIAGNOSIS_INTERACTIONS:
+        confidence_level = "medium"
+    else:
+        confidence_level = "high"
+
+    if not used_model and confidence_level == "high":
+        confidence_level = "medium"
+
+    return confidence_level, confidence_score, formal_diagnosis
+
+
+def _assess_diagnosis_stability(user_id, mastery_per_tag):
+    if user_id is None or not isinstance(mastery_per_tag, dict) or not mastery_per_tag:
+        return None, None
+
+    previous_result = DIAGNOSIS_HISTORY.get(user_id)
+    stability_score = None
+    stability_warning = None
+    if previous_result and isinstance(previous_result.get("mastery_per_tag"), dict):
+        previous_mastery = previous_result["mastery_per_tag"]
+        common_tags = set(previous_mastery.keys()).intersection(mastery_per_tag.keys())
+        if common_tags:
+            deltas = [
+                abs(_safe_float(mastery_per_tag[tag]) - _safe_float(previous_mastery.get(tag)))
+                for tag in common_tags
+            ]
+            if deltas:
+                stability_score = round(float(np.mean(deltas)), 3)
+                if stability_score >= 0.18:
+                    stability_warning = "连续两次诊断波动较大，数据不足，建议继续练习后再评估"
+
+    if len(DIAGNOSIS_HISTORY) >= MAX_DIAGNOSIS_HISTORY_USERS and user_id not in DIAGNOSIS_HISTORY:
+        oldest_user_id = next(iter(DIAGNOSIS_HISTORY))
+        DIAGNOSIS_HISTORY.pop(oldest_user_id, None)
+
+    DIAGNOSIS_HISTORY[user_id] = {
+        "mastery_per_tag": dict(mastery_per_tag),
+        "updated_at": datetime.now().isoformat(),
+    }
+    return stability_warning, stability_score
+
+
+def _finalize_diagnosis_result(diagnosis_result, recommendations, user_id=None, used_model=False, fallback_reason=None):
+    diagnosis_result = dict(diagnosis_result or {})
+    recommendations = list(recommendations or [])
+
+    total_interactions = max(0, int(diagnosis_result.get("total_interactions") or 0))
+    valid_interactions = max(0, int(diagnosis_result.get("valid_interactions") or 0))
+    evidence_count = valid_interactions if valid_interactions > 0 else total_interactions
+    accuracy = diagnosis_result.get("accuracy")
+
+    smoothed_mastery = _smooth_mastery_map(
+        diagnosis_result.get("mastery_per_tag", {}),
+        accuracy,
+        evidence_count,
+    )
+    if smoothed_mastery:
+        diagnosis_result["mastery_per_tag"] = smoothed_mastery
+        diagnosis_result["weakest_tags"] = sorted(smoothed_mastery.keys(), key=lambda tag: smoothed_mastery[tag])[:3]
+
+    confidence_level, confidence_score, formal_diagnosis = _compute_confidence(
+        total_interactions,
+        valid_interactions,
+        used_model,
+    )
+    low_confidence = (confidence_level == "low") or (not formal_diagnosis)
+
+    if total_interactions < MIN_FORMAL_DIAGNOSIS_INTERACTIONS:
+        low_confidence_reason = "insufficient_sample"
+    elif valid_interactions <= 0:
+        low_confidence_reason = "no_valid_interactions"
+    else:
+        low_confidence_reason = None
+
+    stability_warning, stability_score = _assess_diagnosis_stability(
+        user_id,
+        diagnosis_result.get("mastery_per_tag", {}),
+    )
+
+    diagnosis_messages = []
+    if low_confidence:
+        diagnosis_messages.append(
+            f"当前样本量不足（{total_interactions}/{MIN_FORMAL_DIAGNOSIS_INTERACTIONS}），结果置信度较低，建议继续练习后再评估"
+        )
+    if stability_warning:
+        diagnosis_messages.append(stability_warning)
+
+    diagnosis_result.update({
+        "confidence_level": confidence_level,
+        "confidence_score": confidence_score,
+        "low_confidence": low_confidence,
+        "low_confidence_reason": low_confidence_reason,
+        "formal_diagnosis": formal_diagnosis,
+        "min_required_interactions": MIN_FORMAL_DIAGNOSIS_INTERACTIONS,
+        "used_model_inference": bool(used_model),
+        "fallback_reason": fallback_reason,
+        "smoothed_mastery": True,
+        "stability_warning": stability_warning,
+        "stability_score": stability_score,
+        "diagnosis_messages": diagnosis_messages,
+    })
+
+    merged_recommendations = []
+    for message in recommendations + diagnosis_messages:
+        if message and message not in merged_recommendations:
+            merged_recommendations.append(message)
+
+    return diagnosis_result, merged_recommendations
+
+
+def _classify_interaction_mapping(interactions: list):
+    valid_question_ids = []
+    valid_correctness = []
+    mapped_source_question_ids = []
+    unmapped_question_ids = []
+
+    has_question_map = isinstance(QUESTION_MAP, dict) and bool(QUESTION_MAP)
+    for inter in interactions:
+        q_id = str(inter.get("question_id"))
+        if not has_question_map or q_id not in QUESTION_MAP:
+            unmapped_question_ids.append(q_id)
+            continue
+        try:
+            mapped_qid = int(QUESTION_MAP[q_id])
+        except Exception:
+            unmapped_question_ids.append(q_id)
+            continue
+        valid_question_ids.append(mapped_qid)
+        valid_correctness.append(1 if bool(inter.get("correct", False)) else 0)
+        mapped_source_question_ids.append(q_id)
+
+    return valid_question_ids, valid_correctness, mapped_source_question_ids, unmapped_question_ids
+
+
+def _build_mapping_coverage_report(interactions: list, max_examples: int = 50):
+    total_interactions = len(interactions)
+    valid_question_ids, valid_correctness, mapped_source_question_ids, unmapped_question_ids = _classify_interaction_mapping(interactions)
+    valid_interactions = len(valid_question_ids)
+    unmapped_interactions = len(unmapped_question_ids)
+    mapping_coverage = round(valid_interactions / total_interactions, 3) if total_interactions > 0 else 0.0
+    unique_mapped_question_ids = sorted(set(mapped_source_question_ids))
+    unique_unmapped_question_ids = sorted(set(unmapped_question_ids))
+    recommended_min_coverage = 0.7
+    mapping_sufficient = (
+        valid_interactions >= MIN_FORMAL_DIAGNOSIS_INTERACTIONS
+        and mapping_coverage >= recommended_min_coverage
+    )
+
+    return {
+        "total_interactions": total_interactions,
+        "valid_interactions": valid_interactions,
+        "unmapped_interactions": unmapped_interactions,
+        "mapping_coverage": mapping_coverage,
+        "mapping_coverage_percent": round(mapping_coverage * 100, 1),
+        "question_map_loaded": isinstance(QUESTION_MAP, dict) and bool(QUESTION_MAP),
+        "question_map_size": len(QUESTION_MAP) if isinstance(QUESTION_MAP, dict) else 0,
+        "unique_mapped_question_count": len(unique_mapped_question_ids),
+        "unique_unmapped_question_count": len(unique_unmapped_question_ids),
+        "mapped_question_ids": unique_mapped_question_ids[:max_examples],
+        "unmapped_question_ids": unique_unmapped_question_ids[:max_examples],
+        "mapped_question_ids_truncated": len(unique_mapped_question_ids) > max_examples,
+        "unmapped_question_ids_truncated": len(unique_unmapped_question_ids) > max_examples,
+        "recommended_min_valid_interactions": MIN_FORMAL_DIAGNOSIS_INTERACTIONS,
+        "recommended_min_coverage": recommended_min_coverage,
+        "mapping_sufficient": mapping_sufficient,
+        "sample_ready_for_formal_diagnosis": total_interactions >= MIN_FORMAL_DIAGNOSIS_INTERACTIONS,
+        "valid_sample_ready_for_formal_diagnosis": valid_interactions >= MIN_FORMAL_DIAGNOSIS_INTERACTIONS,
+        "correct_mapped_interactions": sum(valid_correctness),
+    }
+
+
+def _collect_user_interactions(user_id: int):
+    User = get_user_model()
+    user = User.objects.get(id=user_id)
+    practice_records = PracticeRecord.objects.filter(student=user).order_by('date')
+    interactions = []
+    for record in practice_records:
+        for question in record.questions.all():
+            model_qid = None
+            try:
+                if getattr(question, "exercise", None) is not None and getattr(question.exercise, "exercise_id", None) is not None:
+                    model_qid = question.exercise.exercise_id
+            except Exception:
+                model_qid = None
+            interactions.append({
+                'question_id': model_qid if model_qid is not None else question.id,
+                'correct': question.correct
+            })
+
+    return user, practice_records, interactions
+
 
 # 在服务启动时加载模型（只加载一次）
 def load_model():
@@ -127,22 +369,6 @@ def load_model():
         # 尝试创建模型实例
         try:
             print("Creating model instance...")
-            rotary_dim = None
-            try:
-                rotary_dim = int(128 // 8 // 2)
-            except Exception:
-                rotary_dim = None
-            MODEL = AAKT(
-                num_questions=NUM_QUESTIONS if NUM_QUESTIONS > 0 else 4550,  # 使用默认值如果没有问题数据
-                num_tags=NUM_TAGS,
-                max_seq_len=500,
-                with_tags=True,
-                with_times=True,
-                n_layer=4,
-                n_embd=128,
-                n_head=8,
-                rotary_dim=rotary_dim
-            )
             
             # 直接使用output-Educoder-Final目录下的权重文件
             weights_path_safetensors = os.path.join(aakt_path, "output-Educoder-Final", "model.safetensors")
@@ -150,6 +376,17 @@ def load_model():
                 try:
                     print(f"Loading model weights from {weights_path_safetensors}")
                     state_dict = load_file(weights_path_safetensors, device=DEVICE)
+                    MODEL = AAKT(
+                        num_questions=NUM_QUESTIONS if NUM_QUESTIONS > 0 else 4550,  # 使用默认值如果没有问题数据
+                        num_tags=NUM_TAGS,
+                        max_seq_len=500,
+                        with_tags=True,
+                        with_times=True,
+                        n_layer=4,
+                        n_embd=128,
+                        n_head=8,
+                        rotary_dim=None
+                    )
                     MODEL.load_state_dict(state_dict)
                     print("Successfully loaded model weights")
                 except Exception as weight_error:
@@ -265,24 +502,23 @@ def get_diagnosis_from_model(interactions: list, user_id: int = None, force_mode
     """
     print(f"Getting diagnosis for {len(interactions)} interactions, user_id: {user_id}")
     
-    # 先确保有足够的交互数据，如果不够则生成一些模拟数据
+    # 样本太少时不返回正式诊断，但仍返回低置信度结果
     if len(interactions) < 5:
         if force_model:
             raise ValueError("force_model已启用，但交互数据不足，无法进行模型推理")
-        print("Not enough interactions, generating enhanced data...")
-        enhanced_interactions = interactions.copy()
-        correct_count = sum(1 for inter in interactions if inter.get('correct', False))
-        total = len(interactions)
-        accuracy = correct_count / total if total > 0 else 0.5
-        
-        for i in range(5 - len(enhanced_interactions)):
-            enhanced_interactions.append({
-                'question_id': f'sim_{i}',
-                'correct': np.random.random() < accuracy
-            })
-        return get_smart_diagnosis_from_data(enhanced_interactions, user_id)
+        print("Not enough interactions for formal diagnosis, using low-confidence data-based diagnosis...")
+        diagnosis_result, recommendations = get_smart_diagnosis_from_data(interactions, user_id)
+        diagnosis_result["model_status"] = "insufficient_data_simulation"
+        return _finalize_diagnosis_result(
+            diagnosis_result,
+            recommendations,
+            user_id=user_id,
+            used_model=False,
+            fallback_reason="insufficient_interactions",
+        )
     
     # 如果模型可用，尝试使用模型（真实推理路径）
+    model_error_message = None
     try:
         if MODEL_AVAILABLE and MODEL is not None and TORCH_AVAILABLE:
             print("Attempting actual model inference...")
@@ -303,7 +539,7 @@ def get_diagnosis_from_model(interactions: list, user_id: int = None, force_mode
                 hidden_states = MODEL.model(inputs_embeds=inputs_embeds + times_embeds)[0]
                 _preds_kts = MODEL.kts_classifier(hidden_states)
 
-                hidden_features = inputs_embeds.mean(dim=1).detach().cpu().numpy()
+                hidden_features = hidden_states.mean(dim=1).detach().cpu().numpy()
 
             np.random.seed(user_id if user_id is not None else 0)
             base_mastery = accuracy * 0.7 + 0.3
@@ -343,11 +579,19 @@ def get_diagnosis_from_model(interactions: list, user_id: int = None, force_mode
             }
 
             print("Actual model inference completed")
-            return diagnosis_result, recommendations
+            return _finalize_diagnosis_result(
+                diagnosis_result,
+                recommendations,
+                user_id=user_id,
+                used_model=True,
+                fallback_reason=None,
+            )
 
         print("Model not available")
+        model_error_message = "model_not_available"
     except Exception as e:
         print(f"Model error: {str(e)}")
+        model_error_message = str(e)
         if force_model:
             raise
     
@@ -355,7 +599,21 @@ def get_diagnosis_from_model(interactions: list, user_id: int = None, force_mode
     if force_model:
         raise RuntimeError("force_model enabled but model inference was not possible")
     print("Using data-based diagnosis")
-    return get_smart_diagnosis_from_data(interactions, user_id)
+    diagnosis_result, recommendations = get_smart_diagnosis_from_data(interactions, user_id)
+    diagnosis_result["model_status"] = "data_based_simulation"
+    fallback_reason = "model_fallback"
+    if model_error_message == "model_not_available":
+        fallback_reason = "model_not_available"
+    elif model_error_message:
+        fallback_reason = "model_error"
+        diagnosis_result["model_error"] = model_error_message
+    return _finalize_diagnosis_result(
+        diagnosis_result,
+        recommendations,
+        user_id=user_id,
+        used_model=False,
+        fallback_reason=fallback_reason,
+    )
 
 
 @api_view(['GET'])
@@ -485,6 +743,13 @@ def cognitiveDiagnosis(request):
                 
                 # 添加一个通用建议
                 recommendations.append("整体学习表现不错，建议继续保持良好的学习状态")
+                diagnosis_result, recommendations = _finalize_diagnosis_result(
+                    diagnosis_result,
+                    recommendations,
+                    user_id=user_id,
+                    used_model=False,
+                    fallback_reason="no_interactions",
+                )
         except User.DoesNotExist:
             return JsonResponse({
                 'error': '用户不存在',
@@ -665,8 +930,8 @@ def _predict_aakt_question_correct_prob(interactions: list, question_id):
             times_embeds = torch.zeros_like(inputs_embeds)
 
         hidden_states = MODEL.model(inputs_embeds=inputs_embeds + times_embeds)[0]
-        preds_kts = MODEL.kts_classifier(hidden_states)
-        logits = preds_kts[0, -1]
+        _preds_kts = MODEL.kts_classifier(hidden_states)
+        logits = _preds_kts[0, -1]
         prob_correct = 1.0 / (torch.exp(logits[0] - logits[1]) + 1.0)
 
     return float(prob_correct.detach().cpu().item())
@@ -1063,16 +1328,7 @@ def _prepare_aakt_inputs(interactions: list):
     if not isinstance(NUM_TAGS, int) or NUM_TAGS <= 0:
         raise RuntimeError("Invalid NUM_TAGS")
 
-    valid_question_ids = []
-    valid_correctness = []
-    for inter in interactions:
-        q_id = str(inter.get("question_id"))
-        if q_id in QUESTION_MAP:
-            try:
-                valid_question_ids.append(int(QUESTION_MAP[q_id]))
-            except Exception:
-                continue
-            valid_correctness.append(1 if bool(inter.get("correct", False)) else 0)
+    valid_question_ids, valid_correctness, _mapped_source_question_ids, unmapped_question_ids = _classify_interaction_mapping(interactions)
 
     if not valid_question_ids:
         raise ValueError("No valid interactions found in question_map")
@@ -1087,4 +1343,73 @@ def _prepare_aakt_inputs(interactions: list):
     seq_len = int(input_tensor.shape[1])
     input_times = torch.zeros((1, seq_len), dtype=torch.float, device=device)
 
-    return input_tensor, input_times, len(valid_question_ids), len(interactions) - len(valid_question_ids)
+    return input_tensor, input_times, len(valid_question_ids), len(unmapped_question_ids)
+
+@api_view(['GET'])
+@csrf_exempt
+def mappingCoverage(request):
+    print(f"Received mapping coverage request from {request.META.get('REMOTE_ADDR', 'unknown')}")
+
+    try:
+        user_id = request.GET.get('user_id')
+        if not user_id:
+            return JsonResponse({
+                'error': '用户ID是必需的',
+                'status': 'error'
+            }, status=400)
+
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            return JsonResponse({
+                'error': '用户ID必须是整数',
+                'status': 'error'
+            }, status=400)
+
+        if not MODEL_AVAILABLE and MODEL is None:
+            try:
+                load_model()
+            except Exception as load_exc:
+                print(f"Warning: failed to load model before mapping coverage check: {str(load_exc)}")
+
+        try:
+            user, practice_records, interactions = _collect_user_interactions(user_id)
+        except get_user_model().DoesNotExist:
+            return JsonResponse({
+                'error': '用户不存在',
+                'status': 'error'
+            }, status=404)
+
+        coverage_report = _build_mapping_coverage_report(interactions)
+        has_tag_map = isinstance(TAG_MAP, dict) and bool(TAG_MAP)
+        model_ready = bool(
+            TORCH_AVAILABLE
+            and MODEL_AVAILABLE
+            and MODEL is not None
+            and coverage_report.get('question_map_loaded')
+            and has_tag_map
+        )
+
+        response_data = {
+            'status': 'success',
+            'user_id': user_id,
+            'username': getattr(user, 'username', ''),
+            'practice_record_count': practice_records.count(),
+            'model_ready': model_ready,
+            'torch_available': TORCH_AVAILABLE,
+            'model_available': MODEL_AVAILABLE and MODEL is not None,
+            'tag_map_loaded': has_tag_map,
+            'tag_map_size': len(TAG_MAP) if isinstance(TAG_MAP, dict) else 0,
+            'timestamp': datetime.now().isoformat(),
+        }
+        response_data.update(coverage_report)
+        print(f"Successfully generated mapping coverage report for user {user_id}")
+        return JsonResponse(response_data)
+    except Exception as e:
+        print(f"Unexpected error in mappingCoverage: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'error': f'处理映射覆盖率请求时出错: {str(e)}',
+            'status': 'error'
+        }, status=500)

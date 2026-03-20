@@ -27,3 +27,5 @@ yarn-error.log*
 *.swo
 *~
 .trae/
+igs_db.sql
+igs_db.sql

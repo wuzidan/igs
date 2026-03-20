@@ -2,9 +2,11 @@
 import os
 import logging
 from datetime import datetime
+from collections import defaultdict
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.db.models import Avg
+
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -12,7 +14,9 @@ from rest_framework.views import APIView
 
 from classInfo.models import ClassInfo
 from question.models import Exercise, PracticeRecord, Question
+from knowledge.models import KnowledgeChallengeTopic
 from student.models import User
+from user.models import User as CoreUser
 from .models import Teacher, Subject
 from .serializers import TeacherProfileSerializer, SubjectSerializer
 
@@ -247,25 +251,76 @@ class StudentKnowledgeMasteryView(APIView):
         "#27ae60", "#d35400", "#2c3e50", "#f1c40f",
     ]
 
-    def _collect_student_interactions(self, student_user):
+    def _resolve_core_user(self, student_user):
+        auth_user = getattr(student_user, 'core_user', None)
+        if auth_user is not None:
+            return auth_user
+
+        username = str(getattr(student_user, 'username', '') or '').strip()
+        email = str(getattr(student_user, 'email', '') or '').strip()
+
+        if username:
+            auth_user = CoreUser.objects.filter(username=username).first()
+            if auth_user is not None:
+                return auth_user
+
+        if email:
+            auth_user = CoreUser.objects.filter(email=email).first()
+            if auth_user is not None:
+                return auth_user
+
+        return None
+
+    def _resolve_diagnosis_user_id(self, student_user):
+        """选择用于诊断的 user.User 主键，优先选择存在练习记录的账号。"""
+        primary_user = self._resolve_core_user(student_user)
+        candidates = []
+
+        if primary_user is not None:
+            candidates.append(primary_user)
+
+        username = str(getattr(student_user, 'username', '') or '').strip()
+        email = str(getattr(student_user, 'email', '') or '').strip()
+
+        if username:
+            matched_by_username = CoreUser.objects.filter(username=username).first()
+            if matched_by_username is not None:
+                candidates.append(matched_by_username)
+
+        if email:
+            matched_by_email = CoreUser.objects.filter(email=email).first()
+            if matched_by_email is not None:
+                candidates.append(matched_by_email)
+
+        best_user = None
+        best_count = -1
+        seen_ids = set()
+        for candidate in candidates:
+            candidate_id = getattr(candidate, 'id', None)
+            if candidate_id is None or candidate_id in seen_ids:
+                continue
+            seen_ids.add(candidate_id)
+            record_count = PracticeRecord.objects.filter(student_id=candidate_id).count()
+            if record_count > best_count:
+                best_count = record_count
+                best_user = candidate
+
+        if best_user is not None:
+            return best_user.id
+
+        return getattr(primary_user, 'id', None) or student_user.id
+
+    def _collect_student_interactions(self, student_user, diagnosis_user_id=None):
         """收集学生的答题交互数据，用于 AAKT 模型输入
         注意：PracticeRecord.student FK 指向 user.User (AUTH_USER_MODEL)，
         而 student_user 是 student.models.User，需要通过 core_user 关联查询。
         """
         interactions = []
 
-        # PracticeRecord.student 是 user.User 的 FK
-        # 尝试通过 core_user 获取对应的 user.User 实例
-        auth_user = getattr(student_user, 'core_user', None)
-        if auth_user is None:
-            # 回退：直接用 student_user.id 按 student_id 查询
-            practice_records = PracticeRecord.objects.filter(
-                student_id=student_user.id
-            ).order_by('date')
-        else:
-            practice_records = PracticeRecord.objects.filter(
-                student=auth_user
-            ).order_by('date')
+        practice_records = self._get_student_practice_records(
+            student_user,
+            diagnosis_user_id=diagnosis_user_id,
+        )
 
         for record in practice_records:
             for question in record.questions.all():
@@ -283,6 +338,104 @@ class StudentKnowledgeMasteryView(APIView):
 
         return interactions
 
+    def _get_student_practice_records(self, student_user, diagnosis_user_id=None):
+        target_user_id = diagnosis_user_id or self._resolve_diagnosis_user_id(student_user)
+        records = PracticeRecord.objects.filter(student_id=target_user_id).order_by('date')
+        if records.exists():
+            return records
+        return PracticeRecord.objects.filter(student_id=student_user.id).order_by('date')
+
+    def _build_mastery_from_question_relations(self, student_user, diagnosis_user_id=None):
+        """
+        从数据库关系直接计算学生知识点掌握度：
+        student -> practice_record -> question -> exercise -> challenge -> topic。
+        """
+        practice_records = self._get_student_practice_records(
+            student_user,
+            diagnosis_user_id=diagnosis_user_id,
+        )
+
+        questions = list(
+            Question.objects.filter(
+                record__in=practice_records,
+                exercise__isnull=False,
+            ).only('id', 'exercise_id', 'correct')
+        )
+        if not questions:
+            return []
+
+        exercise_ids = {q.exercise_id for q in questions if q.exercise_id is not None}
+        if not exercise_ids:
+            return []
+
+        topic_rows = KnowledgeChallengeTopic.objects.filter(
+            challenge__exercise_challenges__exercise_id__in=exercise_ids,
+        ).values(
+            'challenge__exercise_challenges__exercise_id',
+            'topic_id',
+            'topic__clean_name',
+            'topic__name',
+            'topic__category',
+        )
+
+        exercise_topics = defaultdict(list)
+        for row in topic_rows:
+            exercise_id = row.get('challenge__exercise_challenges__exercise_id')
+            if exercise_id is None:
+                continue
+            exercise_topics[exercise_id].append(
+                {
+                    'topic_id': row.get('topic_id'),
+                    'name': row.get('topic__clean_name') or row.get('topic__name') or '未知知识点',
+                    'category': row.get('topic__category') or 'general',
+                }
+            )
+
+        topic_stats = {}
+        for question in questions:
+            topics = exercise_topics.get(question.exercise_id, [])
+            if not topics:
+                continue
+
+            # 同一题目映射到同一知识点时只计一次，避免重复统计
+            per_question_topic_ids = set()
+            for topic in topics:
+                topic_id = topic['topic_id']
+                if topic_id in per_question_topic_ids:
+                    continue
+                per_question_topic_ids.add(topic_id)
+
+                if topic_id not in topic_stats:
+                    topic_stats[topic_id] = {
+                        'topicId': topic_id,
+                        'name': topic['name'],
+                        'category': topic['category'],
+                        'totalQuestions': 0,
+                        'correctQuestions': 0,
+                    }
+
+                topic_stats[topic_id]['totalQuestions'] += 1
+                if bool(question.correct):
+                    topic_stats[topic_id]['correctQuestions'] += 1
+
+        skills = []
+        for stat in topic_stats.values():
+            total_questions = stat['totalQuestions']
+            mastery = round((stat['correctQuestions'] / total_questions) * 100, 1) if total_questions else 0.0
+            skills.append(
+                {
+                    **stat,
+                    # 与现有前端保持兼容：Tracking.vue 使用 level 渲染百分比
+                    'level': mastery,
+                    'mastery': mastery,
+                }
+            )
+
+        skills.sort(key=lambda item: item['level'])
+        for idx, skill in enumerate(skills):
+            skill['color'] = self.SKILL_COLORS[idx % len(self.SKILL_COLORS)]
+        return skills
+
     def _mastery_to_skills(self, mastery_per_tag: dict, max_display: int = 20) -> list:
         """将 mastery_per_tag 字典转换为前端 skills 数组格式
         当知识点过多时，取最弱和最强的各 max_display/2 个展示。
@@ -293,13 +446,9 @@ class StudentKnowledgeMasteryView(APIView):
                 "name": tag_name,
                 "level": round(mastery_value * 100, 1),
             })
-        # 按掌握度升序排列
-        all_skills.sort(key=lambda s: s["level"])
 
-        # 如果知识点过多，取最弱和最强的各一半
-        if len(all_skills) > max_display:
-            half = max_display // 2
-            all_skills = all_skills[:half] + all_skills[-half:]
+        half = max_display // 2
+        all_skills = all_skills[:half] + all_skills[-half:]
 
         # 分配颜色
         color_list = self.SKILL_COLORS
@@ -309,7 +458,6 @@ class StudentKnowledgeMasteryView(APIView):
         return all_skills
 
     def get(self, request):
-        # 验证教师身份
         teacher = _ensure_teacher_profile(request.user)
         if teacher is None:
             return Response(
@@ -317,7 +465,6 @@ class StudentKnowledgeMasteryView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # 获取学生 ID 参数
         student_id = request.query_params.get("student_id")
         if not student_id:
             return Response(
@@ -333,7 +480,6 @@ class StudentKnowledgeMasteryView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # 查找学生（student.models.User 存储业务数据）
         try:
             student_user = User.objects.get(id=student_id)
         except User.DoesNotExist:
@@ -342,27 +488,68 @@ class StudentKnowledgeMasteryView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # 权限校验：学生必须属于该教师管理的班级
         teacher_classes = ClassInfo.objects.filter(head_teacher=teacher)
-        student_class_id = getattr(
-            getattr(student_user, 'class_info', None), 'id', None
-        )
+        student_class_id = getattr(getattr(student_user, 'class_info', None), 'id', None)
         if student_class_id is None or not teacher_classes.filter(id=student_class_id).exists():
-            # 宽松模式：DEBUG 下跳过校验
             if not getattr(settings, "DEBUG", False):
                 return Response(
                     {"error": "该学生不属于您管理的班级"},
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
-        # 收集学生交互数据
-        interactions = self._collect_student_interactions(student_user)
+        diagnosis_user_id = self._resolve_diagnosis_user_id(student_user)
+        relation_skills = self._build_mastery_from_question_relations(
+            student_user,
+            diagnosis_user_id=diagnosis_user_id,
+        )
+
+        if relation_skills:
+            strongest = sorted(relation_skills, key=lambda item: item['level'], reverse=True)[:3]
+            weakest = sorted(relation_skills, key=lambda item: item['level'])[:3]
+            total_relation_interactions = sum(item['totalQuestions'] for item in relation_skills)
+            relation_formal_diagnosis = total_relation_interactions >= 20
+            relation_confidence_level = 'medium' if relation_formal_diagnosis else 'low'
+            relation_stability_warning = None if relation_formal_diagnosis else '当前样本量不足，建议继续练习后再评估'
+            recommendations = [
+                f"优先巩固《{item['name']}》知识点，当前掌握度 {item['level']}%" for item in weakest
+            ]
+            if relation_stability_warning and relation_stability_warning not in recommendations:
+                recommendations.append(relation_stability_warning)
+
+            return Response(
+                {
+                    'status': 'success',
+                    'student_id': student_id,
+                    'student_name': getattr(student_user, 'name', None) or student_user.first_name or student_user.username,
+                    'skills': relation_skills,
+                    'weakest_tags': [item['name'] for item in weakest],
+                    'strongest_tags': [item['name'] for item in strongest],
+                    'recommendations': recommendations,
+                    'diagnosis_info': {
+                        'data_source': 'question_relation',
+                        'diagnosis_user_id': diagnosis_user_id,
+                        'total_topics': len(relation_skills),
+                        'total_interactions': total_relation_interactions,
+                        'model_status': 'rule_based',
+                        'confidence_level': relation_confidence_level,
+                        'low_confidence': not relation_formal_diagnosis,
+                        'formal_diagnosis': relation_formal_diagnosis,
+                        'min_required_interactions': 20,
+                        'stability_warning': relation_stability_warning,
+                    },
+                    'timestamp': datetime.now().isoformat(),
+                }
+            )
+
+        interactions = self._collect_student_interactions(
+            student_user,
+            diagnosis_user_id=diagnosis_user_id,
+        )
         logger.info(
             "Student %s has %d interactions for AAKT diagnosis",
             student_id, len(interactions),
         )
 
-        # 调用 model_integration 中已有的 AAKT 诊断逻辑
         try:
             from model_integration.views import (
                 get_diagnosis_from_model,
@@ -371,12 +558,11 @@ class StudentKnowledgeMasteryView(APIView):
                 MODEL,
             )
 
-            # 确保模型已加载
             if not MODEL_AVAILABLE and MODEL is None:
                 load_model()
 
             diagnosis_result, recommendations = get_diagnosis_from_model(
-                interactions, user_id=student_id
+                interactions, user_id=diagnosis_user_id
             )
         except Exception as e:
             logger.error("AAKT diagnosis failed for student %s: %s", student_id, str(e))
@@ -385,7 +571,6 @@ class StudentKnowledgeMasteryView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # 转换为前端 skills 格式
         mastery_per_tag = diagnosis_result.get("mastery_per_tag", {})
         skills = self._mastery_to_skills(mastery_per_tag)
 
@@ -397,10 +582,24 @@ class StudentKnowledgeMasteryView(APIView):
             "weakest_tags": diagnosis_result.get("weakest_tags", []),
             "recommendations": recommendations,
             "diagnosis_info": {
+                "data_source": "aakt_model",
                 "total_interactions": diagnosis_result.get("total_interactions", 0),
                 "valid_interactions": diagnosis_result.get("valid_interactions", 0),
                 "model_status": diagnosis_result.get("model_status", "unknown"),
                 "accuracy": diagnosis_result.get("accuracy"),
+                "confidence_level": diagnosis_result.get("confidence_level"),
+                "confidence_score": diagnosis_result.get("confidence_score"),
+                "low_confidence": diagnosis_result.get("low_confidence", False),
+                "low_confidence_reason": diagnosis_result.get("low_confidence_reason"),
+                "formal_diagnosis": diagnosis_result.get("formal_diagnosis", False),
+                "min_required_interactions": diagnosis_result.get("min_required_interactions"),
+                "used_model_inference": diagnosis_result.get("used_model_inference", False),
+                "fallback_reason": diagnosis_result.get("fallback_reason"),
+                "smoothed_mastery": diagnosis_result.get("smoothed_mastery", False),
+                "stability_warning": diagnosis_result.get("stability_warning"),
+                "stability_score": diagnosis_result.get("stability_score"),
+                "diagnosis_messages": diagnosis_result.get("diagnosis_messages", []),
+                "diagnosis_user_id": diagnosis_user_id,
             },
             "timestamp": datetime.now().isoformat(),
         })
