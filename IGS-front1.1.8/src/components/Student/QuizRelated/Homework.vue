@@ -554,6 +554,104 @@ const currentQuestionIndex = ref(0);
 const currentQuestion = ref(null);
 const userAnswers = ref([]);
 const showAnswers = ref(false);
+const isSubmitting = ref(false);
+const homeworkStartedAt = ref(null);
+
+const parseDate = (date) => {
+    if (!date) return null;
+    const parsedDate = new Date(date);
+    return isNaN(parsedDate.getTime()) ? date : parsedDate;
+};
+
+const buildQuestionTypes = (questions) => {
+    return (questions || []).reduce((acc, question) => {
+        const questionType = question.type || "singleChoice";
+        acc[questionType] = (acc[questionType] || 0) + 1;
+        return acc;
+    }, {});
+};
+
+const normalizeQuestion = (question, index) => {
+    const normalizedType = question.type || "singleChoice";
+    const normalizedCorrectAnswer =
+        question.correctAnswer ??
+        question.correct_answer ??
+        (normalizedType === "multipleChoice" ? [] : null);
+
+    return {
+        ...question,
+        id: question.id ?? question.questionId ?? index + 1,
+        questionId: question.questionId ?? question.id ?? index + 1,
+        type: normalizedType,
+        difficulty: question.difficulty || "medium",
+        content: question.content || `题目 ${index + 1}`,
+        options: Array.isArray(question.options) ? question.options : [],
+        correctAnswer: normalizedCorrectAnswer,
+        userAnswer: question.userAnswer ?? question.user_answer ?? null,
+        analysis: question.analysis || "",
+        completed: Boolean(question.completed),
+        exercisePk: question.exercisePk ?? question.exercise_pk ?? null,
+        exerciseId: question.exerciseId ?? question.exercise_id ?? null,
+        exerciseTitle: question.exerciseTitle ?? question.exercise_title ?? null,
+    };
+};
+
+const normalizeHomework = (homework, index) => {
+    const questions = Array.isArray(homework.questions)
+        ? homework.questions.map((question, questionIndex) =>
+              normalizeQuestion(question, questionIndex)
+          )
+        : [];
+
+    return {
+        ...homework,
+        id: homework.id ?? `homework-${index + 1}`,
+        title: homework.title || homework.name || `练习作业 #${index + 1}`,
+        description: homework.description || "请完成以下练习题目。",
+        type: homework.type || "practice",
+        questions,
+        questionCount: homework.questionCount || questions.length,
+        questionTypes: homework.questionTypes || buildQuestionTypes(questions),
+        status:
+            homework.status ||
+            (questions.length > 0 && questions.every((question) => question.completed)
+                ? "completed"
+                : "pending"),
+        score: Number(homework.score || 0),
+        accuracy: Number(homework.accuracy || 0),
+        publishDate: parseDate(homework.publishDate || homework.publish_time || new Date()),
+        deadline: parseDate(homework.deadline || homework.publishDate || homework.publish_time || new Date()),
+        completeTime: parseDate(homework.completeTime || homework.complete_time),
+    };
+};
+
+const normalizeHomeworkData = (rawData) => {
+    if (!Array.isArray(rawData) || rawData.length === 0) {
+        return [];
+    }
+
+    const firstItem = rawData[0] || {};
+    if (Array.isArray(firstItem.questions)) {
+        return rawData.map((homework, index) => normalizeHomework(homework, index));
+    }
+
+    const normalizedQuestions = rawData.map((question, index) => normalizeQuestion(question, index));
+    return [
+        normalizeHomework(
+            {
+                id: "practice-homework",
+                title: "练习作业",
+                description: "基于当前题目数据生成的练习作业。",
+                type: "practice",
+                status: normalizedQuestions.every((question) => question.completed) ? "completed" : "pending",
+                questions: normalizedQuestions,
+                questionCount: normalizedQuestions.length,
+                questionTypes: buildQuestionTypes(normalizedQuestions),
+            },
+            0
+        ),
+    ];
+};
 
 // 从接口获取作业数据
 const fetchHomeworks = async () => {
@@ -570,20 +668,7 @@ const fetchHomeworks = async () => {
 
         console.log("实际作业数据：", data);
 
-        const formattedData = data.map((homework) => {
-            const parseDate = (dateStr) => {
-                if (!dateStr) return null;
-                const date = new Date(dateStr);
-                return isNaN(date.getTime()) ? dateStr : date;
-            };
-
-            return {
-                ...homework,
-                publishDate: parseDate(homework.publishDate),
-                deadline: parseDate(homework.deadline),
-                completeTime: parseDate(homework.completeTime),
-            };
-        });
+        const formattedData = normalizeHomeworkData(data);
 
         homeworkList.value = formattedData;
         console.log("格式化后的作业数据：", homeworkList.value);
@@ -727,10 +812,11 @@ const startHomework = () => {
     isDoingHomework.value = true;
     currentQuestionIndex.value = 0;
     currentQuestion.value = currentHomework.value.questions[0];
-    userAnswers.value = new Array(currentHomework.value.questionCount).fill(
-        null
+    userAnswers.value = currentHomework.value.questions.map(
+        (question) => question.userAnswer ?? null
     );
     showAnswers.value = false;
+    homeworkStartedAt.value = Date.now();
 };
 
 // 退出做题
@@ -740,6 +826,7 @@ const exitDoingHomework = () => {
         currentQuestionIndex.value = 0;
         currentQuestion.value = null;
         userAnswers.value = [];
+        homeworkStartedAt.value = null;
     }
 };
 
@@ -873,7 +960,8 @@ const isOptionSelected = (index) => {
 };
 
 // 提交作业
-const submitHomework = () => {
+const submitHomework = async () => {
+    if (isSubmitting.value) return;
     if (confirm("确定要提交作业吗？提交后无法修改。")) {
         let correctCount = 0;
         const questionResults = [];
@@ -930,26 +1018,70 @@ const submitHomework = () => {
             (correctCount / currentHomework.value.questionCount) * 100
         );
 
-        // 更新作业状态
-        currentHomework.value.status = "completed";
-        currentHomework.value.score = score;
-        currentHomework.value.accuracy = accuracy;
-        currentHomework.value.completeTime = new Date();
-        currentHomework.value.results = questionResults; // 保存详细结果
+        const durationMinutes = homeworkStartedAt.value
+            ? Math.max(1, Math.ceil((Date.now() - homeworkStartedAt.value) / 60000))
+            : Math.max(1, currentHomework.value.questionCount);
 
-        // 更新作业列表
-        const idx = homeworkList.value.findIndex(
-            (h) => h.id === currentHomework.value.id
-        );
-        if (idx !== -1) {
-            homeworkList.value[idx] = { ...currentHomework.value };
+        const payload = {
+            practice_type: "练习",
+            durationMinutes,
+            score,
+            questions: questionResults.map((item) => ({
+                id: item.question.id,
+                questionId: item.question.questionId,
+                exercisePk: item.question.exercisePk,
+                exerciseId: item.question.exerciseId,
+                type: item.question.type,
+                difficulty: item.question.difficulty,
+                content: item.question.content,
+                userAnswer: item.userAnswer,
+                correctAnswer: item.question.correctAnswer,
+                options: item.question.options,
+                analysis: item.question.analysis,
+                correct: item.isCorrect,
+            })),
+        };
+
+        try {
+            isSubmitting.value = true;
+            const response = await api.submitPracticeRecord(payload);
+            const result = response?.data || {};
+
+            currentHomework.value.status = "completed";
+            currentHomework.value.score = score;
+            currentHomework.value.accuracy = accuracy;
+            currentHomework.value.completeTime = new Date();
+            currentHomework.value.results = questionResults;
+            currentHomework.value.practiceRecordId = result.practice_record_id;
+            currentHomework.value.questions = currentHomework.value.questions.map(
+                (question, index) => ({
+                    ...question,
+                    userAnswer: userAnswers.value[index],
+                    completed: true,
+                    correct: questionResults[index]?.isCorrect || false,
+                    accuracy: questionResults[index]?.isCorrect ? 100 : 0,
+                })
+            );
+
+            const idx = homeworkList.value.findIndex(
+                (h) => h.id === currentHomework.value.id
+            );
+            if (idx !== -1) {
+                homeworkList.value[idx] = { ...currentHomework.value };
+            }
+
+            showAnswers.value = true;
+            homeworkStartedAt.value = null;
+
+            alert(
+                `作业提交成功！\n得分：${score}分\n正确率：${accuracy}%\n已保存题目：${result.saved_questions || currentHomework.value.questionCount}道\n可映射题目：${result.mapped_questions || 0}道`
+            );
+        } catch (err) {
+            console.error("提交作业失败：", err);
+            alert(`作业提交失败：${err.message || "请稍后重试"}`);
+        } finally {
+            isSubmitting.value = false;
         }
-
-        // 显示答案和评分结果
-        showAnswers.value = true;
-
-        // 显示提交成功提示
-        alert(`作业提交成功！\n得分：${score}分\n正确率：${accuracy}%`);
     }
 };
 

@@ -85,11 +85,12 @@ def debug_view(request):
 @permission_classes([AllowAny])
 def question_list(request):
     User = get_user_model()
-    user = None
-    try:
-        user = User.objects.get(username='testuser')
-    except User.DoesNotExist:
-        user = User.objects.filter(id=1).first()
+    user = request.user if getattr(request.user, 'is_authenticated', False) else None
+    if user is None:
+        try:
+            user = User.objects.get(username='testuser')
+        except User.DoesNotExist:
+            user = User.objects.filter(id=1).first()
 
     queryset = Question.objects.all()
     if user is not None:
@@ -101,6 +102,19 @@ def question_list(request):
         user_answer = q.get_user_answer_list() if hasattr(q, 'get_user_answer_list') else q.user_answer
         correct_answer = q.get_correct_answer_list() if hasattr(q, 'get_correct_answer_list') else q.correct_answer
         options = q.get_options_list() if hasattr(q, 'get_options_list') else q.options
+        resolved_exercise = getattr(q, 'exercise', None)
+        if resolved_exercise is None and q.content:
+            matched_question = (
+                Question.objects.select_related('exercise')
+                .filter(content=q.content, exercise__isnull=False)
+                .exclude(pk=q.pk)
+                .order_by('-id')
+                .first()
+            )
+            if matched_question is not None:
+                resolved_exercise = matched_question.exercise
+        if resolved_exercise is None and q.content:
+            resolved_exercise = Exercise.objects.filter(name=q.content).first()
 
         completed = q.user_answer is not None
         accuracy = 0
@@ -109,6 +123,7 @@ def question_list(request):
 
         data.append({
             "id": q.id,
+            "questionId": q.id,
             "type": q.type,
             "difficulty": q.difficulty,
             "content": q.content,
@@ -119,6 +134,9 @@ def question_list(request):
             "correctAnswer": correct_answer,
             "options": options,
             "analysis": q.analysis,
+            "exercisePk": getattr(resolved_exercise, 'pk', None),
+            "exerciseId": getattr(resolved_exercise, 'exercise_id', None),
+            "exerciseTitle": getattr(resolved_exercise, 'name', None),
         })
 
     return Response({"data": data})
@@ -127,6 +145,7 @@ def question_list(request):
 class question(View):
     def get(self, request):
         return HttpResponse("学生信息页面（类视图）")
+
 
 class ExerciseViewSet(viewsets.ModelViewSet):
     """

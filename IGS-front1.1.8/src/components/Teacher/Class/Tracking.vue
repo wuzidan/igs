@@ -269,6 +269,54 @@
                     </div>
                 </div>
 
+                <div
+                    v-if="currentStudent.recommendations && currentStudent.recommendations.length"
+                    class="recommendations-section"
+                >
+                    <h4>AAKT模型学习建议</h4>
+                    <div
+                        v-if="currentStudent.diagnosisInfo"
+                        class="diagnosis-quality-panel"
+                    >
+                        <div class="diagnosis-badges">
+                            <span class="diagnosis-badge" :class="getConfidenceBadgeClass(currentStudent.diagnosisInfo.confidence_level)">
+                                置信等级：{{ getConfidenceLabel(currentStudent.diagnosisInfo.confidence_level) }}
+                            </span>
+                            <span class="diagnosis-badge" :class="currentStudent.diagnosisInfo.formal_diagnosis ? 'success' : 'warning'">
+                                {{ currentStudent.diagnosisInfo.formal_diagnosis ? '正式诊断' : '参考诊断' }}
+                            </span>
+                            <span class="diagnosis-badge" :class="currentStudent.diagnosisInfo.used_model_inference ? 'info' : 'neutral'">
+                                {{ currentStudent.diagnosisInfo.used_model_inference ? '模型推理' : '非模型直推' }}
+                            </span>
+                        </div>
+
+                        <div v-if="currentStudent.diagnosisInfo.low_confidence" class="diagnosis-alert warning">
+                            当前结果为低置信度诊断，建议继续积累练习数据后再评估。
+                        </div>
+                        <div v-if="currentStudent.diagnosisInfo.stability_warning" class="diagnosis-alert danger">
+                            {{ currentStudent.diagnosisInfo.stability_warning }}
+                        </div>
+                    </div>
+                    <ul class="recommendations-list">
+                        <li
+                            v-for="(rec, idx) in currentStudent.recommendations"
+                            :key="idx"
+                            class="recommendation-item"
+                        >
+                            {{ rec }}
+                        </li>
+                    </ul>
+                    <div
+                        v-if="currentStudent.diagnosisInfo"
+                        class="diagnosis-meta"
+                    >
+                        <span>交互记录: {{ currentStudent.diagnosisInfo.total_interactions || 0 }}条</span>
+                        <span>有效记录: {{ currentStudent.diagnosisInfo.valid_interactions || 0 }}条</span>
+                        <span>诊断模式: {{ currentStudent.diagnosisInfo.model_status || '-' }}</span>
+                        <span>最少样本: {{ currentStudent.diagnosisInfo.min_required_interactions || '-' }}条</span>
+                    </div>
+                </div>
+
                 <div class="learning-trend">
                     <h4>学习趋势</h4>
                     <div class="chart-container-small">
@@ -337,6 +385,20 @@ const getClassName = (classId) => {
     return cls ? cls.name : "未知班级";
 };
 
+const getConfidenceLabel = (level) => {
+    if (level === "high") return "高";
+    if (level === "medium") return "中";
+    if (level === "low") return "低";
+    return "未知";
+};
+
+const getConfidenceBadgeClass = (level) => {
+    if (level === "high") return "success";
+    if (level === "medium") return "warning";
+    if (level === "low") return "danger";
+    return "neutral";
+};
+
 // 班级整体进度数据
 const progressData = ref({ labels: [], datasets: [] });
 
@@ -349,16 +411,23 @@ const isLoggedIn = ref(
 
 const handleAuthFailure = async (e) => {
     console.error("请求失败", e);
-    isLoggedIn.value = false;
-    try {
-        window.localStorage && window.localStorage.removeItem("token");
-    } catch (err) {
-        console.error("清理登录状态失败", err);
-    }
-    try {
-        router.push("/login");
-    } catch (err) {
-        console.error("路由跳转失败", err);
+    // 只有真正的 401 未授权错误才跳转登录页
+    // 超时、网络错误等不应清除登录状态
+    const status = e?.originalError?.response?.status || e?.response?.status;
+    if (status === 401) {
+        isLoggedIn.value = false;
+        try {
+            window.localStorage && window.localStorage.removeItem("token");
+        } catch (err) {
+            console.error("清理登录状态失败", err);
+        }
+        try {
+            router.push("/login");
+        } catch (err) {
+            console.error("路由跳转失败", err);
+        }
+    } else {
+        console.warn("非认证错误，保持登录状态:", e?.message || e);
     }
 };
 
@@ -370,12 +439,19 @@ const fetchClasses = async () => {
 
 const fetchCharts = async () => {
     if (!isLoggedIn.value) return;
-    const [progressResp, knowledgeResp] = await Promise.all([
+    // 两个图表请求独立处理，knowledge-chart 较慢，失败时不影响进度图表
+    const [progressResult, knowledgeResult] = await Promise.allSettled([
         request.get("/classInfo/class-chart/progress-chart/"),
         request.get("/classInfo/class-chart/knowledge-chart/"),
     ]);
-    progressData.value = progressResp?.data || { labels: [], datasets: [] };
-    knowledgeData.value = knowledgeResp?.data || { labels: [], datasets: [] };
+    if (progressResult.status === 'fulfilled') {
+        progressData.value = progressResult.value?.data || { labels: [], datasets: [] };
+    }
+    if (knowledgeResult.status === 'fulfilled') {
+        knowledgeData.value = knowledgeResult.value?.data || { labels: [], datasets: [] };
+    } else {
+        console.warn("知识点图表加载失败（可能超时），将在后台继续加载:", knowledgeResult.reason?.message);
+    }
 };
 
 const fetchStudents = async () => {
@@ -653,12 +729,48 @@ const resetFilters = () => {
     endDate.value = "";
 };
 
+// 获取学生知识点掌握度（调用AAKT模型诊断）
+const fetchStudentKnowledgeMastery = async (studentId) => {
+    try {
+        const resp = await request.get(
+            `/teacher/student-knowledge-mastery/?student_id=${studentId}`
+        );
+        const data = resp?.data;
+        if (data && data.status === "success") {
+            return {
+                skills: Array.isArray(data.skills) ? data.skills : [],
+                recommendations: Array.isArray(data.recommendations)
+                    ? data.recommendations
+                    : [],
+                weakestTags: Array.isArray(data.weakest_tags)
+                    ? data.weakest_tags
+                    : [],
+                diagnosisInfo: data.diagnosis_info || {},
+            };
+        }
+    } catch (e) {
+        console.error("获取学生知识点掌握度失败:", e);
+    }
+    return { skills: [], recommendations: [], weakestTags: [], diagnosisInfo: {} };
+};
+
 // 查看学生详情
-const viewStudentDetail = (studentId) => {
+const viewStudentDetail = async (studentId) => {
     const student = students.value.find((s) => s.id === studentId);
     if (student) {
-        currentStudent.value = { ...student };
+        currentStudent.value = { ...student, skills: [], recommendations: [] };
         showStudentDetail.value = true;
+
+        // 异步获取AAKT模型诊断的知识点掌握度
+        const mastery = await fetchStudentKnowledgeMastery(studentId);
+        currentStudent.value = {
+            ...currentStudent.value,
+            skills: mastery.skills,
+            recommendations: mastery.recommendations,
+            weakestTags: mastery.weakestTags,
+            diagnosisInfo: mastery.diagnosisInfo,
+        };
+
         // 确保DOM更新后创建图表
         nextTick(() => {
             createStudentTrendChart();
@@ -1587,5 +1699,125 @@ onUnmounted(() => {
     .modal-footer .btn:last-child {
         margin-bottom: 0;
     }
+}
+
+/* AAKT模型学习建议区域 */
+.recommendations-section {
+    margin-top: 20px;
+    padding: 18px;
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border-radius: 10px;
+    border-left: 4px solid #3b82f6;
+}
+
+.recommendations-section h4 {
+    margin: 0 0 12px 0;
+    color: #1e3a8a;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.recommendations-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.recommendation-item {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 6px;
+    font-size: 13px;
+    color: #334155;
+    line-height: 1.5;
+    position: relative;
+    padding-left: 24px;
+}
+
+.recommendation-item::before {
+    content: "\2714";
+    position: absolute;
+    left: 8px;
+    color: #3b82f6;
+    font-size: 12px;
+}
+
+.recommendation-item:last-child {
+    margin-bottom: 0;
+}
+
+.diagnosis-meta {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(59, 130, 246, 0.3);
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.diagnosis-quality-panel {
+    margin-bottom: 14px;
+}
+
+.diagnosis-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.diagnosis-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.diagnosis-badge.success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.diagnosis-badge.warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.diagnosis-badge.danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.diagnosis-badge.info {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.diagnosis-badge.neutral {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.diagnosis-alert {
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.diagnosis-alert.warning {
+    background: #fff7ed;
+    color: #9a3412;
+}
+
+.diagnosis-alert.danger {
+    background: #fef2f2;
+    color: #b91c1c;
 }
 </style>

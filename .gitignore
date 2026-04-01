@@ -8,6 +8,7 @@ venv/
 env/
 ENV/
 .env
+.venv/
 
 # Django
 *.log
@@ -27,3 +28,5 @@ yarn-error.log*
 *.swo
 *~
 .trae/
+igs_db.sql
+
