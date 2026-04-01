@@ -776,7 +776,8 @@ def cognitiveDiagnosis(request):
     return JsonResponse(response_data)
 
 
-# 预测API视图函数
+# 预测API视图函数（暂时用不上）
+"""
 @api_view(['POST'])
 @csrf_exempt
 def predict(request):
@@ -879,6 +880,8 @@ def predict(request):
             'status': 'error',
             'details': str(e) if settings.DEBUG else 'Please contact administrator'
         }, status=500)
+"""
+
 
 
 def _predict_aakt_question_correct_prob(interactions: list, question_id):

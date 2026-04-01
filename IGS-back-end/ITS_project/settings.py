@@ -206,3 +206,9 @@ STATICFILES_DIRS = [
 # 3. 将用户上传文件（头像）存储到/avatars
 MEDIA_URL = '/avatars/'  # 头像访问URL前缀（如 http://localhost:8000/avatars/）
 MEDIA_ROOT = os.path.join(BASE_DIR,  'avatars')  # 本地存储路径：项目根目录/static/avatars
+
+
+# Neo4j 数据库配置
+NEO4J_URI = 'bolt://localhost:7687'
+NEO4J_USER = 'neo4j'
+NEO4J_PASSWORD = 'password'  # 请根据实际情况修改密码

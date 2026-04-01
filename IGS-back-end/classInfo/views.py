@@ -6,7 +6,6 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
-<<<<<<< HEAD
 import threading
 import time
 import logging
@@ -15,8 +14,6 @@ _knowledge_chart_cache = {}
 _knowledge_chart_lock = threading.Lock()
 _knowledge_chart_computing = False
 _logger = logging.getLogger(__name__)
-=======
->>>>>>> 1fbbf7b (班级crud、课程crud)
 
 from .models import ClassInfo
 from .serializers import (
@@ -174,7 +171,6 @@ class StudentManagementViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-<<<<<<< HEAD
     def create(self, request, class_id=None):
         """
         添加学生 - 匹配 POST /api/classes/{class_id}/students/
@@ -225,8 +221,6 @@ class StudentManagementViewSet(viewsets.ViewSet):
 
         return Response(StudentDetailSerializer(student).data, status=status.HTTP_201_CREATED)
 
-=======
->>>>>>> 1fbbf7b (班级crud、课程crud)
     def retrieve(self, request, class_id=None, pk=None):
         """
         获取学生详情 - 新增接口，匹配 GET /api/classes/{class_id}/students/{student_id}/
@@ -324,7 +318,6 @@ class ClassAndChartViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(chart_data)
 
     # 3. 获取知识点掌握度图表数据（对应前端createKnowledgeChart）
-<<<<<<< HEAD
     #    使用内存缓存：首次请求立即返回静态数据，后台异步计算 AAKT 结果并缓存
     @action(detail=False, methods=['get'], url_path='knowledge-chart')
     def knowledge_chart(self, request):
@@ -497,9 +490,3 @@ class ClassAndChartViewSet(viewsets.ReadOnlyModelViewSet):
         except Exception as e:
             logger.error("AAKT knowledge chart aggregation failed: %s", str(e))
             return None
-=======
-    @action(detail=False, methods=['get'], url_path='knowledge-chart')
-    def knowledge_chart(self, request):
-        chart_data = KnowledgeChartSerializer.get_chart_data()
-        return Response(chart_data)
->>>>>>> 1fbbf7b (班级crud、课程crud)

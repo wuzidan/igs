@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import F, Q, Value
 from django.db.models.fields import TextField
 from django.utils import timezone
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers, status, viewsets
@@ -13,7 +14,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from .models import Exercise, Question
+from .models import Exercise, Question, Challenge, PracticeRecord
 
 
 class ExerciseListSerializer(serializers.ModelSerializer):
@@ -84,6 +85,7 @@ def debug_view(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def question_list(request):
+<<<<<<< HEAD
     User = get_user_model()
     user = request.user if getattr(request.user, 'is_authenticated', False) else None
     if user is None:
@@ -95,9 +97,27 @@ def question_list(request):
     queryset = Question.objects.all()
     if user is not None:
         queryset = queryset.filter(record__student=user)
+=======
+    # 从Challenge模型获取数据
+    queryset = Challenge.objects.all()
+>>>>>>> 861e215 (修复学生端个人信息修改、历史记录bug，更新题库中心，采用challenge)
     queryset = queryset.order_by('-id')
 
+    # 分页参数
+    page = request.query_params.get('page', 1)
+    page_size = request.query_params.get('page_size', 12)  # 修改为12
+
+    # 分页处理
+    paginator = Paginator(queryset, page_size)
+    try:
+        paginated_queryset = paginator.page(page)
+    except PageNotAnInteger:
+        paginated_queryset = paginator.page(1)
+    except EmptyPage:
+        paginated_queryset = paginator.page(paginator.num_pages)
+
     data = []
+<<<<<<< HEAD
     for q in queryset:
         user_answer = q.get_user_answer_list() if hasattr(q, 'get_user_answer_list') else q.user_answer
         correct_answer = q.get_correct_answer_list() if hasattr(q, 'get_correct_answer_list') else q.correct_answer
@@ -137,9 +157,113 @@ def question_list(request):
             "exercisePk": getattr(resolved_exercise, 'pk', None),
             "exerciseId": getattr(resolved_exercise, 'exercise_id', None),
             "exerciseTitle": getattr(resolved_exercise, 'name', None),
+=======
+    for q in paginated_queryset:
+        # 构建返回数据结构
+        data.append({
+            "id": q.id,
+            "type": "shortAnswer",  # 默认为简答题类型
+            "difficulty": q.difficulty,
+            "content": q.task_pass,  # 使用task_pass作为题目内容
+            "title": q.name,  # 添加title字段，使用name作为标题
+            "correct": False,  # 默认为未正确
+            "completed": False,  # 默认为未完成
+            "accuracy": 0,  # 默认为0
+            "score": q.score,  # 添加score字段
+            "userAnswer": None,
+            "answer": q.answer,  # 添加answer字段
+            "correctAnswer": q.answer,  # 使用answer作为正确答案
+            "options": [],  # 挑战题没有选项
+            "analysis": "",  # 默认为空解析
+>>>>>>> 861e215 (修复学生端个人信息修改、历史记录bug，更新题库中心，采用challenge)
         })
 
-    return Response({"data": data})
+    # 返回分页数据和元数据
+    return Response({
+        "data": data,
+        "total": paginator.count,
+        "page": paginated_queryset.number,
+        "page_size": page_size,
+        "total_pages": paginator.num_pages
+    })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def question_stats(request):
+    """获取题目统计数据"""
+    # 总题目数
+    total_count = Challenge.objects.count()
+    
+    # 题目类型统计（目前所有挑战题都是简答题）
+    type_stats = {
+        "singleChoice": 0,
+        "multipleChoice": 0,
+        "judgment": 0,
+        "shortAnswer": total_count
+    }
+    
+    # 题目难度分布 - 将数字难度映射为字符串难度
+    # 1=easy, 2=medium, 3=hard
+    # 尝试使用不同类型的难度值进行查询
+    try:
+        # 使用字符串类型
+        difficulty_stats = {
+            "easy": Challenge.objects.filter(difficulty='1').count(),
+            "medium": Challenge.objects.filter(difficulty='2').count(),
+            "hard": Challenge.objects.filter(difficulty='3').count()
+        }
+    except:
+        # 如果查询失败，使用默认值
+        difficulty_stats = {
+            "easy": 0,
+            "medium": 0,
+            "hard": 0
+        }
+    
+    # 已完成题目数和正确率统计
+    completed_count = 0
+    avg_accuracy = 0
+    recent_accuracy = 0
+    
+    # 尝试从请求中获取用户ID
+    user_id = request.query_params.get('user_id')
+    if user_id:
+        try:
+            # 查询该用户的练习记录
+            practice_records = PracticeRecord.objects.filter(student_id=user_id)
+            # 获取所有相关的题目
+            questions = Question.objects.filter(record__in=practice_records)
+            # 计算已完成题目数量
+            completed_count = questions.count()
+            
+            # 计算正确率
+            if completed_count > 0:
+                correct_count = questions.filter(correct=True).count()
+                avg_accuracy = round((correct_count / completed_count) * 100, 2)
+                
+                # 计算最近正确率（最近5次练习的正确率）
+                recent_records = practice_records.order_by('-date')[:5]
+                recent_questions = Question.objects.filter(record__in=recent_records)
+                recent_correct_count = recent_questions.filter(correct=True).count()
+                if recent_questions.count() > 0:
+                    recent_accuracy = round((recent_correct_count / recent_questions.count()) * 100, 2)
+        except Exception as e:
+            print(f"查询学生答题记录时出错: {e}")
+            # 出错时使用默认值
+            completed_count = 0
+            avg_accuracy = 0
+            recent_accuracy = 0
+    
+    # 返回统计数据
+    return Response({
+        "total_count": total_count,
+        "completed_count": completed_count,
+        "avg_accuracy": avg_accuracy,
+        "recent_accuracy": recent_accuracy,
+        "type_stats": type_stats,
+        "difficulty_stats": difficulty_stats
+    })
 
 # 类视图（classInfo 定义，继承自 View 或其子类）
 class question(View):

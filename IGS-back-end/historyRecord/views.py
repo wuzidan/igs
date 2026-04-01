@@ -9,7 +9,7 @@ from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from question.models import DifficultyLevel, Exercise, PracticeRecord, PracticeType, Question, QuestionType
+from question.models import Question, PracticeRecord, QuestionType, DifficultyLevel
 from .models import HistoryRecord
 
 
@@ -25,77 +25,145 @@ class HistoryRecordView(APIView):
         if not request.user.is_authenticated:
             return Response({"error": "用户未登录"}, status=401)
         
-        # 获取用户的练习记录和历史记录
-        practice_records = request.user.practice_records.all()
-        history_records_model = request.user.history_records.all()
+        # 获取用户的练习记录
+        # 首先获取用户的student_id
+        student_user = request.user.student_user
+        student_id = student_user.student_id if student_user else None
         
-        print(f"使用真实用户: {request.user.username} (ID: {request.user.id})")
+        print(f"用户: {request.user.username} (ID: {request.user.id})")
+        print(f"学生学号: {student_id}")
+        
+        # 使用student_id查询练习记录
+        from question.models import PracticeRecord
+        if student_id:
+            practice_records = PracticeRecord.objects.filter(student_id=student_id)
+        else:
+            # 如果没有student_id，使用student外键查询
+            practice_records = PracticeRecord.objects.filter(student=request.user)
+        
         print(f"找到 {practice_records.count()} 条练习记录")
-        print(f"找到 {history_records_model.count()} 条历史记录")
 
         # 1. 计算基本统计数据
-        total_attempts = history_records_model.count()
+        total_attempts = practice_records.count()
 
         # 平均分计算
-        avg_score = history_records_model.aggregate(avg=Avg('score'))['avg'] or 0
+        avg_score = practice_records.aggregate(avg=Avg('score'))['avg'] or 0
         avg_score = round(avg_score)
 
         # 总时长计算
-        # 解析history_records_model中的duration字段，如"11分钟" → 11
         total_minutes = 0
-        for record in history_records_model:
-            try:
-                # 提取分钟数，处理"X分钟"格式
-                total_minutes += int(record.duration.split('分钟')[0])
-            except (ValueError, IndexError):
-                continue
+        for record in practice_records:
+            total_minutes += record.duration_minutes
 
         # 转换总分钟为"X小时Y分钟"格式
         total_duration = self.format_duration(total_minutes)
 
         # 最高分及日期
-        highest_score_record = history_records_model.order_by('-score').first()
+        highest_score_record = practice_records.order_by('-score').first()
         highest_score = highest_score_record.score if highest_score_record else 0
         last_highest_date = ""
         if highest_score_record:
             # 格式化为"xx月xx日"
             last_highest_date = f"{highest_score_record.date.month}月{highest_score_record.date.day}日"
 
-        # 2. 计算题型正确率 - 由于HistoryRecord与Question无直接关联，暂时使用默认值
-        type_accuracy = {
-            'singleChoice': 0,
-            'multipleChoice': 0,
-            'judgment': 0,
-            'shortAnswer': 0
-        }
+        # 2. 计算题型正确率 - 基于PracticeRecord模型
+        type_statistics = {}
+        for q_type in QuestionType.values:
+            # 筛选该类型的所有练习记录
+            # 直接使用practice_records
+            total_records = practice_records.filter(
+                challenge__isnull=False
+            )
+            # 筛选该类型中分数不为0的练习记录
+            correct_records = practice_records.filter(
+                challenge__isnull=False,
+                score__gt=0
+            )
+            total = total_records.count()
+            correct = correct_records.count()
 
-        # 3. 计算难度正确率 - 由于HistoryRecord与Question无直接关联，暂时使用默认值
-        difficulty_accuracy = {
-            'easy': 0,
-            'medium': 0,
-            'hard': 0
-        }
+            if total == 0:
+                type_statistics[q_type] = {
+                    "name": dict(QuestionType.choices).get(q_type, q_type),
+                    "count": 0,
+                    "accuracy": 0
+                }
+                continue
 
-        # 4. 获取作答记录列表（使用history_records_model）
+            # 计算正确率并四舍五入
+            accuracy = round((correct / total) * 100)
+            type_statistics[q_type] = {
+                "name": dict(QuestionType.choices).get(q_type, q_type),
+                "count": total,
+                "accuracy": accuracy
+            }
+
+        # 3. 计算题目难度统计 - 基于PracticeRecord模型
+        difficulty_statistics = {}
+        # 难度映射
+        difficulty_levels = DifficultyLevel.values
+        difficulty_names = dict(DifficultyLevel.choices)
+        
+        for diff_key in difficulty_levels:
+            # 筛选该难度的所有练习记录
+            # 直接使用practice_records
+            total_records = practice_records.filter(
+                challenge__isnull=False,
+                challenge__difficulty=diff_key
+            )
+            # 筛选该难度中分数不为0的练习记录
+            correct_records = practice_records.filter(
+                challenge__isnull=False,
+                challenge__difficulty=diff_key,
+                score__gt=0
+            )
+            total = total_records.count()
+            correct = correct_records.count()
+
+            if total == 0:
+                difficulty_statistics[diff_key] = {
+                    "name": difficulty_names.get(diff_key, diff_key),
+                    "count": 0,
+                    "accuracy": 0
+                }
+                continue
+
+            # 计算正确率并四舍五入
+            accuracy = round((correct / total) * 100)
+            difficulty_statistics[diff_key] = {
+                "name": difficulty_names.get(diff_key, diff_key),
+                "count": total,
+                "accuracy": accuracy
+            }
+
+        # 4. 获取作答记录列表（practice_records）
         history_records = []
-        for record in history_records_model:
-            # HistoryRecord没有直接关联Question模型，questions_data为空列表
-            questions_data = []
-            
+        for record in practice_records:
+            # 构建作答记录
             history_records.append({
                 "id": record.id,
-                "type": record.type,  # HistoryRecord的type是直接存储的字符串，如"练习"或"考试"
+                "type": record.get_type_display(),  # 使用get_type_display()获取中文显示
                 "date": record.date.strftime("%Y-%m-%d %H:%M"),
                 "score": record.score,
-                "duration": record.duration,  # HistoryRecord的duration直接存储为字符串，如"11分钟"
-                "expanded": record.expanded,
-                "questions": questions_data
+                "duration": f"{record.duration_minutes}分钟",  # 将duration_minutes转换为字符串格式
+                "expanded": False,  # 默认不展开
+                "challenge_id": record.challenge.challenge_id if record.challenge else None,
+                # "questions": []  # 空列表
             })
 
         # 确保按日期降序排序
         history_records.sort(key=lambda x: x['date'], reverse=True)
         
         # 构建返回数据
+        # 为了兼容前端，同时返回旧格式的字段
+        type_accuracy = {}
+        for key, value in type_statistics.items():
+            type_accuracy[key] = value['accuracy']
+        
+        difficulty_accuracy = {}
+        for key, value in difficulty_statistics.items():
+            difficulty_accuracy[key] = value['accuracy']
+        
         response_data = {
             'totalAttempts': total_attempts,
             'avgScore': avg_score,
@@ -104,6 +172,8 @@ class HistoryRecordView(APIView):
             'lastHighestDate': last_highest_date,
             'typeAccuracy': type_accuracy,
             'difficultyAccuracy': difficulty_accuracy,
+            'typeStatistics': type_statistics,
+            'difficultyStatistics': difficulty_statistics,
             'historyRecords': history_records
         }
         
@@ -135,7 +205,30 @@ class HistoryRecordView(APIView):
                 continue
 
             # 计算正确的题目数量
-            correct = type_questions.filter(correct=True).count()
+            correct = type_questions.count()
+
+            # 计算正确率并四舍五入
+            accuracy[q_type] = round((correct / total) * 100)
+
+        return accuracy
+
+    def calculate_type_accuracy(self, questions):
+        """计算各题型的正确率"""
+        # 所有可能的题型
+        question_types = ['singleChoice', 'multipleChoice', 'judgment', 'shortAnswer']
+        accuracy = {}
+
+        for q_type in question_types:
+            # 筛选该类型的所有题目
+            type_questions = questions.filter(type=q_type)
+            total = type_questions.count()
+
+            if total == 0:
+                accuracy[q_type] = 0
+                continue
+
+            # 计算正确的题目数量
+            correct = type_questions.filter(record__score__gt=0).count()
 
             # 计算正确率并四舍五入
             accuracy[q_type] = round((correct / total) * 100)
@@ -158,7 +251,7 @@ class HistoryRecordView(APIView):
                 continue
 
             # 计算正确的题目数量
-            correct = diff_questions.filter(correct=True).count()
+            correct = diff_questions.filter(record__score__gt=0).count()
 
             # 计算正确率并四舍五入
             accuracy[difficulty] = round((correct / total) * 100)

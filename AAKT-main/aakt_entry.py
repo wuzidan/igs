@@ -175,7 +175,7 @@ if __name__ == "__main__":
 
     training_args = TrainingArguments(
         output_dir=output_dir,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="epoch",
         num_train_epochs=epochs,
         learning_rate=learning_rate,

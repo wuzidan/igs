@@ -36,12 +36,21 @@ class PracticeRecord(models.Model):
     )
     score = models.IntegerField(
         "得分",
-        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        validators=[MinValueValidator(0)],
         help_text="本次练习得分"
     )
     duration_minutes = models.PositiveIntegerField(
         "时长(分钟)",
         help_text="练习持续时间（分钟）"
+    )
+    challenge = models.ForeignKey(
+        'Challenge',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='practice_records',
+        verbose_name="挑战题",
+        help_text="关联的挑战题"
     )
 
     class Meta:

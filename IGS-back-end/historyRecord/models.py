@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User  # 假设关联用户
+from django.contrib.auth.models import User  # 关联用户
 from django.conf import settings  # 导入 settings 模块
 from question.models import QuestionType, Question, DifficultyLevel
 
@@ -11,7 +11,7 @@ class HistoryRecord(models.Model):
         ("考试", "考试"),
     ]
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,  # 关键：改为引用配置的用户模型
+        settings.AUTH_USER_MODEL,  # 改为引用配置的用户模型
         on_delete=models.CASCADE,
         related_name="history_records"
     )#关联用户
@@ -20,6 +20,14 @@ class HistoryRecord(models.Model):
     score = models.IntegerField()  # 得分
     duration = models.CharField(max_length=20)  # 时长（如"25分钟"）
     expanded = models.BooleanField(default=False)  # 是否展开详情
+    challenge = models.ForeignKey(
+        'question.Challenge',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='history_records',
+        verbose_name="挑战题"
+    )
     
     class Meta:
         # 添加联合索引，提高get_or_create查询性能
@@ -97,13 +105,13 @@ class HistoryRecord(models.Model):
             from django.db.models import Count, Avg, Max, Sum
 
             # 获取用户的所有练习记录
-            # 原代码：records = self.user.practice_records.all()
-            # 新代码：使用正确的related_name
-            records = self.user.history_records.all()
+            records = self.user.practice_records.all()
 
             # 计算基础统计
             self.total_attempts = records.count()
             self.avg_score = records.aggregate(avg_score=Avg('score'))['avg_score'] or 0
+            
+            # 计算总时长（分钟）
             self.total_duration_minutes = records.aggregate(total_duration=Sum('duration_minutes'))[
                                               'total_duration'] or 0
 
@@ -115,16 +123,16 @@ class HistoryRecord(models.Model):
                 if latest_max:
                     self.last_highest_date = latest_max.date.date()
 
-            # 计算题型正确率
+            # 计算题型正确率 - 只要分数非0即认定为正确答案
             type_accuracy = {}
             for q_type in QuestionType.values:
                 correct_count = Question.objects.filter(
-                    record__user=self.user,
+                    record__student=self.user,
                     type=q_type,
-                    correct=True
+                    record__score__gt=0
                 ).count()
                 total_count = Question.objects.filter(
-                    record__user=self.user,
+                    record__student=self.user,
                     type=q_type
                 ).count()
 
@@ -137,12 +145,12 @@ class HistoryRecord(models.Model):
             difficulty_accuracy = {}
             for diff in DifficultyLevel.values:
                 correct_count = Question.objects.filter(
-                    record__user=self.user,
+                    record__student=self.user,
                     difficulty=diff,
-                    correct=True
+                    record__score__gt=0
                 ).count()
                 total_count = Question.objects.filter(
-                    record__user=self.user,
+                    record__student=self.user,
                     difficulty=diff
                 ).count()
 

@@ -16,6 +16,9 @@ from .serializers import (
     KnowledgeGraphWriteSerializer,
 )
 
+# 导入Neo4j连接器
+from neo4j_connector import neo4j_connector
+
 
 def _is_teacher_user(user) -> bool:
     if user is None or not getattr(user, "is_authenticated", False):
@@ -164,3 +167,49 @@ class KnowledgeGraphViewSet(viewsets.ModelViewSet):
             graph.content = {"nodes": [], "relationships": []}
             graph.save(update_fields=["content"])
         return Response({"id": graph.id}, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["get"], url_path="neo4j/graph")
+    def get_neo4j_graph(self, request):
+        """
+        从Neo4j获取完整的知识图谱数据，用于前端展示
+        """
+        try:
+            graph_data = neo4j_connector.get_knowledge_graph()
+            return Response({
+                "code": 200,
+                "msg": "获取知识图谱成功",
+                "data": graph_data
+            })
+        except Exception as e:
+            return Response({
+                "code": 500,
+                "msg": f"获取知识图谱失败: {str(e)}",
+                "data": {"nodes": [], "relationships": []}
+            })
+
+    @action(detail=False, methods=["get"], url_path="neo4j/prerequisites")
+    def get_prerequisites(self, request):
+        """
+        从Neo4j获取目标知识点的先修关系规则
+        """
+        target_knowledge = request.query_params.get("target", "")
+        if not target_knowledge:
+            return Response({
+                "code": 400,
+                "msg": "缺少目标知识点参数",
+                "data": ""
+            })
+        
+        try:
+            rules = neo4j_connector.get_prerequisite_relations(target_knowledge)
+            return Response({
+                "code": 200,
+                "msg": "获取先修关系成功",
+                "data": rules
+            })
+        except Exception as e:
+            return Response({
+                "code": 500,
+                "msg": f"获取先修关系失败: {str(e)}",
+                "data": f"规则 A：未找到【{target_knowledge}】的先修知识点。"
+            })
