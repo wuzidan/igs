@@ -297,7 +297,8 @@
                             </div>
                         </div>
                         <div class="question-content">
-                            <p class="question-text">{{ question.content }}</p>
+                            <h4 class="question-title">{{ question.title }}</h4>
+                            <p class="question-text" v-html="question.content"></p>
                             <div
                                 v-if="question.completed"
                                 class="question-status"
@@ -309,14 +310,14 @@
                                             : 'status-incorrect'
                                     "
                                 >
-                                    {{
+                                    {{ 
                                         question.correct
                                             ? "回答正确✅"
                                             : "回答错误❌"
                                     }}
                                 </span>
                                 <span class="accuracy-badge"
-                                    >正确率: {{ question.accuracy }}%</span
+                                    >得分: {{ question.score }}</span
                                 >
                             </div>
                             <div
@@ -329,6 +330,54 @@
                     </div>
                     <div v-if="filteredQuestions.length === 0" class="no-data">
                         没有符合条件的题目
+                    </div>
+                </div>
+
+                <!-- 分页控件 -->
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        共 {{ totalItems }} 条记录，第 {{ currentPage }} / {{ totalPages }} 页
+                    </div>
+                    <div class="pagination-controls">
+                        <button 
+                            class="pagination-btn" 
+                            @click="changePage(1)" 
+                            :disabled="currentPage === 1"
+                        >
+                            首页
+                        </button>
+                        <button 
+                            class="pagination-btn" 
+                            @click="changePage(currentPage - 1)" 
+                            :disabled="currentPage === 1"
+                        >
+                            上一页
+                        </button>
+                        <div class="pagination-pages">
+                            <button 
+                                v-for="page in pageRange" 
+                                :key="page"
+                                class="pagination-page-btn"
+                                :class="{ active: page === currentPage }"
+                                @click="changePage(page)"
+                            >
+                                {{ page }}
+                            </button>
+                        </div>
+                        <button 
+                            class="pagination-btn" 
+                            @click="changePage(currentPage + 1)" 
+                            :disabled="currentPage === totalPages"
+                        >
+                            下一页
+                        </button>
+                        <button 
+                            class="pagination-btn" 
+                            @click="changePage(totalPages)" 
+                            :disabled="currentPage === totalPages"
+                        >
+                            末页
+                        </button>
                     </div>
                 </div>
             </div>
@@ -364,14 +413,13 @@
                             {{ getDifficultyText(selectedQuestion.difficulty) }}
                         </span>
                         <span class="meta-item"
-                            >正确率: {{ selectedQuestion.accuracy }}%</span
+                            >得分: {{ selectedQuestion.score }}</span
                         >
                     </div>
                 </div>
                 <div class="question-detail-content">
-                    <p class="question-detail-text">
-                        {{ selectedQuestion.content }}
-                    </p>
+                    <h4 class="question-detail-title">{{ selectedQuestion.title }}</h4>
+                    <p class="question-detail-text" v-html="selectedQuestion.content"></p>
 
                     <div
                         v-if="
@@ -434,12 +482,19 @@
                     </div>
 
                     <div
-                        v-if="selectedQuestion.type === 'shortAnswer'"
+                        v-if="selectedQuestion.answer !== undefined"
+                        class="answer-section"
+                    >
+                        <h4>参考答案：</h4>
+                        <p class="reference-answer" v-html="selectedQuestion.answer !== '' ? selectedQuestion.answer : '暂无答案'"></p>
+                    </div>
+                    <div
+                        v-else-if="selectedQuestion.type === 'shortAnswer'"
                         class="answer-section"
                     >
                         <h4>参考答案：</h4>
                         <p class="reference-answer">
-                            {{ selectedQuestion.correctAnswer }}
+                            {{ selectedQuestion.correctAnswer !== '' ? selectedQuestion.correctAnswer : '暂无答案' }}
                         </p>
                     </div>
 
@@ -483,11 +538,39 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, onBeforeUnmount } from "vue";
 import Chart from "chart.js/auto";
 import { useRouter } from "vue-router";
+import MarkdownIt from "markdown-it";
 import api from "../../../api/index";
 import StudentHeader from "../StudentHeader.vue";
+
+// 初始化Markdown渲染器
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true,
+  breaks: true,
+  langPrefix: 'language-'
+});
+
+// 监听DOM变化，处理MathJax渲染
+let mathJaxTimeout = null;
+const observer = new MutationObserver(() => {
+  // 使用防抖机制，避免频繁触发MathJax渲染
+  if (mathJaxTimeout) {
+    clearTimeout(mathJaxTimeout);
+  }
+  mathJaxTimeout = setTimeout(() => {
+    if (window.MathJax) {
+      try {
+        window.MathJax.typeset();
+      } catch (e) {
+        console.error('MathJax typeset error:', e);
+      }
+    }
+  }, 300); // 300ms防抖延迟
+});
 
 
 const userName = ref("");
@@ -514,9 +597,35 @@ const selectedType = ref("all");
 const selectedDifficulty = ref("all");
 const selectedStatus = ref("all");
 
+// 分页相关变量
+const currentPage = ref(1);
+const pageSize = ref(12);
+const totalPages = ref(1);
+const totalItems = ref(0);
+
 // 定义响应式变量存储数据
 const isLoading = ref(true); // 加载状态
 const errorMsg = ref(""); // 错误信息
+const statsLoading = ref(true); // 统计数据加载状态
+
+// 统计数据
+const stats = ref({
+    total_count: 0,
+    completed_count: 0,
+    avg_accuracy: 0,
+    recent_accuracy: 0,
+    type_stats: {
+        singleChoice: 0,
+        multipleChoice: 0,
+        judgment: 0,
+        shortAnswer: 0
+    },
+    difficulty_stats: {
+        easy: 0,
+        medium: 0,
+        hard: 0
+    }
+});
 
 // 数据库题目类型映射
 const TYPE_MAP = {
@@ -550,6 +659,28 @@ const convertDbQuestion = (dbQuestion) => {
 
     content = lines[0] || "";
     optionLines = lines.slice(1);
+  }
+
+  // 处理 content 中的换行符和特殊字符，使其显示更清晰
+  if (content) {
+    // 删除[TOC]标记
+    content = content.replace(/\[TOC\]/g, '');
+    // 处理Markdown标题，确保#后面有空格
+    content = content.replace(/(^|\n)(#+)([^\s#])/g, '$1$2 $3');
+    // 将 <br> 替换为换行
+    content = content.replace(/<br>/g, '\n');
+    // 使用markdown-it渲染Markdown内容
+    content = md.render(content);
+    // 处理图片引用，添加占位符和错误处理
+    content = content.replace(/<img[^>]+src="([^"]+)"[^>]*>/g, function(match, src) {
+      // 检查是否是MOOPer的图片URL
+      if (src.startsWith('/api/attachments/')) {
+        // 替换为占位符图片，并添加错误处理
+        return `<img src="https://via.placeholder.com/400x300?text=图片+未找到" alt="图片未找到" onerror="this.onerror=null;this.src='https://via.placeholder.com/400x300?text=图片+加载失败';" />`;
+      }
+      // 其他图片URL保持不变，但也添加错误处理
+      return match.replace(/<img([^>]+)>/g, '<img$1 onerror="this.onerror=null;this.src=\'https://via.placeholder.com/400x300?text=图片+加载失败\';" />');
+    });
   }
 
   // 2) options：优先用后端 options（数组/JSON字符串），否则用 quiz 解析出的 optionLines
@@ -613,10 +744,24 @@ const convertDbQuestion = (dbQuestion) => {
     difficulty = "medium";
     if (id % 3 === 0) difficulty = "easy";
     else if (id % 3 === 2) difficulty = "hard";
+  } else {
+    // 将数字难度映射为文字标签
+    const difficultyMap = {
+      '1': 'easy',
+      '2': 'medium',
+      '3': 'hard'
+    };
+    // 确保difficulty是字符串类型
+    const difficultyStr = String(difficulty);
+    // 使用映射或默认值
+    difficulty = difficultyMap[difficultyStr] || 'medium';
   }
 
   const id = dbQuestion?.id;
   const analysis = dbQuestion?.analysis || "暂无解析";
+  const title = dbQuestion?.title || "";
+  const answer = dbQuestion?.answer || "";
+  const score = dbQuestion?.score || 0;
 
   // 5) completed/accuracy/correct/userAnswer：优先用后端值
   const completed =
@@ -633,6 +778,7 @@ const convertDbQuestion = (dbQuestion) => {
 
   return {
     id,
+    title: title || "",
     content: content || "",
     type: TYPE_MAP[typeNum] || (typeof rawType === "string" ? rawType : "singleChoice"),
     difficulty,
@@ -643,6 +789,8 @@ const convertDbQuestion = (dbQuestion) => {
     completed,
     correct,
     userAnswer,
+    answer,
+    score,
   };
 };
 
@@ -651,7 +799,7 @@ const convertDbQuestion = (dbQuestion) => {
 // 加载题目数据
 const fetchQuestionData = () => {
     return api
-        .getQuestion()
+        .getQuestion(currentPage.value, pageSize.value)
         .then((res) => {
             console.log("获取的题目数据：", res.data);
             if (res.data && res.data.data) {
@@ -662,6 +810,11 @@ const fetchQuestionData = () => {
 
                 // 转换所有题目为前端格式
                 questionList.value = rawQuestions.map(convertDbQuestion);
+
+                // 更新分页元数据
+                totalItems.value = res.data.total || 0;
+                totalPages.value = res.data.total_pages || 1;
+                currentPage.value = res.data.page || 1;
 
                 // 渲染图表
                 renderDifficultyChart();
@@ -675,36 +828,101 @@ const fetchQuestionData = () => {
         });
 };
 
+// 加载统计数据
+const fetchStatsData = () => {
+    // 从学生ID中获取用户ID
+    const user_id = studentId.value || null;
+    return api
+        .getQuestionStats(user_id)
+        .then((res) => {
+            console.log("获取的统计数据：", res.data);
+            if (res.data) {
+                stats.value = res.data;
+            } else {
+                console.error("统计数据格式错误");
+            }
+        })
+        .catch((err) => {
+            console.error("获取统计数据失败:", err);
+        })
+        .finally(() => {
+            statsLoading.value = false;
+        });
+};
+
 // 页面加载时初始化
 onMounted(() => {
-    // 加载题目数据（用户信息已由StudentHeader组件加载）
-    fetchQuestionData()
+    // 先加载用户信息，然后再加载题目数据和统计数据
+    fetchUserInfo()
+        .then(() => {
+            return Promise.all([fetchQuestionData(), fetchStatsData()]);
+        })
         .then(() => {
             isLoading.value = false;
+            // 启动DOM观察器，监控内容变化以触发MathJax渲染
+            const contentElement = document.querySelector('.dashboard');
+            if (contentElement) {
+                observer.observe(contentElement, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+            // 加载MathJax
+            loadMathJax();
         })
         .catch(() => {
             isLoading.value = false;
         });
 });
 
-// 计算统计数据
-const totalCount = computed(() => questionList.value.length);
-const completedCount = computed(
-    () => questionList.value.filter((q) => q.completed).length
-);
-const avgAccuracy = computed(() => {
-    if (questionList.value.length === 0) return 0;
-    const sum = questionList.value.reduce((acc, q) => acc + q.accuracy, 0);
-    return Math.round(sum / questionList.value.length);
+// 组件卸载前清理
+onBeforeUnmount(() => {
+    observer.disconnect();
+    // 清理防抖定时器
+    if (mathJaxTimeout) {
+        clearTimeout(mathJaxTimeout);
+    }
 });
-const recentAccuracy = computed(() => {
-    const recentCompleted = questionList.value
-        .filter((q) => q.completed)
-        .slice(-10);
-    if (recentCompleted.length === 0) return 0;
-    const correctCount = recentCompleted.filter((q) => q.correct).length;
-    return Math.round((correctCount / recentCompleted.length) * 100);
-});
+
+// 加载MathJax库
+const loadMathJax = () => {
+    if (!window.MathJax) {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+        script.async = true;
+        script.id = 'MathJax-script';
+        script.setAttribute('data-config', JSON.stringify({
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true
+            },
+            svg: {
+                fontCache: 'global'
+            },
+            startup: {
+                typeset: true
+            }
+        }));
+        // 添加加载完成回调
+        script.onload = function() {
+            if (window.MathJax) {
+                window.MathJax.typeset();
+            }
+        };
+        document.head.appendChild(script);
+    } else {
+        // 如果MathJax已加载，直接触发排版
+        window.MathJax.typeset();
+    }
+};
+
+// 计算统计数据 - 使用从API获取的完整统计数据
+const totalCount = computed(() => stats.value.total_count);
+const completedCount = computed(() => stats.value.completed_count);
+const avgAccuracy = computed(() => stats.value.avg_accuracy);
+const recentAccuracy = computed(() => stats.value.recent_accuracy);
 
 // 筛选题目
 const filteredQuestions = computed(() => {
@@ -727,53 +945,24 @@ const filteredQuestions = computed(() => {
     });
 });
 
-// 统计题目类型数量
-const typeStats = computed(() => ({
-    singleChoice: questionList.value.filter((q) => q.type === "singleChoice")
-        .length,
-    multipleChoice: questionList.value.filter(
-        (q) => q.type === "multipleChoice"
-    ).length,
-    judgment: questionList.value.filter((q) => q.type === "judgment").length,
-    shortAnswer: questionList.value.filter((q) => q.type === "shortAnswer")
-        .length,
-}));
+// 统计题目类型数量 - 使用从API获取的完整统计数据
+const typeStats = computed(() => stats.value.type_stats);
 
-// 统计难度分布
-const difficultyStats = computed(() => ({
-    easy: questionList.value.filter((q) => q.difficulty === "easy").length,
-    medium: questionList.value.filter((q) => q.difficulty === "medium").length,
-    hard: questionList.value.filter((q) => q.difficulty === "hard").length,
-}));
+// 统计难度分布 - 使用从API获取的完整统计数据
+const difficultyStats = computed(() => stats.value.difficulty_stats);
 
-// 各难度正确率
+// 各难度正确率 - 暂时使用从API获取的数据
 const difficultyAccuracy = computed(() => ({
-    easy: calculateAvgAccuracy("easy"),
-    medium: calculateAvgAccuracy("medium"),
-    hard: calculateAvgAccuracy("hard"),
+    easy: 0, // 暂时返回0，需要从数据库中计算
+    medium: 0,
+    hard: 0,
 }));
 
-// 计算各难度平均正确率
-const calculateAvgAccuracy = (difficulty) => {
-    const questions = questionList.value.filter(
-        (q) => q.difficulty === difficulty
-    );
-    if (questions.length === 0) return 0;
-    const totalAccuracy = questions.reduce((sum, q) => sum + q.accuracy, 0);
-    return Math.round(totalAccuracy / questions.length);
-};
-
-// 已完成各难度题目数量
+// 已完成各难度题目数量 - 暂时使用从API获取的数据
 const completedDifficulty = computed(() => ({
-    easy: questionList.value.filter(
-        (q) => q.difficulty === "easy" && q.completed
-    ).length,
-    medium: questionList.value.filter(
-        (q) => q.difficulty === "medium" && q.completed
-    ).length,
-    hard: questionList.value.filter(
-        (q) => q.difficulty === "hard" && q.completed
-    ).length,
+    easy: 0, // 暂时返回0，需要从数据库中计算
+    medium: 0,
+    hard: 0,
 }));
 
 // 选中的题目
@@ -862,6 +1051,16 @@ const getYourAnswerText = (question) => {
 // 显示题目详情
 const showQuestionDetail = (question) => {
     selectedQuestion.value = { ...question };
+    // 延迟触发MathJax渲染，确保DOM已更新
+    setTimeout(() => {
+        if (window.MathJax) {
+            try {
+                window.MathJax.typeset();
+            } catch (e) {
+                console.error('MathJax typeset error:', e);
+            }
+        }
+    }, 100);
 };
 
 // 渲染难度分布图表
@@ -891,17 +1090,20 @@ const renderDifficultyChart = () => {
         },
     };
 
+    // 使用从API获取的完整统计数据
+    const difficultyData = [
+        stats.value.difficulty_stats.easy,
+        stats.value.difficulty_stats.medium,
+        stats.value.difficulty_stats.hard
+    ];
+
     difficultyChartInstance = new Chart(ctx, {
         type: "doughnut",
         data: {
             labels: ["简单", "中等", "困难"],
             datasets: [
                 {
-                    data: [
-                        difficultyStats.value.easy,
-                        difficultyStats.value.medium,
-                        difficultyStats.value.hard,
-                    ],
+                    data: difficultyData,
                     backgroundColor: [
                         colors.easy.background,
                         colors.medium.background,
@@ -1008,6 +1210,39 @@ const goToLogin = () => {
 const goToRegister = () => {
     router.push({ name: "Register", params: { type: "register" } });
 };
+
+// 分页相关方法
+const changePage = (page) => {
+    if (page < 1 || page > totalPages.value) return;
+    currentPage.value = page;
+    fetchQuestionData();
+};
+
+// 计算分页范围
+const pageRange = computed(() => {
+    const range = [];
+    const total = totalPages.value;
+    const current = currentPage.value;
+    
+    // 显示当前页前后各2页
+    let start = Math.max(1, current - 2);
+    let end = Math.min(total, current + 2);
+    
+    // 确保至少显示5个页码
+    if (end - start < 4) {
+        if (start === 1) {
+            end = Math.min(total, 5);
+        } else if (end === total) {
+            start = Math.max(1, total - 4);
+        }
+    }
+    
+    for (let i = start; i <= end; i++) {
+        range.push(i);
+    }
+    
+    return range;
+});
 
 // 获取用户信息
 const fetchUserInfo = () => {
@@ -2134,6 +2369,13 @@ tr:hover {
     flex: 1;
 }
 
+.question-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 8px;
+}
+
 .question-text {
     margin: 0 0 10px 0;
     color: #263238;
@@ -2233,6 +2475,13 @@ tr:hover {
 
 .question-detail-content {
     margin-bottom: 20px;
+}
+
+.question-detail-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 12px;
 }
 
 .question-detail-text {
@@ -2491,5 +2740,101 @@ tr:hover {
 
 .back-to-home:active {
     transform: translateY(-2px);
+}
+
+/* 分页控件样式 */
+.pagination-container {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.pagination-info {
+    font-size: 14px;
+    color: #64748b;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.pagination-btn {
+    padding: 6px 12px;
+    border: 1px solid #e2e8f0;
+    background-color: white;
+    color: #334155;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pagination-pages {
+    display: flex;
+    gap: 4px;
+}
+
+.pagination-page-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid #e2e8f0;
+    background-color: white;
+    color: #334155;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.pagination-page-btn:hover {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+}
+
+.pagination-page-btn.active {
+    background-color: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .pagination-container {
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .pagination-controls {
+        justify-content: center;
+    }
+    
+    .questions-container {
+        grid-template-columns: 1fr;
+    }
 }
 </style>

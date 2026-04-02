@@ -464,11 +464,16 @@ const startCognitiveDiagnosis = () => {
     isDiagnosing.value = true;
     diagnosisError.value = '';
     
-    // 设置默认用户ID（实际应用中应该从用户认证系统获取）
-    const userId = 1; // testuser的ID
-    
-    // 调用预测下一组题目的API
-    api.getPredictNextQuestions(userId)
+    // 从学生信息API获取当前登录用户的ID
+    api.getStudentinfo()
+        .then((infoRes) => {
+            console.log('获取学生信息成功:', infoRes.data);
+            const userId = infoRes.data.studentId;
+            console.log('当前登录用户的ID:', userId);
+            
+            // 调用预测下一组题目的API
+            return api.getPredictNextQuestions(userId);
+        })
         .then((res) => {
             console.log('预测题目结果:', res.data);
             

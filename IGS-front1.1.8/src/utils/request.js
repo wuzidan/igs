@@ -5,7 +5,7 @@ let hostUrl = "http://localhost:5173"
 
 const instance = axios.create({
     //baseUrl : hostUrl,
-    baseURL: "http://localhost:8000",
+    baseURL: "/",
     timeout: 5000   
 })
 
@@ -114,8 +114,6 @@ instance.interceptors.response.use(
         
         // 可以在这里添加全局错误提示（如弹框提示）
         console.error('请求错误：', errorMsg);
-        // 如果需要UI展示错误，可以使用全局事件总线或状态管理
-        // 例如：bus.emit('showError', errorMsg);
         
         return Promise.reject({
             message: errorMsg,

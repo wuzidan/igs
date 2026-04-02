@@ -13,9 +13,9 @@
                 <div class="card-header">基础信息</div>
             </template>
             <div class="info-grid">
-                <div><span class="label">学生ID：</span>{{ student.id || studentId }}</div>
+                <div><span class="label">学生ID：</span>{{ student.studentId || studentId }}</div>
                 <div><span class="label">姓名：</span>{{ student.name || '-' }}</div>
-                <div><span class="label">学号：</span>{{ student.student_id || '-' }}</div>
+                <div><span class="label">学号：</span>{{ student.studentId || '-' }}</div>
                 <div><span class="label">班级：</span>{{ student.class_name || '-' }}</div>
             </div>
         </el-card>
@@ -156,13 +156,14 @@ const fetchStudentDetail = async () => {
 };
 
 const fetchMastery = async () => {
-    if (!studentId.value) {
+    const actualStudentId = student.value.studentId || studentId.value;
+    if (!actualStudentId) {
         return;
     }
 
     loadingMastery.value = true;
     try {
-        const resp = await request.get(`/teacher/student-knowledge-mastery/?student_id=${studentId.value}`);
+        const resp = await request.get(`/teacher/student-knowledge-mastery/?student_id=${actualStudentId}`);
         const data = resp?.data;
         if (data?.status === 'success') {
             skills.value = Array.isArray(data.skills) ? data.skills : [];
@@ -171,7 +172,7 @@ const fetchMastery = async () => {
             if (!student.value?.name && data.student_name) {
                 student.value = {
                     ...student.value,
-                    id: studentId.value,
+                    studentId: actualStudentId,
                     name: data.student_name,
                 };
             }

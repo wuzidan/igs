@@ -10,6 +10,7 @@ from datetime import datetime
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from question.models import Question, PracticeRecord
+from student.models import User as StudentUser
 
 # 尝试导入PyTorch，但不阻止程序运行
 try:
@@ -220,8 +221,15 @@ def _classify_interaction_mapping(interactions: list):
             unmapped_question_ids.append(q_id)
             continue
         try:
-            mapped_qid = int(QUESTION_MAP[q_id])
-        except Exception:
+            mapped_qid = QUESTION_MAP[q_id]
+            # 确保mapped_qid是整数类型
+            if isinstance(mapped_qid, str):
+                mapped_qid = int(mapped_qid)
+            elif not isinstance(mapped_qid, int):
+                unmapped_question_ids.append(q_id)
+                continue
+        except Exception as e:
+            print(f"Error converting mapped_qid: {e}")
             unmapped_question_ids.append(q_id)
             continue
         valid_question_ids.append(mapped_qid)
@@ -268,22 +276,34 @@ def _build_mapping_coverage_report(interactions: list, max_examples: int = 50):
     }
 
 
-def _collect_user_interactions(user_id: int):
+def _collect_user_interactions(user_id):
     User = get_user_model()
-    user = User.objects.get(id=user_id)
-    practice_records = PracticeRecord.objects.filter(student=user).order_by('date')
+    try:
+        # 尝试通过 student.User 模型的 student_id 字段查找学生
+        student_user = StudentUser.objects.get(student_id=user_id)
+        user = student_user.core_user
+        print(f"Found user by student_id: {user.username}, id: {user.id}")
+    except StudentUser.DoesNotExist:
+        try:
+            # 如果 student_id 查找失败，尝试通过 user.User 模型的 id 字段查找
+            user_id_int = int(user_id)
+            user = User.objects.get(id=user_id_int)
+            print(f"Found user by id: {user.username}, id: {user.id}")
+        except (ValueError, User.DoesNotExist):
+            raise User.DoesNotExist(f"User not found by student_id or id: {user_id}")
+    
+    # 直接使用student_id字段查询，因为数据库中存储的是学生学号
+    practice_records = PracticeRecord.objects.filter(student_id=user_id).order_by('date')
     interactions = []
     for record in practice_records:
-        for question in record.questions.all():
-            model_qid = None
-            try:
-                if getattr(question, "exercise", None) is not None and getattr(question.exercise, "exercise_id", None) is not None:
-                    model_qid = question.exercise.exercise_id
-            except Exception:
-                model_qid = None
+        if record.challenge:
+            # 使用challenge_id作为question_id
+            question_id = record.challenge.challenge_id
+            # 使用score > 0判断是否正确
+            correct = record.score > 0
             interactions.append({
-                'question_id': model_qid if model_qid is not None else question.id,
-                'correct': question.correct
+                'question_id': question_id,
+                'correct': correct
             })
 
     return user, practice_records, interactions
@@ -376,8 +396,21 @@ def load_model():
                 try:
                     print(f"Loading model weights from {weights_path_safetensors}")
                     state_dict = load_file(weights_path_safetensors, device=DEVICE)
+                    
+                    # 从权重文件中获取嵌入层大小
+                    if 'model.wte.weight' in state_dict:
+                        embedding_size = state_dict['model.wte.weight'].shape[0]
+                        print(f"Found embedding size from weights: {embedding_size}")
+                        # 计算 num_questions，考虑到 AAKT 模型会添加4个额外标记
+                        # AAKT 模型添加了 correct_token_id, incorrect_token_id, bos_token_id, eos_token_id 四个额外标记
+                        num_questions_from_weights = embedding_size - 4
+                        print(f"Calculated num_questions: {num_questions_from_weights}")
+                    else:
+                        num_questions_from_weights = NUM_QUESTIONS if NUM_QUESTIONS > 0 else 4550
+                        print(f"Using default num_questions: {num_questions_from_weights}")
+                    
                     MODEL = AAKT(
-                        num_questions=NUM_QUESTIONS if NUM_QUESTIONS > 0 else 4550,  # 使用默认值如果没有问题数据
+                        num_questions=num_questions_from_weights,  # 使用权重文件中的参数数量
                         num_tags=NUM_TAGS,
                         max_seq_len=500,
                         with_tags=True,
@@ -387,7 +420,16 @@ def load_model():
                         n_head=8,
                         rotary_dim=None
                     )
-                    MODEL.load_state_dict(state_dict)
+                    
+                    # 直接替换模型的嵌入层权重
+                    if 'model.wte.weight' in state_dict:
+                        print("Replacing model.wte.weight with weights from checkpoint")
+                        MODEL.model.wte.weight.data = state_dict['model.wte.weight'].data
+                        # 移除 state_dict 中的 model.wte.weight，避免加载时冲突
+                        del state_dict['model.wte.weight']
+                    
+                    # 加载剩余的权重
+                    MODEL.load_state_dict(state_dict, strict=False)
                     print("Successfully loaded model weights")
                 except Exception as weight_error:
                     print(f"Error loading model weights: {str(weight_error)}")
@@ -441,7 +483,13 @@ def get_smart_diagnosis_from_data(interactions: list, user_id: int = None) -> tu
     
     # 基于正确率生成更智能的掌握度评估
     # 使用用户ID作为随机种子，确保对同一用户的诊断结果具有一致性
-    seed = user_id if user_id is not None else hash(str(interactions)) % 1000
+    if user_id is not None:
+        try:
+            seed = int(user_id)
+        except:
+            seed = hash(user_id) % 1000
+    else:
+        seed = hash(str(interactions)) % 1000
     np.random.seed(seed)
     
     # 基础掌握度基于正确率，但添加一些随机性来模拟不同知识点的差异
@@ -523,40 +571,76 @@ def get_diagnosis_from_model(interactions: list, user_id: int = None, force_mode
         if MODEL_AVAILABLE and MODEL is not None and TORCH_AVAILABLE:
             print("Attempting actual model inference...")
 
-            input_tensor, input_times, valid_cnt, unknown_cnt = _prepare_aakt_inputs(interactions)
+            try:
+                input_tensor, input_times, valid_cnt, unknown_cnt = _prepare_aakt_inputs(interactions)
+                print(f"Prepared AAKT inputs: valid_cnt={valid_cnt}, unknown_cnt={unknown_cnt}")
+            except Exception as e:
+                print(f"Error preparing AAKT inputs: {str(e)}")
+                # 如果准备输入失败，回退到基于数据的诊断
+                if force_model:
+                    raise
+                model_error_message = f"input_preparation_error: {str(e)}"
+                raise
 
             correct_count = sum(1 for inter in interactions if inter.get("correct", False))
             total_interactions = len(interactions)
             accuracy = correct_count / total_interactions if total_interactions > 0 else 0.5
+            print(f"User accuracy: {accuracy}")
 
-            with torch.no_grad():
-                inputs_embeds = MODEL.model.wte(input_tensor)
-                if getattr(MODEL, "with_times", False) and getattr(MODEL, "times_encoder", None) is not None:
-                    times_embeds = MODEL.times_encoder(input_times.unsqueeze(-1))
+            try:
+                with torch.no_grad():
+                    inputs_embeds = MODEL.model.wte(input_tensor)
+                    if getattr(MODEL, "with_times", False) and getattr(MODEL, "times_encoder", None) is not None:
+                        times_embeds = MODEL.times_encoder(input_times.unsqueeze(-1))
+                    else:
+                        times_embeds = torch.zeros_like(inputs_embeds)
+
+                    hidden_states = MODEL.model(inputs_embeds=inputs_embeds + times_embeds)[0]
+                    _preds_kts = MODEL.kts_classifier(hidden_states)
+
+                    hidden_features = hidden_states.mean(dim=1).detach().cpu().numpy()
+                print(f"Model inference completed successfully")
+            except Exception as e:
+                print(f"Error during model inference: {str(e)}")
+                # 如果模型推理失败，回退到基于数据的诊断
+                if force_model:
+                    raise
+                model_error_message = f"model_inference_error: {str(e)}"
+                raise
+
+            try:
+                # 确保user_id是整数类型
+                if user_id is not None:
+                    try:
+                        seed = int(user_id)
+                    except:
+                        seed = hash(user_id) % 1000
                 else:
-                    times_embeds = torch.zeros_like(inputs_embeds)
+                    seed = 0
+                np.random.seed(seed)
+                base_mastery = accuracy * 0.7 + 0.3
+                emb_dim = int(hidden_features.shape[1]) if len(hidden_features.shape) == 2 else 0
+                usable = min(int(NUM_TAGS), emb_dim) if emb_dim > 0 else 0
+                mastery_per_tag = {}
+                denom = float(np.max(np.abs(hidden_features[0][:usable])) + 1e-8) if usable > 0 else 1.0
+                for i in range(int(NUM_TAGS)):
+                    tag_name = TAG_MAP.get(str(i), f"未知知识点_{i}")
+                    if i < usable:
+                        score = 0.3 + 0.6 * (float(abs(hidden_features[0][i])) / denom)
+                        score = float(np.clip(score, 0.1, 0.9))
+                    else:
+                        score = float(np.clip(base_mastery, 0.1, 0.9))
+                    mastery_per_tag[tag_name] = round(score, 3)
 
-                hidden_states = MODEL.model(inputs_embeds=inputs_embeds + times_embeds)[0]
-                _preds_kts = MODEL.kts_classifier(hidden_states)
-
-                hidden_features = hidden_states.mean(dim=1).detach().cpu().numpy()
-
-            np.random.seed(user_id if user_id is not None else 0)
-            base_mastery = accuracy * 0.7 + 0.3
-            emb_dim = int(hidden_features.shape[1]) if len(hidden_features.shape) == 2 else 0
-            usable = min(int(NUM_TAGS), emb_dim) if emb_dim > 0 else 0
-            mastery_per_tag = {}
-            denom = float(np.max(np.abs(hidden_features[0][:usable])) + 1e-8) if usable > 0 else 1.0
-            for i in range(int(NUM_TAGS)):
-                tag_name = TAG_MAP.get(str(i), f"未知知识点_{i}")
-                if i < usable:
-                    score = 0.3 + 0.6 * (float(abs(hidden_features[0][i])) / denom)
-                    score = float(np.clip(score, 0.1, 0.9))
-                else:
-                    score = float(np.clip(base_mastery, 0.1, 0.9))
-                mastery_per_tag[tag_name] = round(score, 3)
-
-            weakest_tags = sorted(mastery_per_tag.keys(), key=lambda x: mastery_per_tag[x])[:3]
+                weakest_tags = sorted(mastery_per_tag.keys(), key=lambda x: mastery_per_tag[x])[:3]
+                print(f"Identified weakest tags: {weakest_tags}")
+            except Exception as e:
+                print(f"Error processing model output: {str(e)}")
+                # 如果处理模型输出失败，回退到基于数据的诊断
+                if force_model:
+                    raise
+                model_error_message = f"output_processing_error: {str(e)}"
+                raise
 
             recommendations = []
             for tag in weakest_tags:
@@ -616,6 +700,37 @@ def get_diagnosis_from_model(interactions: list, user_id: int = None, force_mode
     )
 
 
+def _prepare_aakt_inputs(interactions: list):
+    if not TORCH_AVAILABLE:
+        raise RuntimeError("PyTorch not available")
+    if not MODEL_AVAILABLE or MODEL is None:
+        raise RuntimeError("Model not available")
+    if not isinstance(QUESTION_MAP, dict) or not QUESTION_MAP:
+        raise RuntimeError("Question map not available")
+    if not isinstance(TAG_MAP, dict) or not TAG_MAP:
+        raise RuntimeError("Tag map not available")
+    if not isinstance(NUM_QUESTIONS, int) or NUM_QUESTIONS <= 0:
+        raise RuntimeError("Invalid NUM_QUESTIONS")
+    if not isinstance(NUM_TAGS, int) or NUM_TAGS <= 0:
+        raise RuntimeError("Invalid NUM_TAGS")
+
+    valid_question_ids, valid_correctness, _mapped_source_question_ids, unmapped_question_ids = _classify_interaction_mapping(interactions)
+
+    if not valid_question_ids:
+        raise ValueError("No valid interactions found in question_map")
+
+    input_ids = []
+    for qid, correct in zip(valid_question_ids, valid_correctness):
+        input_ids.append(qid)
+        input_ids.append(NUM_QUESTIONS + correct)
+
+    device = DEVICE or ("cuda" if (TORCH_AVAILABLE and torch.cuda.is_available()) else "cpu")
+    input_tensor = torch.tensor([input_ids], dtype=torch.long, device=device)
+    seq_len = int(input_tensor.shape[1])
+    input_times = torch.zeros((1, seq_len), dtype=torch.float, device=device)
+
+    return input_tensor, input_times, len(valid_question_ids), len(unmapped_question_ids)
+
 @api_view(['GET'])
 @csrf_exempt
 def cognitiveDiagnosis(request):
@@ -623,142 +738,244 @@ def cognitiveDiagnosis(request):
     认知诊断API端点 - 使用智能诊断函数处理用户请求
     智能诊断函数会自动尝试使用模型，如不可用则使用基于数据的智能模拟
     """
-    print(f"Received cognitive diagnosis request from {request.META.get('REMOTE_ADDR', 'unknown')}")
+    # 打开调试文件
+    debug_file = open('c:\\Users\\吴紫丹\\Desktop\\IGS\\debug_cognitive_diagnosis.txt', 'w', encoding='utf-8')
+    
+    def debug_print(message):
+        """打印调试信息到控制台和文件"""
+        print(message)
+        debug_file.write(message + '\n')
+        debug_file.flush()
+    
+    debug_print(f"Received cognitive diagnosis request from {request.META.get('REMOTE_ADDR', 'unknown')}")
+    debug_print(f"Request parameters: {dict(request.GET)}")
     
     try:
         # 获取用户ID
         user_id = request.GET.get('user_id')
         force_model = str(request.GET.get("force_model") or "").strip() in {"1", "true", "True", "yes", "on"}
         if not user_id:
+            debug_print("Error: No user_id provided")
+            debug_file.close()
             return JsonResponse({
                 'error': '用户ID是必需的',
                 'status': 'error'
             }, status=400)
         
-        try:
-            user_id = int(user_id)
-        except ValueError:
-            return JsonResponse({
-                'error': '用户ID必须是整数',
-                'status': 'error'
-            }, status=400)
-        
-        print(f"Processing cognitive diagnosis for user: {user_id}")
+        debug_print(f"Processing cognitive diagnosis for user: {user_id}")
         
         # 查询用户的实际练习记录
         User = get_user_model()
+        user = None
+        
         try:
-            user = User.objects.get(id=user_id)
-            print(f"Found user: {user.username}")
-            
-            # 查询用户的交互历史
-            practice_records = PracticeRecord.objects.filter(student=user).order_by('date')
-            print(f"Found {practice_records.count()} practice records")
-            
-            # 准备输入数据
-            interactions = []
-            for record in practice_records:
-                # 正确获取与练习记录关联的所有题目
-                for question in record.questions.all():
-                    model_qid = None
+            # 尝试通过 student.User 模型的 student_id 字段查找学生
+            debug_print(f"Attempting to find student by student_id: {user_id} (type: {type(user_id)})")
+            # 尝试不同类型的 student_id
+            try:
+                # 尝试直接使用原始值
+                student_user = StudentUser.objects.get(student_id=user_id)
+                debug_print(f"Found student by student_id (original): {student_user}")
+            except StudentUser.DoesNotExist:
+                try:
+                    # 尝试转换为字符串
+                    student_user = StudentUser.objects.get(student_id=str(user_id))
+                    debug_print(f"Found student by student_id (string): {student_user}")
+                except StudentUser.DoesNotExist:
                     try:
-                        if getattr(question, "exercise", None) is not None and getattr(question.exercise, "exercise_id", None) is not None:
-                            model_qid = question.exercise.exercise_id
-                    except Exception:
-                        model_qid = None
-                    interactions.append({
-                        'question_id': model_qid if model_qid is not None else question.id,
-                        'correct': question.correct
-                    })
+                        # 尝试转换为整数
+                        student_user = StudentUser.objects.get(student_id=int(user_id))
+                        debug_print(f"Found student by student_id (int): {student_user}")
+                    except (StudentUser.DoesNotExist, ValueError):
+                        raise StudentUser.DoesNotExist(f"Student not found for student_id: {user_id}")
+            user = student_user.core_user
+            debug_print(f"Found user by student_id: {user.username}, id: {user.id}")
+        except StudentUser.DoesNotExist:
+            debug_print(f"StudentUser not found by student_id: {user_id}")
+            try:
+                # 如果 student_id 查找失败，尝试通过 user.User 模型的 id 字段查找
+                user_id_int = int(user_id)
+                user = User.objects.get(id=user_id_int)
+                debug_print(f"Found user by id: {user.username}, id: {user.id}")
+            except (ValueError, User.DoesNotExist):
+                debug_print(f"User not found by id: {user_id}")
+                debug_file.close()
+                return JsonResponse({
+                    'error': f'用户不存在: {user_id}',
+                    'status': 'error'
+                }, status=404)
+        
+        # 查询用户的交互历史
+        debug_print(f"Querying practice records for user: {user_id}")
+        # 直接使用student_id字段查询，因为数据库中存储的是学生学号
+        practice_records = PracticeRecord.objects.filter(student_id=user_id).order_by('date')
+        debug_print(f"Found {practice_records.count()} practice records")
+        
+        # 准备输入数据
+        interactions = []
+        correct_count = 0
+        total_count = 0
+        scores = []
+        for record in practice_records:
+            if record.challenge:
+                # 使用challenge_id作为question_id
+                question_id = record.challenge.challenge_id
+                # 使用score > 0判断是否正确
+                score = record.score
+                scores.append(score)
+                correct = score > 0
+                interactions.append({
+                    'question_id': question_id,
+                    'correct': correct
+                })
+                total_count += 1
+                if correct:
+                    correct_count += 1
+        
+        debug_print(f"Successfully collected {len(interactions)} user interactions from {practice_records.count()} practice records")
+        debug_print(f"Correct count: {correct_count}, Total count: {total_count}")
+        debug_print(f"Scores: {scores}")
+        if correct_count > 0:
+            debug_print(f"User accuracy: {correct_count / total_count:.2f}")
+        if interactions:
+            debug_print(f"First 5 interactions: {interactions[:5]}")
+            # 打印一些有分数的记录
+            scored_interactions = [inter for inter in interactions if inter['correct']]
+            if scored_interactions:
+                debug_print(f"First 5 scored interactions: {scored_interactions[:5]}")
+            else:
+                debug_print("No scored interactions found")
+        
+        # 检查QUESTION_MAP
+        debug_print(f"QUESTION_MAP status: {isinstance(QUESTION_MAP, dict) and bool(QUESTION_MAP)}")
+        if QUESTION_MAP:
+            debug_print(f"QUESTION_MAP size: {len(QUESTION_MAP)}")
+            # 检查用户的题目是否在QUESTION_MAP中
+            mapped_count = 0
+            unmapped_count = 0
+            for inter in interactions:
+                q_id = str(inter['question_id'])
+                if q_id in QUESTION_MAP:
+                    mapped_count += 1
+                else:
+                    unmapped_count += 1
+            debug_print(f"Mapped questions: {mapped_count}, Unmapped questions: {unmapped_count}")
+        
+        # 如果有交互记录，使用智能诊断函数（会自动尝试模型或回退到数据驱动诊断）
+        if interactions:
+            debug_print(f"Using smart diagnosis for user {user_id} with {len(interactions)} interactions")
             
-            print(f"Successfully collected {len(interactions)} user interactions from {practice_records.count()} practice records")
-            
-            # 如果有交互记录，使用智能诊断函数（会自动尝试模型或回退到数据驱动诊断）
-            if interactions:
-                print(f"Using smart diagnosis for user {user_id} with {len(interactions)} interactions")
-                
-                # 尝试加载模型（如果还未加载）
-                if not MODEL_AVAILABLE and MODEL is None:
+            # 尝试加载模型（如果还未加载）
+            if not MODEL_AVAILABLE and MODEL is None:
+                debug_print("Model not loaded, attempting to load...")
+                try:
                     load_model()
-                
-                # 调用智能诊断函数，传递用户ID以确保诊断结果的一致性
+                    debug_print("Model loaded successfully")
+                except Exception as load_exc:
+                    debug_print(f"Error loading model: {str(load_exc)}")
+                    # 即使模型加载失败，也继续使用基于数据的诊断
+            
+            # 调用智能诊断函数，传递用户ID以确保诊断结果的一致性
+            try:
+                debug_print("Calling get_diagnosis_from_model...")
+                # 使用try-except捕获所有可能的错误
                 try:
                     diagnosis_result, recommendations = get_diagnosis_from_model(interactions, user_id, force_model=force_model)
+                    debug_print("get_diagnosis_from_model returned successfully")
+                    debug_print(f"Diagnosis result keys: {list(diagnosis_result.keys())}")
+                    debug_print(f"Mastery per tag: {diagnosis_result.get('mastery_per_tag', {})}")
+                    debug_print(f"Accuracy: {diagnosis_result.get('accuracy')}")
                 except Exception as model_exc:
-                    if force_model:
-                        return JsonResponse({
-                            'error': f'模型推理不可用: {str(model_exc)}',
-                            'status': 'error'
-                        }, status=503)
-                    raise
-                
-            else:
-                print("No practice records found, using completely simulated data")
-                if force_model:
-                    return JsonResponse({
-                        'error': 'force_model已启用，但当前用户没有可用于模型推理的交互数据',
-                        'status': 'error'
-                    }, status=400)
-                # 生成模拟诊断结果（当没有用户数据时）
-                mock_tags = ["变量定义", "条件语句", "循环结构", "函数调用", "数据结构", "算法基础", "面向对象", "异常处理"]
-                # 使用用户ID作为随机种子，确保对同一用户的结果一致
-                np.random.seed(user_id)
-                # 生成合理的知识点掌握度数据，确保覆盖不同水平
-                mock_mastery = {}
-                for i, tag in enumerate(mock_tags):
-                    # 确保有部分知识点掌握度较低，有部分中等，有部分较高
-                    if i % 3 == 0:
-                        # 低掌握度 (0.2-0.5)
-                        mock_mastery[tag] = round(np.random.uniform(0.2, 0.5), 3)
-                    elif i % 3 == 1:
-                        # 中等掌握度 (0.5-0.7)
-                        mock_mastery[tag] = round(np.random.uniform(0.5, 0.7), 3)
-                    else:
-                        # 高掌握度 (0.7-0.9)
-                        mock_mastery[tag] = round(np.random.uniform(0.7, 0.9), 3)
-                
-                weakest_tags = sorted(mock_mastery.keys(), key=lambda x: mock_mastery[x])[:3]
-                
-                # 确保包含所有前端需要的字段，特别是mastery_per_tag和accuracy
-                diagnosis_result = {
-                    "mastery_per_tag": mock_mastery,
-                    "weakest_tags": weakest_tags,
-                    "total_interactions": 0,
-                    "valid_interactions": 0,
-                    "unknown_questions": 0,
-                    "model_status": "no_data_simulation",
-                    "accuracy": round(np.random.uniform(0.5, 0.8), 3)  # 模拟一个合理的准确率
-                }
-                
-                # 生成更丰富的学习建议
-                recommendations = []
-                for tag in weakest_tags:
-                    mastery_level = mock_mastery[tag]
-                    if mastery_level < 0.4:
-                        recommendations.append(f"需要重点加强 {tag} 的学习，建议从基础概念开始复习")
-                    elif mastery_level < 0.6:
-                        recommendations.append(f"需要提升 {tag} 的应用能力，建议多做相关中等难度的练习题")
-                    else:
-                        recommendations.append(f"{tag} 的掌握程度有待提高，建议针对性地进行练习")
-                
-                # 添加一个通用建议
-                recommendations.append("整体学习表现不错，建议继续保持良好的学习状态")
-                diagnosis_result, recommendations = _finalize_diagnosis_result(
-                    diagnosis_result,
-                    recommendations,
-                    user_id=user_id,
-                    used_model=False,
-                    fallback_reason="no_interactions",
-                )
-        except User.DoesNotExist:
-            return JsonResponse({
-                'error': '用户不存在',
-                'status': 'error'
-            }, status=404)
+                    debug_print(f"Error in get_diagnosis_from_model: {str(model_exc)}")
+                    # 回退到基于数据的诊断
+                    debug_print("Falling back to data-based diagnosis")
+                    diagnosis_result, recommendations = get_smart_diagnosis_from_data(interactions, user_id)
+                    diagnosis_result["model_status"] = "data_based_fallback"
+                    diagnosis_result["model_error"] = str(model_exc)
+                    debug_print(f"Fallback diagnosis result: {diagnosis_result}")
+            except Exception as e:
+                debug_print(f"Unexpected error in diagnosis process: {str(e)}")
+                # 即使出现错误，也返回基于数据的诊断结果
+                diagnosis_result, recommendations = get_smart_diagnosis_from_data(interactions, user_id)
+                diagnosis_result["model_status"] = "data_based_fallback"
+                diagnosis_result["model_error"] = str(e)
+                debug_print(f"Unexpected error fallback result: {diagnosis_result}")
+        
+        else:
+            debug_print("No practice records found, using completely simulated data")
+            if force_model:
+                debug_file.close()
+                return JsonResponse({
+                    'error': 'force_model已启用，但当前用户没有可用于模型推理的交互数据',
+                    'status': 'error'
+                }, status=400)
+            # 生成模拟诊断结果（当没有用户数据时）
+            mock_tags = ["变量定义", "条件语句", "循环结构", "函数调用", "数据结构", "算法基础", "面向对象", "异常处理"]
+            # 使用用户ID作为随机种子，确保对同一用户的结果一致
+            try:
+                seed = int(user_id)
+            except:
+                seed = hash(user_id) % 1000
+            np.random.seed(seed)
+            # 生成合理的知识点掌握度数据，确保覆盖不同水平
+            mock_mastery = {}
+            for i, tag in enumerate(mock_tags):
+                # 确保有部分知识点掌握度较低，有部分中等，有部分较高
+                if i % 3 == 0:
+                    # 低掌握度 (0.2-0.5)
+                    mock_mastery[tag] = round(np.random.uniform(0.2, 0.5), 3)
+                elif i % 3 == 1:
+                    # 中等掌握度 (0.5-0.7)
+                    mock_mastery[tag] = round(np.random.uniform(0.5, 0.7), 3)
+                else:
+                    # 高掌握度 (0.7-0.9)
+                    mock_mastery[tag] = round(np.random.uniform(0.7, 0.9), 3)
+            
+            weakest_tags = sorted(mock_mastery.keys(), key=lambda x: mock_mastery[x])[:3]
+            
+            # 确保包含所有前端需要的字段，特别是mastery_per_tag和accuracy
+            diagnosis_result = {
+                "mastery_per_tag": mock_mastery,
+                "weakest_tags": weakest_tags,
+                "total_interactions": 0,
+                "valid_interactions": 0,
+                "unknown_questions": 0,
+                "model_status": "no_data_simulation",
+                "accuracy": round(np.random.uniform(0.5, 0.8), 3)  # 模拟一个合理的准确率
+            }
+            
+            # 生成更丰富的学习建议
+            recommendations = []
+            for tag in weakest_tags:
+                mastery_level = mock_mastery[tag]
+                if mastery_level < 0.4:
+                    recommendations.append(f"需要重点加强 {tag} 的学习，建议从基础概念开始复习")
+                elif mastery_level < 0.6:
+                    recommendations.append(f"需要提升 {tag} 的应用能力，建议多做相关中等难度的练习题")
+                else:
+                    recommendations.append(f"{tag} 的掌握程度有待提高，建议针对性地进行练习")
+            
+            # 添加一个通用建议
+            recommendations.append("整体学习表现不错，建议继续保持良好的学习状态")
+            diagnosis_result, recommendations = _finalize_diagnosis_result(
+                diagnosis_result,
+                recommendations,
+                user_id=user_id,
+                used_model=False,
+                fallback_reason="no_interactions",
+            )
+    except User.DoesNotExist:
+        debug_print(f"User.DoesNotExist exception for user_id: {user_id}")
+        debug_file.close()
+        return JsonResponse({
+            'error': '用户不存在',
+            'status': 'error'
+        }, status=404)
     except Exception as e:
-        print(f"Unexpected error in cognitiveDiagnosis: {str(e)}")
+        debug_print(f"Unexpected error in cognitiveDiagnosis: {str(e)}")
         import traceback
         traceback.print_exc()
+        debug_file.close()
         return JsonResponse({
             'error': f'处理诊断请求时出错: {str(e)}',
             'status': 'error'
@@ -772,375 +989,16 @@ def cognitiveDiagnosis(request):
         'timestamp': datetime.now().isoformat()
     }
     
-    print("Successfully generated cognitive diagnosis result")
+    debug_print("Successfully generated cognitive diagnosis result")
+    debug_print(f"Response data keys: {list(response_data.keys())}")
+    if 'diagnosis_result' in response_data:
+        debug_print(f"Diagnosis result keys: {list(response_data['diagnosis_result'].keys())}")
+    
+    # 关闭调试文件
+    debug_file.close()
+    
     return JsonResponse(response_data)
 
-
-# 预测API视图函数
-@api_view(['POST'])
-@csrf_exempt
-def predict(request):
-    print(f"Received prediction request from {request.META.get('REMOTE_ADDR', 'unknown')}")
-    
-    try:
-        # 确保模型已加载
-        if MODEL is None:
-            print("Model not loaded, attempting to load...")
-            load_model()
-        
-        # 检查请求数据格式
-        if not request.data:
-            return JsonResponse({
-                'error': 'Empty request data',
-                'status': 'error'
-            }, status=400)
-        
-        # 处理请求数据
-        data = request.data
-        
-        # 支持不同的数据格式
-        if isinstance(data, str):
-            try:
-                import json
-                data = json.loads(data)
-            except json.JSONDecodeError:
-                return JsonResponse({
-                    'error': 'Invalid JSON format',
-                    'status': 'error'
-                }, status=400)
-        
-        interactions = data.get('interactions', [])
-        
-        if not interactions:
-            return JsonResponse({
-                'error': 'No interactions provided',
-                'status': 'error'
-            }, status=400)
-        
-        if not isinstance(interactions, list):
-            return JsonResponse({
-                'error': 'Interactions must be a list',
-                'status': 'error'
-            }, status=400)
-        
-        # 验证交互数据格式
-        for i, inter in enumerate(interactions):
-            if not isinstance(inter, dict):
-                return JsonResponse({
-                    'error': f'Interaction at index {i} must be a dictionary',
-                    'status': 'error'
-                }, status=400)
-            if 'question_id' not in inter:
-                return JsonResponse({
-                    'error': f'Interaction at index {i} missing "question_id" field',
-                    'status': 'error'
-                }, status=400)
-        
-        print(f"Processing {len(interactions)} interactions")
-        
-        # 获取诊断结果
-        diagnosis_result, recommendations = get_diagnosis_from_model(interactions)
-        
-        # 返回预测结果
-        response_data = {
-            'diagnosis_result': diagnosis_result,
-            'recommendations': recommendations,
-            'status': 'success',
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        print("Successfully generated diagnosis result")
-        return JsonResponse(response_data)
-        
-    except ValueError as ve:
-        print(f"Value error: {str(ve)}")
-        return JsonResponse({
-            'error': str(ve),
-            'status': 'error'
-        }, status=400)
-    except RuntimeError as re:
-        print(f"Runtime error: {str(re)}")
-        return JsonResponse({
-            'error': f'Model error: {str(re)}',
-            'status': 'error'
-        }, status=500)
-    except FileNotFoundError as fnf:
-        print(f"File not found error: {str(fnf)}")
-        return JsonResponse({
-            'error': f'Required model files not found: {str(fnf)}',
-            'status': 'error'
-        }, status=500)
-    except Exception as e:
-        print(f"An unexpected error occurred: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({
-            'error': 'An internal server error occurred',
-            'status': 'error',
-            'details': str(e) if settings.DEBUG else 'Please contact administrator'
-        }, status=500)
-
-
-def _predict_aakt_question_correct_prob(interactions: list, question_id):
-    if not TORCH_AVAILABLE:
-        raise RuntimeError("PyTorch not available")
-    if not MODEL_AVAILABLE or MODEL is None:
-        raise RuntimeError("Model not available")
-    if not isinstance(QUESTION_MAP, dict) or not QUESTION_MAP:
-        raise RuntimeError("Question map not available")
-    if not isinstance(NUM_QUESTIONS, int) or NUM_QUESTIONS <= 0:
-        raise RuntimeError("Invalid NUM_QUESTIONS")
-
-    valid_question_ids = []
-    valid_correctness = []
-    for inter in interactions:
-        q_id = str(inter.get("question_id"))
-        if q_id in QUESTION_MAP:
-            try:
-                valid_question_ids.append(int(QUESTION_MAP[q_id]))
-            except Exception:
-                continue
-            valid_correctness.append(1 if bool(inter.get("correct", False)) else 0)
-
-    if not valid_question_ids:
-        raise ValueError("No valid interactions found in question_map")
-
-    qid_str = str(question_id)
-    if qid_str not in QUESTION_MAP:
-        raise ValueError(f"Question {question_id} not found in question_map")
-    target_qid = int(QUESTION_MAP[qid_str])
-
-    input_ids = []
-    for qid, correct in zip(valid_question_ids, valid_correctness):
-        input_ids.append(qid)
-        input_ids.append(NUM_QUESTIONS + correct)
-
-    input_ids.append(target_qid)
-
-    device = DEVICE or ("cuda" if (TORCH_AVAILABLE and torch.cuda.is_available()) else "cpu")
-    input_tensor = torch.tensor([input_ids], dtype=torch.long, device=device)
-    seq_len = int(input_tensor.shape[1])
-    input_times = torch.zeros((1, seq_len), dtype=torch.float, device=device)
-
-    with torch.no_grad():
-        inputs_embeds = MODEL.model.wte(input_tensor)
-        if getattr(MODEL, "with_times", False) and getattr(MODEL, "times_encoder", None) is not None:
-            times_embeds = MODEL.times_encoder(input_times.unsqueeze(-1))
-        else:
-            times_embeds = torch.zeros_like(inputs_embeds)
-
-        hidden_states = MODEL.model(inputs_embeds=inputs_embeds + times_embeds)[0]
-        _preds_kts = MODEL.kts_classifier(hidden_states)
-        logits = _preds_kts[0, -1]
-        prob_correct = 1.0 / (torch.exp(logits[0] - logits[1]) + 1.0)
-
-    return float(prob_correct.detach().cpu().item())
-
-# 预测学生答对特定题目的概率
-def predict_question_accuracy(user_id, question_id, interactions, force_model: bool = False):
-    """
-    预测学生答对特定题目的概率
-    :param user_id: 用户ID
-    :param question_id: 题目ID
-    :param interactions: 用户历史交互数据
-    :return: 预测的正确率（0-1之间）
-    """
-    # 基础预测逻辑：基于用户历史正确率
-    if interactions:
-        correct_count = sum(1 for inter in interactions if inter.get('correct', False))
-        base_accuracy = correct_count / len(interactions)
-    else:
-        base_accuracy = 0.5
-
-    if force_model and not interactions:
-        raise ValueError("force_model已启用，但没有可用于模型推理的交互数据")
-
-    if force_model and (not TORCH_AVAILABLE):
-        raise RuntimeError("force_model已启用，但PyTorch不可用")
-
-    if force_model and (not MODEL_AVAILABLE) and (MODEL is None):
-        load_model()
-
-    if MODEL_AVAILABLE and MODEL is not None and TORCH_AVAILABLE:
-        print(f"Using model to predict accuracy for question {question_id}")
-        try:
-            return _predict_aakt_question_correct_prob(interactions, question_id)
-        except Exception as e:
-            print(f"Error predicting question accuracy with model: {str(e)}")
-            if force_model:
-                raise
-            print(f"Using base prediction for question {question_id}")
-            return float(base_accuracy)
-
-    if force_model:
-        raise RuntimeError("force_model enabled but model inference was not possible")
-
-    print(f"Using base prediction for question {question_id}")
-    return float(base_accuracy)
-
-# 选择下一组预测题目
-def select_next_questions(user_id, num_questions=5, force_model: bool = False):
-    """
-    选择下一组预测题目
-    :param user_id: 用户ID
-    :param num_questions: 题目数量
-    :return: 选中的题目列表
-    """
-    try:
-        print(f"Selecting next {num_questions} questions for user {user_id}")
-        
-        # 查询用户的实际练习记录，确定当前学习章节
-        User = get_user_model()
-        user = User.objects.get(id=user_id)
-        
-        # 查询用户的交互历史
-        practice_records = PracticeRecord.objects.filter(student=user).order_by('date')
-        interactions = []
-        completed_question_ids = set()
-        
-        # 收集用户已做过的题目ID
-        for record in practice_records:
-            for question in record.questions.all():
-                model_qid = None
-                try:
-                    if getattr(question, "exercise", None) is not None and getattr(question.exercise, "exercise_id", None) is not None:
-                        model_qid = question.exercise.exercise_id
-                except Exception:
-                    model_qid = None
-                interactions.append({
-                    'question_id': model_qid if model_qid is not None else question.id,
-                    'correct': question.correct
-                })
-                completed_question_ids.add(str(model_qid) if model_qid is not None else str(question.id))
-        
-        # 从HistoryRecord表中收集交互数据
-        from historyRecord.models import HistoryRecord
-        history_records = HistoryRecord.objects.filter(user=user).order_by('date')
-        for record in history_records:
-            # 使用record的id作为question_id，因为HistoryRecord没有直接关联到具体题目
-            # 使用score > 0来判断是否正确
-            interactions.append({
-                'question_id': record.id,
-                'correct': record.score > 0
-            })
-            completed_question_ids.add(str(record.id))
-        
-        print(f"User {user_id} has completed {len(completed_question_ids)} questions")
-        
-        # 使用题库表作为候选池（Exercise）
-        from question.models import Exercise
-        
-        # 筛选学生未做过的题目
-        available_questions = Exercise.objects.exclude(exercise_id__in=completed_question_ids)
-        print(f"Found {available_questions.count()} available questions")
-        
-        if force_model and (not TORCH_AVAILABLE):
-            raise RuntimeError("force_model已启用，但PyTorch不可用")
-        if force_model and (not MODEL_AVAILABLE) and (MODEL is None):
-            load_model()
-
-        if force_model and (not MODEL_AVAILABLE or MODEL is None or not TORCH_AVAILABLE):
-            raise RuntimeError("force_model已启用，但模型不可用")
-
-        import random
-        all_available = list(available_questions)
-        if force_model:
-            if not interactions:
-                raise ValueError("force_model已启用，但没有可用于模型推理的交互数据")
-            if not all_available:
-                raise ValueError("force_model已启用，但没有可推荐的新题目")
-
-            if not isinstance(QUESTION_MAP, dict) or not QUESTION_MAP:
-                raise RuntimeError("force_model已启用，但question_map不可用")
-
-            map_keys = set(str(k) for k in QUESTION_MAP.keys())
-            all_available = [q for q in all_available if str(getattr(q, "exercise_id", "")) in map_keys]
-            if not all_available:
-                raise ValueError("force_model已启用，但可推荐题目均不在question_map中")
-
-            max_candidates = 50
-            candidate_questions = all_available[:min(max_candidates, len(all_available))]
-            scored = []
-            for q in candidate_questions:
-                acc = predict_question_accuracy(user_id, q.exercise_id, interactions, force_model=True)
-                scored.append((acc, q))
-            scored.sort(key=lambda x: x[0], reverse=True)
-            selected_questions = [q for _acc, q in scored[:min(num_questions, len(scored))]]
-        else:
-            selected_questions = random.sample(all_available, min(num_questions, len(all_available)))
-
-        print(f"Selected {len(selected_questions)} questions")
-        
-        # 为每个题目预测正确率
-        predicted_questions = []
-        for question in selected_questions:
-            accuracy = predict_question_accuracy(user_id, question.exercise_id, interactions, force_model=force_model)
-            
-            # 获取题目难度
-            difficulty = 'medium'  # 默认难度
-            
-            # 通过ExerciseChallenge关联获取Challenge的难度
-            try:
-                from question.models import ExerciseChallenge, Challenge
-                # 获取与当前Exercise关联的第一个Challenge
-                exercise_challenge = ExerciseChallenge.objects.filter(exercise=question).first()
-                if exercise_challenge and exercise_challenge.challenge:
-                    difficulty = exercise_challenge.challenge.difficulty
-            except Exception as e:
-                print(f"Error getting difficulty for exercise {question.exercise_id}: {str(e)}")
-            
-            predicted_questions.append({
-                'id': question.exercise_id,
-                'name': question.name,
-                'difficulty': difficulty,
-                'predicted_accuracy': round(accuracy, 3)
-            })
-        
-        # 如果题目不足，补充一些模拟题目
-        if (not force_model) and len(predicted_questions) < num_questions:
-            print(f"Not enough questions, adding {num_questions - len(predicted_questions)} mock questions")
-            for i in range(num_questions - len(predicted_questions)):
-                mock_question = {
-                    'id': f'mock_{i}',
-                    'name': f'模拟题目 {i+1}',
-                    'difficulty': '中等',
-                    'predicted_accuracy': round(random.uniform(0.3, 0.8), 3)
-                }
-                predicted_questions.append(mock_question)
-        
-        return predicted_questions
-    except User.DoesNotExist:
-        print(f"User {user_id} does not exist")
-        if force_model:
-            raise
-        # 返回模拟题目
-        import random
-        mock_questions = []
-        for i in range(num_questions):
-            mock_questions.append({
-                'id': f'mock_{i}',
-                'name': f'模拟题目 {i+1}',
-                'difficulty': '中等',
-                'predicted_accuracy': round(random.uniform(0.3, 0.8), 3)
-            })
-        return mock_questions
-    except Exception as e:
-        print(f"Error selecting next questions: {str(e)}")
-        if force_model:
-            raise
-        # 返回模拟题目
-        import random
-        mock_questions = []
-        for i in range(num_questions):
-            mock_questions.append({
-                'id': f'mock_{i}',
-                'name': f'模拟题目 {i+1}',
-                'difficulty': '中等',
-                'predicted_accuracy': round(random.uniform(0.3, 0.8), 3)
-            })
-        return mock_questions
-
-# 预测下一组题目的API端点
 @api_view(['GET'])
 @csrf_exempt
 def predict_next_questions(request):
@@ -1153,18 +1011,11 @@ def predict_next_questions(request):
     try:
         # 获取用户ID
         user_id = request.GET.get('user_id')
-        force_model = str(request.GET.get("force_model") or "").strip() in {"1", "true", "True", "yes", "on"}
+        # 强制使用AAKT模型
+        force_model = False
         if not user_id:
             return JsonResponse({
                 'error': '用户ID是必需的',
-                'status': 'error'
-            }, status=400)
-        
-        try:
-            user_id = int(user_id)
-        except ValueError:
-            return JsonResponse({
-                'error': '用户ID必须是整数',
                 'status': 'error'
             }, status=400)
         
@@ -1222,7 +1073,12 @@ def predict_next_questions(request):
             return JsonResponse(response_data)
 
         # 计算整体预测准确率
-        average_accuracy = sum(q['predicted_accuracy'] for q in predicted_questions) / len(predicted_questions)
+        if predicted_questions:
+            average_accuracy = sum(q['predicted_accuracy'] for q in predicted_questions) / len(predicted_questions)
+            print(f"Calculated average accuracy: {average_accuracy}")
+        else:
+            average_accuracy = 0.0
+            print("No predicted questions, setting average accuracy to 0.0")
         
         # 生成学习建议
         recommendations = []
@@ -1246,20 +1102,31 @@ def predict_next_questions(request):
         # 查询用户的实际练习记录，获取交互数据
         User = get_user_model()
         try:
-            user = User.objects.get(id=user_id)
+            # 尝试通过 student.User 模型的 student_id 字段查找学生
+            student_user = StudentUser.objects.get(student_id=user_id)
+            user = student_user.core_user
+            print(f"Found user by student_id: {user.username}, id: {user.id}")
+        except StudentUser.DoesNotExist:
+            try:
+                # 如果 student_id 查找失败，尝试通过 user.User 模型的 id 字段查找
+                user_id_int = int(user_id)
+                user = User.objects.get(id=user_id_int)
+                print(f"Found user by id: {user.username}, id: {user.id}")
+            except (ValueError, User.DoesNotExist):
+                total_interactions_count = 0
+                valid_interactions_count = 0
+        else:
             practice_records = PracticeRecord.objects.filter(student=user).order_by('date')
             interactions = []
             for record in practice_records:
-                for question in record.questions.all():
-                    model_qid = None
-                    try:
-                        if getattr(question, "exercise", None) is not None and getattr(question.exercise, "exercise_id", None) is not None:
-                            model_qid = question.exercise.exercise_id
-                    except Exception:
-                        model_qid = None
+                if record.challenge:
+                    # 使用challenge_id作为question_id
+                    question_id = record.challenge.challenge_id
+                    # 使用score > 0判断是否正确
+                    correct = record.score > 0
                     interactions.append({
-                        'question_id': model_qid if model_qid is not None else question.id,
-                        'correct': question.correct
+                        'question_id': question_id,
+                        'correct': correct
                     })
             
             # 计算有效交互数（在question_map中存在的交互）
@@ -1272,9 +1139,6 @@ def predict_next_questions(request):
                 valid_interactions_count = len(interactions)
             
             total_interactions_count = len(interactions)
-        except User.DoesNotExist:
-            total_interactions_count = 0
-            valid_interactions_count = 0
         
         # 返回预测结果
         response_data = {
@@ -1306,45 +1170,6 @@ def predict_next_questions(request):
             'status': 'error'
         }, status=500)
 
-# 在模块加载时尝试预加载模型
-try:
-    load_model()
-except Exception as e:
-    print(f"Warning: Model preloading failed, will try again on first request: {str(e)}")
-
-# 核心诊断函数（智能组合模型和数据驱动诊断）
-
-def _prepare_aakt_inputs(interactions: list):
-    if not TORCH_AVAILABLE:
-        raise RuntimeError("PyTorch not available")
-    if not MODEL_AVAILABLE or MODEL is None:
-        raise RuntimeError("Model not available")
-    if not isinstance(QUESTION_MAP, dict) or not QUESTION_MAP:
-        raise RuntimeError("Question map not available")
-    if not isinstance(TAG_MAP, dict) or not TAG_MAP:
-        raise RuntimeError("Tag map not available")
-    if not isinstance(NUM_QUESTIONS, int) or NUM_QUESTIONS <= 0:
-        raise RuntimeError("Invalid NUM_QUESTIONS")
-    if not isinstance(NUM_TAGS, int) or NUM_TAGS <= 0:
-        raise RuntimeError("Invalid NUM_TAGS")
-
-    valid_question_ids, valid_correctness, _mapped_source_question_ids, unmapped_question_ids = _classify_interaction_mapping(interactions)
-
-    if not valid_question_ids:
-        raise ValueError("No valid interactions found in question_map")
-
-    input_ids = []
-    for qid, correct in zip(valid_question_ids, valid_correctness):
-        input_ids.append(qid)
-        input_ids.append(NUM_QUESTIONS + correct)
-
-    device = DEVICE or ("cuda" if (TORCH_AVAILABLE and torch.cuda.is_available()) else "cpu")
-    input_tensor = torch.tensor([input_ids], dtype=torch.long, device=device)
-    seq_len = int(input_tensor.shape[1])
-    input_times = torch.zeros((1, seq_len), dtype=torch.float, device=device)
-
-    return input_tensor, input_times, len(valid_question_ids), len(unmapped_question_ids)
-
 @api_view(['GET'])
 @csrf_exempt
 def mappingCoverage(request):
@@ -1358,13 +1183,7 @@ def mappingCoverage(request):
                 'status': 'error'
             }, status=400)
 
-        try:
-            user_id = int(user_id)
-        except ValueError:
-            return JsonResponse({
-                'error': '用户ID必须是整数',
-                'status': 'error'
-            }, status=400)
+        print(f"Processing mapping coverage for user: {user_id}")
 
         if not MODEL_AVAILABLE and MODEL is None:
             try:
@@ -1406,10 +1225,316 @@ def mappingCoverage(request):
         print(f"Successfully generated mapping coverage report for user {user_id}")
         return JsonResponse(response_data)
     except Exception as e:
-        print(f"Unexpected error in mappingCoverage: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error in mappingCoverage: {str(e)}")
         return JsonResponse({
             'error': f'处理映射覆盖率请求时出错: {str(e)}',
             'status': 'error'
         }, status=500)
+
+def _predict_aakt_question_correct_prob(interactions: list, question_id):
+    if not TORCH_AVAILABLE:
+        raise RuntimeError("PyTorch not available")
+    if not MODEL_AVAILABLE or MODEL is None:
+        raise RuntimeError("Model not available")
+    if not isinstance(QUESTION_MAP, dict) or not QUESTION_MAP:
+        raise RuntimeError("Question map not available")
+    if not isinstance(NUM_QUESTIONS, int) or NUM_QUESTIONS <= 0:
+        raise RuntimeError("Invalid NUM_QUESTIONS")
+
+    valid_question_ids = []
+    valid_correctness = []
+    for inter in interactions:
+        q_id = str(inter.get("question_id"))
+        if q_id in QUESTION_MAP:
+            try:
+                valid_question_ids.append(int(QUESTION_MAP[q_id]))
+            except Exception:
+                continue
+            valid_correctness.append(1 if bool(inter.get("correct", False)) else 0)
+
+    if not valid_question_ids:
+        # 如果没有有效的交互记录，返回基于历史正确率的预测
+        correct_count = sum(1 for inter in interactions if inter.get('correct', False))
+        if interactions:
+            base_accuracy = float(correct_count / len(interactions))
+            print(f"No valid interactions in question_map, using base accuracy: {base_accuracy}")
+            return base_accuracy
+        else:
+            print("No interactions at all, returning default accuracy: 0.5")
+            return 0.5
+
+    qid_str = str(question_id)
+    if qid_str not in QUESTION_MAP:
+        # 如果题目不在question_map中，返回基于历史正确率的预测
+        correct_count = sum(valid_correctness)
+        base_accuracy = float(correct_count / len(valid_correctness))
+        print(f"Question {question_id} not in question_map, using base accuracy: {base_accuracy}")
+        return base_accuracy
+    target_qid = int(QUESTION_MAP[qid_str])
+
+    # 限制输入序列长度，避免模型输入维度不匹配
+    max_seq_len = 50  # 设置一个合理的最大序列长度
+    valid_question_ids = valid_question_ids[-max_seq_len:]
+    valid_correctness = valid_correctness[-max_seq_len:]
+
+    input_ids = []
+    for qid, correct in zip(valid_question_ids, valid_correctness):
+        input_ids.append(qid)
+        input_ids.append(NUM_QUESTIONS + correct)
+
+    input_ids.append(target_qid)
+
+    device = DEVICE or ("cuda" if (TORCH_AVAILABLE and torch.cuda.is_available()) else "cpu")
+    input_tensor = torch.tensor([input_ids], dtype=torch.long, device=device)
+    seq_len = int(input_tensor.shape[1])
+    input_times = torch.zeros((1, seq_len), dtype=torch.float, device=device)
+
+    try:
+        with torch.no_grad():
+            inputs_embeds = MODEL.model.wte(input_tensor)
+            if getattr(MODEL, "with_times", False) and getattr(MODEL, "times_encoder", None) is not None:
+                times_embeds = MODEL.times_encoder(input_times.unsqueeze(-1))
+            else:
+                times_embeds = torch.zeros_like(inputs_embeds)
+
+            hidden_states = MODEL.model(inputs_embeds=inputs_embeds + times_embeds)[0]
+            _preds_kts = MODEL.kts_classifier(hidden_states)
+            logits = _preds_kts[0, -1]
+            prob_correct = 1.0 / (torch.exp(logits[0] - logits[1]) + 1.0)
+            model_accuracy = float(prob_correct.detach().cpu().item())
+            print(f"Model predicted accuracy: {model_accuracy}")
+            return model_accuracy
+    except Exception as e:
+        print(f"Model inference error: {str(e)}")
+        # 如果模型推理失败，返回基于历史正确率的预测
+        correct_count = sum(valid_correctness)
+        base_accuracy = float(correct_count / len(valid_correctness))
+        print(f"Model inference failed, using base accuracy: {base_accuracy}")
+        return base_accuracy
+
+# 预测学生答对特定题目的概率
+def predict_question_accuracy(user_id, question_id, interactions, force_model: bool = False):
+    """
+    预测学生答对特定题目的概率
+    :param user_id: 用户ID
+    :param question_id: 题目ID
+    :param interactions: 用户历史交互数据
+    :return: 预测的正确率（0-1之间）
+    """
+    # 基础预测逻辑：基于用户历史正确率
+    if interactions:
+        correct_count = sum(1 for inter in interactions if inter.get('correct', False))
+        base_accuracy = correct_count / len(interactions)
+        print(f"Base accuracy for user {user_id}: {base_accuracy}")
+    else:
+        base_accuracy = 0.5
+        print(f"No interactions for user {user_id}, using default accuracy: {base_accuracy}")
+
+    if force_model and not interactions:
+        raise ValueError("force_model已启用，但没有可用于模型推理的交互数据")
+
+    if force_model and (not TORCH_AVAILABLE):
+        raise RuntimeError("force_model已启用，但PyTorch不可用")
+
+    if force_model and (not MODEL_AVAILABLE) and (MODEL is None):
+        load_model()
+
+    if MODEL_AVAILABLE and MODEL is not None and TORCH_AVAILABLE:
+        print(f"Using model to predict accuracy for question {question_id}")
+        try:
+            model_accuracy = _predict_aakt_question_correct_prob(interactions, question_id)
+            print(f"Model predicted accuracy for question {question_id}: {model_accuracy}")
+            return model_accuracy
+        except Exception as e:
+            print(f"Error predicting question accuracy with model: {str(e)}")
+            if force_model:
+                raise
+            print(f"Using base prediction for question {question_id}")
+            return float(base_accuracy)
+
+    if force_model:
+        raise RuntimeError("force_model enabled but model inference was not possible")
+
+    print(f"Using base prediction for question {question_id}")
+    return float(base_accuracy)
+
+# 选择下一组预测题目
+def select_next_questions(user_id, num_questions=5, force_model: bool = False):
+    """
+    选择下一组预测题目
+    :param user_id: 用户ID
+    :param num_questions: 题目数量
+    :return: 选中的题目列表
+    """
+    try:
+        print(f"Selecting next {num_questions} questions for user {user_id}")
+        
+        # 查询用户的实际练习记录，确定当前学习章节
+        User = get_user_model()
+        try:
+            # 尝试通过 student.User 模型的 student_id 字段查找学生
+            student_user = StudentUser.objects.get(student_id=user_id)
+            user = student_user.core_user
+            print(f"Found user by student_id: {user.username}, id: {user.id}")
+        except StudentUser.DoesNotExist:
+            try:
+                # 如果 student_id 查找失败，尝试通过 user.User 模型的 id 字段查找
+                user_id_int = int(user_id)
+                user = User.objects.get(id=user_id_int)
+                print(f"Found user by id: {user.username}, id: {user.id}")
+            except (ValueError, User.DoesNotExist):
+                raise User.DoesNotExist(f"User not found by student_id or id: {user_id}")
+        
+        # 查询用户的交互历史
+        practice_records = PracticeRecord.objects.filter(student=user).order_by('date')
+        interactions = []
+        completed_question_ids = set()
+        
+        # 收集用户已做过的题目ID
+        for record in practice_records:
+            if record.challenge:
+                # 使用challenge_id作为question_id
+                question_id = record.challenge.challenge_id
+                # 使用score > 0判断是否正确
+                correct = record.score > 0
+                interactions.append({
+                    'question_id': question_id,
+                    'correct': correct
+                })
+                completed_question_ids.add(str(question_id))
+        
+        # 调试信息
+        print(f"Collected {len(interactions)} interactions")
+        print(f"First 5 interactions: {interactions[:5]}")
+        print(f"Completed question IDs: {list(completed_question_ids)[:10]}")
+        print(f"QUESTION_MAP keys (first 10): {list(QUESTION_MAP.keys())[:10] if QUESTION_MAP else 'No QUESTION_MAP'}")
+        
+        # 从HistoryRecord表中收集交互数据
+        from historyRecord.models import HistoryRecord
+        history_records = HistoryRecord.objects.filter(user=user).order_by('date')
+        for record in history_records:
+            # 使用record的id作为question_id，因为HistoryRecord没有直接关联到具体题目
+            # 使用score > 0来判断是否正确
+            interactions.append({
+                'question_id': record.id,
+                'correct': record.score > 0
+            })
+            completed_question_ids.add(str(record.id))
+        
+        print(f"User {user_id} has completed {len(completed_question_ids)} questions")
+        
+        # 直接使用Challenge表作为候选池
+        from question.models import Challenge
+        
+        # 筛选学生未做过的题目
+        available_questions = Challenge.objects.exclude(challenge_id__in=completed_question_ids)
+        print(f"Found {available_questions.count()} available challenges")
+        
+        if force_model and (not TORCH_AVAILABLE):
+            raise RuntimeError("force_model已启用，但PyTorch不可用")
+        if force_model and (not MODEL_AVAILABLE) and (MODEL is None):
+            load_model()
+
+        if force_model and (not MODEL_AVAILABLE or MODEL is None or not TORCH_AVAILABLE):
+            raise RuntimeError("force_model已启用，但模型不可用")
+
+        import random
+        all_available = list(available_questions)
+        if force_model:
+            if not interactions:
+                raise ValueError("force_model已启用，但没有可用于模型推理的交互数据")
+            if not all_available:
+                raise ValueError("force_model已启用，但没有可推荐的新题目")
+
+            if not isinstance(QUESTION_MAP, dict) or not QUESTION_MAP:
+                raise RuntimeError("force_model已启用，但question_map不可用")
+
+            map_keys = set(str(k) for k in QUESTION_MAP.keys())
+            # 过滤出challenge_id在question_map中的题目
+            filtered_available = []
+            for challenge in all_available:
+                challenge_id = challenge.challenge_id
+                if str(challenge_id) in map_keys:
+                    filtered_available.append(challenge)
+            all_available = filtered_available
+            if not all_available:
+                raise ValueError("force_model已启用，但可推荐题目均不在question_map中")
+
+            max_candidates = 50
+            candidate_questions = all_available[:min(max_candidates, len(all_available))]
+            scored = []
+            for challenge in candidate_questions:
+                challenge_id = challenge.challenge_id
+                acc = predict_question_accuracy(user_id, challenge_id, interactions, force_model=True)
+                scored.append((acc, challenge))
+            if not scored:
+                raise ValueError("No valid challenges found with challenge_id in question_map")
+            scored.sort(key=lambda x: x[0], reverse=True)
+            selected_questions = [challenge for _acc, challenge in scored[:min(num_questions, len(scored))]]
+        else:
+            selected_questions = random.sample(all_available, min(num_questions, len(all_available)))
+
+        print(f"Selected {len(selected_questions)} challenges")
+        
+        # 为每个题目预测正确率
+        predicted_questions = []
+        for challenge in selected_questions:
+            challenge_id = challenge.challenge_id
+            accuracy = predict_question_accuracy(user_id, challenge_id, interactions, force_model=force_model)
+            
+            # 获取题目难度
+            difficulty = challenge.difficulty
+            
+            predicted_questions.append({
+                'id': challenge_id,
+                'name': challenge.name,
+                'difficulty': difficulty,
+                'predicted_accuracy': round(accuracy, 3)
+            })
+        
+        # 不再添加模拟题目，只返回从Challenge表中找到的题目
+        print(f"Returning {len(predicted_questions)} challenges from Challenge table")
+        return predicted_questions
+    except User.DoesNotExist:
+        print(f"User {user_id} does not exist")
+        if force_model:
+            raise
+        # 从Challenge表中随机选择一些题目
+        from question.models import Challenge
+        available_questions = Challenge.objects.all()
+        import random
+        selected_questions = random.sample(list(available_questions), min(num_questions, available_questions.count()))
+        predicted_questions = []
+        for challenge in selected_questions:
+            predicted_questions.append({
+                'id': challenge.challenge_id,
+                'name': challenge.name,
+                'difficulty': challenge.difficulty,
+                'predicted_accuracy': round(random.uniform(0.3, 0.8), 3)
+            })
+        return predicted_questions
+    except Exception as e:
+        print(f"Error selecting next questions: {str(e)}")
+        if force_model:
+            raise
+        # 从Challenge表中随机选择一些题目
+        from question.models import Challenge
+        available_questions = Challenge.objects.all()
+        import random
+        selected_questions = random.sample(list(available_questions), min(num_questions, available_questions.count()))
+        predicted_questions = []
+        for challenge in selected_questions:
+            predicted_questions.append({
+                'id': challenge.challenge_id,
+                'name': challenge.name,
+                'difficulty': challenge.difficulty,
+                'predicted_accuracy': round(random.uniform(0.3, 0.8), 3)
+            })
+        return predicted_questions
+
+# 在模块加载时尝试预加载模型
+try:
+    load_model()
+    print("Model preloaded successfully at startup")
+except Exception as e:
+    print(f"Failed to preload model at startup: {str(e)}")

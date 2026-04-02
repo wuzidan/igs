@@ -1,0 +1,59 @@
+{
+    "output-Educoder-Final": {
+        "args": {
+            "without_tags": false,
+            "without_times": false,
+            "eval": 1,
+            "max_seq_len": 500,
+            "n_layer": 4,
+            "n_embd": 128,
+            "n_head": 8,
+            "epochs": 10,
+            "learning_rate": 0.001,
+            "n_devices": 1,
+            "global_batch_size": 64,
+            "mini_batch_size": 16,
+            "file_prefix": "educoder",
+            "tag_prefix": "tags_educoder",
+            "record_prefix": "Educoder-Final"
+        },
+        "usage2nums": {
+            "names": [
+                "samples"
+            ],
+            "train": [
+                37356
+            ],
+            "valid": [
+                4669
+            ],
+            "test": [
+                4670
+            ]
+        },
+        "results": {
+            "global_step": 5840,
+            "training_loss": 0.7032928368816637,
+            "metrics": {
+                "train_runtime": 9783.0949,
+                "train_samples_per_second": 38.184,
+                "train_steps_per_second": 0.597,
+                "total_flos": 0.0,
+                "train_loss": 0.7032928368816637,
+                "epoch": 10.0
+            },
+            "test_loss": 0.1528933048248291,
+            "test_loss_kts": 0.1417292356491089,
+            "test_loss_tags": 0.011122209951281548,
+            "test_ACC": 0.9513542357124694,
+            "test_AUC": 0.932523265470093,
+            "test_RMSE": 0.19574750605911576,
+            "test_num_kts": 239877,
+            "test_runtime": 118.3452,
+            "test_samples_per_second": 39.461,
+            "test_steps_per_second": 2.467,
+            "epoch": 10.0
+        },
+        "best_model_checkpoint": "output-Educoder-Final\\checkpoint-5840"
+    }
+}
