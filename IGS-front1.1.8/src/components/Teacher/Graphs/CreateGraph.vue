@@ -171,7 +171,7 @@ import request from "../../../utils/request";
 const router = useRouter();
 
 const isLoggedIn = ref(
-    !!(window.localStorage && window.localStorage.getItem("token"))
+    !!(window.localStorage && window.localStorage.getItem("token")),
 );
 
 const handleAuthFailure = async (e) => {
@@ -195,13 +195,13 @@ const domains = ref([]);
 const fetchDomains = async () => {
     try {
         const resp = await request.get("/graphs/domains/");
-        console.log('获取领域数据:', resp);
+        console.log("获取领域数据:", resp);
         const data = resp?.data || {};
         const list = data.results || data;
         domains.value = Array.isArray(list) ? list : [];
-        console.log('处理后的领域数据:', domains.value);
+        console.log("处理后的领域数据:", domains.value);
     } catch (error) {
-        console.error('获取领域数据失败:', error);
+        console.error("获取领域数据失败:", error);
         // 即使获取失败，也设置一个默认值，避免页面显示错误
         domains.value = [];
     }
@@ -259,7 +259,6 @@ const submitGraph = async () => {
         !graphForm.value.domainId ||
         !graphForm.value.type
     ) {
-        alert("请填写必填字段");
         return;
     }
 
@@ -280,11 +279,10 @@ const submitGraph = async () => {
                 headers: {
                     "Content-Type": "application/json",
                 },
-            }
+            },
         );
         const id = resp?.data?.id;
         if (!id) {
-            alert("图谱创建失败：未返回ID");
             return;
         }
         router.push(`/teacher/graphs/edit/${id}`);
@@ -294,7 +292,6 @@ const submitGraph = async () => {
         if (e.response?.status === 401 || e.response?.status === 403) {
             await handleAuthFailure(e);
         } else {
-            alert(`创建图谱失败：${e.message || "未知错误"}`);
         }
     }
 };
@@ -307,7 +304,6 @@ const saveAsDraft = async () => {
         !graphForm.value.domainId ||
         !graphForm.value.type
     ) {
-        alert("请填写必填字段");
         return;
     }
 
@@ -331,22 +327,18 @@ const saveAsDraft = async () => {
                 headers: {
                     "Content-Type": "application/json",
                 },
-            }
+            },
         );
         const id = resp?.data?.id;
         if (!id) {
-            alert("草稿保存失败：未返回ID");
             return;
         }
-        alert("已保存为草稿");
         router.push(`/teacher/graphs/graph`);
     } catch (e) {
         console.error("保存草稿失败", e);
         // 只在认证错误时调用handleAuthFailure
         if (e.response?.status === 401 || e.response?.status === 403) {
             await handleAuthFailure(e);
-        } else {
-            alert(`保存草稿失败：${e.message || "未知错误"}`);
         }
     }
 };
@@ -538,7 +530,9 @@ onMounted(async () => {
 
 .form-group {
     margin-bottom: 0;
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
     opacity: 0.95;
 }
 
