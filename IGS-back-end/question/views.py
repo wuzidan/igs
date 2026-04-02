@@ -149,14 +149,28 @@ def question_stats(request):
     
     # 题目难度分布 - 将数字难度映射为字符串难度
     # 1=easy, 2=medium, 3=hard
-    # 尝试使用不同类型的难度值进行查询
     try:
-        # 使用字符串类型
+        # 直接查询所有挑战题，然后在内存中统计难度分布
+        challenges = Challenge.objects.all()
         difficulty_stats = {
-            "easy": Challenge.objects.filter(difficulty='1').count(),
-            "medium": Challenge.objects.filter(difficulty='2').count(),
-            "hard": Challenge.objects.filter(difficulty='3').count()
+            "easy": 0,
+            "medium": 0,
+            "hard": 0
         }
+        
+        for challenge in challenges:
+            try:
+                # 尝试将难度值转换为整数
+                difficulty = int(challenge.difficulty)
+                if difficulty == 1:
+                    difficulty_stats["easy"] += 1
+                elif difficulty == 2:
+                    difficulty_stats["medium"] += 1
+                elif difficulty == 3:
+                    difficulty_stats["hard"] += 1
+            except:
+                # 如果转换失败，跳过该记录
+                pass
     except:
         # 如果查询失败，使用默认值
         difficulty_stats = {

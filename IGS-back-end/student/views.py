@@ -104,38 +104,71 @@ class StudentInfoView(APIView):
 
     def get(self, request):
         """获取个人信息数据"""
+        print(f"StudentInfoView.get: 请求用户: {request.user}")
+        print(f"StudentInfoView.get: 用户角色: {getattr(request.user, 'role', '未知')}")
+        print(f"StudentInfoView.get: 用户ID: {request.user.id}")
+        print(f"StudentInfoView.get: 用户名: {request.user.username}")
+        
         # 从认证用户关联到学生业务模型
         try:
             student_user = request.user.student_user
+            print(f"StudentInfoView.get: 通过 student_user 关联获取学生信息: {student_user}")
         except AttributeError:
-            return Response(
-                {"error": "当前用户不是学生账号"},
-                status=status.HTTP_403_FORBIDDEN
-            )
+            print(f"StudentInfoView.get: 没有 student_user 关联")
+            # 尝试通过学生ID或用户名查找学生信息
+            from django.db.models import Q
+            student_user = User.objects.filter(
+                Q(core_user=request.user) | Q(username=request.user.username) | Q(email=request.user.email)
+            ).first()
+            print(f"StudentInfoView.get: 通过过滤查找学生信息: {student_user}")
+            if not student_user:
+                print(f"StudentInfoView.get: 未找到学生信息")
+                return Response(
+                    {"error": "当前用户不是学生账号"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
         # 格式化教育经历数据
-        education_list = [
-            {
-                "school": edu.school,
-                "period_s": edu.period_s.strftime("%Y-%m-%d"),
-                "period_e": edu.period_e.strftime("%Y-%m-%d"),
-                "major": edu.major,
-                "degree": edu.degree,
-            }
-            for edu in student_user.education.all()
-        ]
+        education_list = []
+        try:
+            education_list = [
+                {
+                    "school": edu.school,
+                    "period_s": edu.period_s.strftime("%Y-%m-%d"),
+                    "period_e": edu.period_e.strftime("%Y-%m-%d"),
+                    "major": edu.major,
+                    "degree": edu.degree,
+                }
+                for edu in student_user.education.all()
+            ]
+            print(f"StudentInfoView.get: 教育经历数据: {education_list}")
+        except Exception as e:
+            print(f"StudentInfoView.get: 教育经历数据获取失败: {e}")
+            education_list = []
 
         # 格式化技能数据
-        skill_list = [
-            {
-                "name": skill.name,
-                "level": skill.level  # 假设存储值为"初级"/"中级"/"高级"
-            }
-            for skill in student_user.skills.all()
-        ]
+        skill_list = []
+        try:
+            skill_list = [
+                {
+                    "name": skill.name,
+                    "level": skill.level  # 假设存储值为"初级"/"中级"/"高级"
+                }
+                for skill in student_user.skills.all()
+            ]
+            print(f"StudentInfoView.get: 技能数据: {skill_list}")
+        except Exception as e:
+            print(f"StudentInfoView.get: 技能数据获取失败: {e}")
+            skill_list = []
 
         # 格式化兴趣爱好（假设以逗号分隔存储）
-        hobbies = [hobby.name for hobby in student_user.hobbies.all()]
+        hobbies = []
+        try:
+            hobbies = [hobby.name for hobby in student_user.hobbies.all()]
+            print(f"StudentInfoView.get: 兴趣爱好数据: {hobbies}")
+        except Exception as e:
+            print(f"StudentInfoView.get: 兴趣爱好数据获取失败: {e}")
+            hobbies = []
 
         return Response({
             # 头像相关

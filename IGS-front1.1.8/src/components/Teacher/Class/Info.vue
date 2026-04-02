@@ -978,9 +978,13 @@ const deleteCourse = async (courseId) => {
             ElMessage.success('课程删除成功');
         } catch (e) {
             console.error("删除课程失败", e);
-            ElMessage.error('删除课程失败，请稍后重试');
-            // 移除跳转到登录页面的逻辑
-            // await handleAuthFailure(e);
+            if (e.message.includes('课程不存在')) {
+                // 课程已经被删除，更新课程列表
+                await fetchCourses();
+                ElMessage.success('课程已被删除');
+            } else {
+                ElMessage.error('删除课程失败，请稍后重试');
+            }
         } finally {
             loading.value = false;
         }

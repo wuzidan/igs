@@ -159,7 +159,7 @@ class CourseManagementView(APIView):
         # 删除课程
         course.delete()
         print(f"课程删除成功: 课程ID={pk}")
-        return Response({'message': '课程删除成功'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({'message': '课程删除成功'}, status=status.HTTP_200_OK)
 
 class KnowledgeStructureView(APIView):
     # """知识点结构数据接口"""
