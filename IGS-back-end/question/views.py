@@ -150,7 +150,7 @@ def question_stats(request):
     # 题目难度分布 - 将数字难度映射为字符串难度
     # 1=easy, 2=medium, 3=hard
     try:
-        # 直接查询所有挑战题，然后在内存中统计难度分布
+        # 查询所有挑战题，然后在内存中统计难度分布
         challenges = Challenge.objects.all()
         difficulty_stats = {
             "easy": 0,
