@@ -26,11 +26,11 @@ class UpdateCurrentUserView(generics.UpdateAPIView):
         return self.request.user
 
 # 3. 自定义登录接口（返回Token+用户信息）
-class CustomLoginView(ObtainAuthToken):
+class CustomLoginView(generics.GenericAPIView):
     serializer_class = UserLoginSerializer
 
     def post(self, request, *args, **kwargs):
-        # 调用DRF默认登录逻辑
+        # 使用自定义的登录序列化器验证数据
         serializer = self.serializer_class(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]

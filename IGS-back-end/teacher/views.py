@@ -473,20 +473,18 @@ class StudentKnowledgeMasteryView(APIView):
             )
 
         try:
-            student_id = int(student_id)
-        except (ValueError, TypeError):
-            return Response(
-                {"error": "student_id 必须是整数"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            student_user = User.objects.get(id=student_id)
+            # 尝试通过student_id字段查询学生
+            student_user = User.objects.get(student_id=student_id)
         except User.DoesNotExist:
-            return Response(
-                {"error": "学生不存在"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            # 如果通过student_id查询失败，尝试通过id字段查询
+            try:
+                student_id_int = int(student_id)
+                student_user = User.objects.get(id=student_id_int)
+            except (ValueError, TypeError, User.DoesNotExist):
+                return Response(
+                    {"error": "学生不存在"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
         teacher_classes = ClassInfo.objects.filter(head_teacher=teacher)
         student_class_id = getattr(getattr(student_user, 'class_info', None), 'id', None)

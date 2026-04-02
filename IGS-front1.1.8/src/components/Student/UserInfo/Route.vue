@@ -19,106 +19,16 @@
             </div>
         </div>
 
-        <header class="header">
-            <h1>学习路径规划</h1>
-            <div class="user-info">
-                <div class="avatar-container">
-                    <div class="avatar avatar-default">
-                        <span class="icon">👨‍🎓</span>
-                    </div>
-                    <div class="user-basic">
-                        <h2>{{ userName }}</h2>
-                        <p class="user-id">{{ studentId }}</p>
-                    </div>
-                </div>
-                <button class="logout-btn" @click="logout">退出</button>
-            </div>
-        </header>
+        <!-- 使用标准顶栏组件 -->
+        <StudentHeader title="学习路径规划" />
 
-        <div class="dashboard">
-            <!-- 学习状态统计 -->
-            <div class="card stats-card">
-                <h3>学习状态概览</h3>
-                <div class="stats-grid">
-                    <div
-                        class="stat-card"
-                        :class="getStatCardClass('mastered')"
-                    >
-                        <div class="stat-icon">✅</div>
-                        <div class="stat-info">
-                            <div class="stat-label">已掌握知识点</div>
-                            <div class="stat-value">
-                                {{ stats.masteredCount }}
-                            </div>
-                        </div>
-                        <div class="stat-trend">
-                            <span class="trend-arrow up">↑</span>
-                            <span class="trend-text"
-                                >较上周 +{{ stats.masteredIncrease }}</span
-                            >
-                        </div>
-                    </div>
-
-                    <div class="stat-card" :class="getStatCardClass('weak')">
-                        <div class="stat-icon">⚠️</div>
-                        <div class="stat-info">
-                            <div class="stat-label">薄弱知识点</div>
-                            <div class="stat-value">{{ stats.weakCount }}</div>
-                        </div>
-                        <div class="stat-trend">
-                            <span
-                                class="trend-arrow"
-                                :class="stats.weakIncrease >= 0 ? 'up' : 'down'"
-                            >
-                                {{ stats.weakIncrease >= 0 ? "↑" : "↓" }}
-                            </span>
-                            <span class="trend-text">
-                                {{ stats.weakIncrease >= 0 ? "增加" : "减少" }}
-                                {{ Math.abs(stats.weakIncrease) }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div
-                        class="stat-card"
-                        :class="getStatCardClass('progress')"
-                    >
-                        <div class="stat-icon">📈</div>
-                        <div class="stat-info">
-                            <div class="stat-label">总体进度</div>
-                            <div class="stat-value">
-                                {{ stats.overallProgress }}%
-                            </div>
-                        </div>
-                        <div class="stat-trend">
-                            <span class="trend-arrow up">↑</span>
-                            <span class="trend-text"
-                                >目标: {{ stats.targetProgress }}%</span
-                            >
-                        </div>
-                    </div>
-
-                    <div
-                        class="stat-card"
-                        :class="getStatCardClass('recommended')"
-                    >
-                        <div class="stat-icon">📚</div>
-                        <div class="stat-info">
-                            <div class="stat-label">推荐资源</div>
-                            <div class="stat-value">{{ resources.length }}</div>
-                        </div>
-                        <div class="stat-trend">
-                            <span class="trend-date">今日更新</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+        <div class="dashboard" v-if="!isLoading && !errorMsg">
             <!-- 学习路径图 -->
-            <div class="card">
+            <div class="card path-card">
                 <h3>推荐学习路径</h3>
                 <div class="small-chart">
                     <div class="path-visualization">
+                        <!-- 当前位置节点 -->
                         <div
                             class="path-node current-node"
                             :style="{ left: '10%', top: '50%' }"
@@ -128,243 +38,47 @@
 
                         <div class="path-connector"></div>
 
+                        <!-- 动态生成路径节点 -->
                         <div
+                            v-for="(point, index) in knowledgePoints"
+                            :key="point.id"
                             class="path-node next-node"
-                            :style="{ left: '30%', top: '30%' }"
+                            :style="{
+                                left: `${20 + index * 20}%`,
+                                top: `${30 + (index % 2) * 30}%`
+                            }"
                         >
                             <div class="node-content">
-                                {{ knowledgePoints[0].name }}
+                                {{ point.name }}
                             </div>
                             <div class="node-details">
-                                难度: {{ knowledgePoints[0].difficulty }}
+                                掌握度: {{ point.mastery }}%
                             </div>
                         </div>
 
                         <div class="path-connector"></div>
 
-                        <div
-                            class="path-node next-node"
-                            :style="{ left: '50%', top: '60%' }"
-                        >
-                            <div class="node-content">
-                                {{ knowledgePoints[1].name }}
-                            </div>
-                            <div class="node-details">
-                                难度: {{ knowledgePoints[1].difficulty }}
-                            </div>
-                        </div>
-
-                        <div class="path-connector"></div>
-
-                        <div
-                            class="path-node next-node"
-                            :style="{ left: '70%', top: '40%' }"
-                        >
-                            <div class="node-content">
-                                {{ knowledgePoints[2].name }}
-                            </div>
-                            <div class="node-details">
-                                难度: {{ knowledgePoints[2].difficulty }}
-                            </div>
-                        </div>
-
-                        <div class="path-connector"></div>
-
+                        <!-- 目标节点 -->
                         <div
                             class="path-node target-node"
                             :style="{ left: '90%', top: '50%' }"
                         >
-                            <div class="node-content">学习目标</div>
+                            <div class="node-content">{{ targetKnowledge }}</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 知识点掌握情况 -->
-            <div class="card">
-                <h3>知识点掌握情况</h3>
-                <div class="knowledge-list">
-                    <div
-                        class="knowledge-item"
-                        v-for="(point, index) in knowledgePoints"
-                        :key="index"
-                        :class="{ 'weak-knowledge': point.mastery < 60 }"
-                    >
-                        <div class="knowledge-header">
-                            <div class="knowledge-name">
-                                <span class="knowledge-icon">{{
-                                    point.icon
-                                }}</span>
-                                {{ point.name }}
-                            </div>
-                            <div
-                                class="knowledge-difficulty"
-                                :class="getDifficultyClass(point.difficulty)"
-                            >
-                                {{ point.difficulty }}
-                            </div>
-                        </div>
-                        <div class="mastery-progress">
-                            <div class="progress-label">
-                                <span>掌握度</span>
-                                <span>{{ point.mastery }}%</span>
-                            </div>
-                            <div class="progress-container">
-                                <div
-                                    class="progress"
-                                    :style="{ width: point.mastery + '%' }"
-                                    :class="
-                                        getProgressColorClass(point.mastery)
-                                    "
-                                ></div>
-                            </div>
-                        </div>
-                        <div class="knowledge-actions">
-                            <button
-                                class="review-btn"
-                                @click="reviewKnowledge(point.id)"
-                            >
-                                复习
-                            </button>
-                            <button
-                                class="practice-btn"
-                                @click="practiceKnowledge(point.id)"
-                            >
-                                练习
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 学习资源推荐 -->
-            <div class="card">
-                <h3>推荐学习资源</h3>
-                <div class="resources-filter">
-                    <div class="filter-control">
-                        <label for="resource-type" class="filter-label"
-                            >资源类型：</label
-                        >
-                        <select
-                            id="resource-type"
-                            v-model="selectedResourceType"
-                            @change="filterResources"
-                            class="resource-select"
-                        >
-                            <option value="all">全部</option>
-                            <option value="video">视频教程</option>
-                            <option value="article">文章</option>
-                            <option value="exercise">练习题</option>
-                            <option value="document">文档</option>
-                        </select>
-                    </div>
-                    <div class="filter-control">
-                        <label for="resource-sort" class="filter-label"
-                            >排序：</label
-                        >
-                        <select
-                            id="resource-sort"
-                            v-model="resourceSort"
-                            @change="filterResources"
-                            class="resource-select"
-                        >
-                            <option value="relevance">相关度优先</option>
-                            <option value="difficulty">难度递增</option>
-                            <option value="duration">时长从短到长</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="resources-grid">
-                    <div
-                        class="resource-card"
-                        v-for="(resource, index) in filteredResources"
-                        :key="index"
-                        @click="openResource(resource.id)"
-                    >
-                        <div class="resource-type-badge" :class="resource.type">
-                            {{ getResourceTypeText(resource.type) }}
-                        </div>
-                        <div class="resource-content">
-                            <h4 class="resource-title">{{ resource.title }}</h4>
-                            <p class="resource-description">
-                                {{ resource.description }}
-                            </p>
-                            <div class="resource-meta">
-                                <span class="meta-item duration">
-                                    <i>⏱️</i> {{ resource.duration }}
-                                </span>
-                                <span
-                                    class="meta-item difficulty"
-                                    :class="resource.difficulty"
-                                >
-                                    {{ resource.difficulty }}
-                                </span>
-                                <span class="meta-item rating">
-                                    <i>⭐</i> {{ resource.rating }}
-                                </span>
-                            </div>
-                            <div class="resource-knowledge">
-                                <span>关联知识点：</span>
-                                <span
-                                    class="knowledge-tag"
-                                    v-for="(tag, i) in resource.knowledgeTags"
-                                    :key="i"
-                                >
-                                    {{ tag }}
-                                </span>
-                            </div>
-                        </div>
-                        <button class="resource-action-btn">查看资源</button>
-                    </div>
-                </div>
-                <div v-if="filteredResources.length === 0" class="no-data">
-                    没有符合条件的学习资源
-                </div>
-            </div>
-
-            <!-- 学习计划 -->
-            <div class="card" style="grid-column: 1 / -1">
-                <h3>本周学习计划</h3>
-                <div class="weekly-plan">
-                    <div
-                        class="day-column"
-                        v-for="(day, index) in weeklyPlan"
-                        :key="index"
-                    >
-                        <div class="day-header">{{ day.day }}</div>
-                        <div class="day-content">
-                            <div
-                                class="plan-item"
-                                v-for="(item, i) in day.items"
-                                :key="i"
-                            >
-                                <div class="plan-icon">{{ item.icon }}</div>
-                                <div class="plan-details">
-                                    <div class="plan-title">
-                                        {{ item.title }}
-                                    </div>
-                                    <div class="plan-duration">
-                                        {{ item.duration }}
-                                    </div>
-                                </div>
-                                <div class="plan-status" :class="item.status">
-                                    {{
-                                        item.status === "completed"
-                                            ? "✓"
-                                            : item.status === "in-progress"
-                                            ? "◔"
-                                            : "○"
-                                    }}
-                                </div>
-                            </div>
-                            <button
-                                class="add-plan-btn"
-                                @click="addPlan(day.day)"
-                            >
-                                +
-                            </button>
-                        </div>
-                    </div>
+            <!-- 推荐依据 -->
+            <div class="card reason-card">
+                <h3>推荐依据</h3>
+                <div class="reason-content">
+                    <p v-if="pathReason">
+                        {{ pathReason }}
+                    </p>
+                    <p v-else class="loading-reason">
+                        正在生成推荐依据...
+                    </p>
                 </div>
             </div>
         </div>
@@ -378,203 +92,23 @@
 
 <script setup>
 import { ref, onMounted, computed } from "vue";
-// 假设api已导入，如果没有实际的API服务，可以注释掉下面这行
-// import api from "../../../api/index";
+// 导入API
+import api from "../../../api/index";
+// 导入标准顶栏组件
+import StudentHeader from "../StudentHeader.vue";
 
-// 用户信息
+// 用户信息 - 现在由StudentHeader组件管理
 const userName = ref("李四");
 const studentId = ref("20230002");
 
-// 学习统计数据
-const stats = ref({
-    masteredCount: 0,
-    masteredIncrease: 0,
-    weakCount: 0,
-    weakIncrease: 0,
-    overallProgress: 0,
-    targetProgress: 0,
-});
-
 // 知识点数据
-const knowledgePoints = ref([
-    // 示例数据
-    { id: 1, name: "Vue基础语法", difficulty: "easy", mastery: 85, icon: "📐" },
-    { id: 2, name: "组件通信", difficulty: "medium", mastery: 65, icon: "🔄" },
-    {
-        id: 3,
-        name: "Vuex状态管理",
-        difficulty: "medium",
-        mastery: 45,
-        icon: "📦",
-    },
-    {
-        id: 4,
-        name: "Vue Router路由",
-        difficulty: "medium",
-        mastery: 70,
-        icon: "🧭",
-    },
-    {
-        id: 5,
-        name: "Composition API",
-        difficulty: "hard",
-        mastery: 30,
-        icon: "🧩",
-    },
-]);
+const knowledgePoints = ref([]);
 
-// 学习资源
-const resources = ref([
-    // 示例数据
-    {
-        id: 1,
-        type: "video",
-        title: "Vue基础入门到精通",
-        description:
-            "本视频系列涵盖Vue的核心概念和基础语法，适合初学者快速入门。",
-        duration: "2小时30分",
-        difficulty: "easy",
-        rating: 4.8,
-        relevance: 95,
-        knowledgeTags: ["Vue基础语法"],
-    },
-    {
-        id: 2,
-        type: "article",
-        title: "深入理解Vue组件通信方式",
-        description: "详细介绍Vue中各种组件通信方法的优缺点及使用场景。",
-        duration: "15分钟",
-        difficulty: "medium",
-        rating: 4.6,
-        relevance: 90,
-        knowledgeTags: ["组件通信"],
-    },
-    {
-        id: 3,
-        type: "exercise",
-        title: "Vuex状态管理实战练习",
-        description: "通过实际案例练习Vuex的核心功能和最佳实践。",
-        duration: "45分钟",
-        difficulty: "medium",
-        rating: 4.5,
-        relevance: 88,
-        knowledgeTags: ["Vuex状态管理"],
-    },
-    {
-        id: 4,
-        type: "document",
-        title: "Vue Router官方文档详解",
-        description: "官方文档的中文解读，包含路由守卫、动态路由等高级用法。",
-        duration: "30分钟",
-        difficulty: "medium",
-        rating: 4.7,
-        relevance: 85,
-        knowledgeTags: ["Vue Router路由"],
-    },
-    {
-        id: 5,
-        type: "video",
-        title: "Composition API完全指南",
-        description: "从选项式API迁移到组合式API的完整教程，包含实战案例。",
-        duration: "3小时",
-        difficulty: "hard",
-        rating: 4.9,
-        relevance: 80,
-        knowledgeTags: ["Composition API"],
-    },
-]);
+// 推荐依据
+const pathReason = ref('');
 
-// 筛选相关
-const selectedResourceType = ref("all");
-const resourceSort = ref("relevance");
-
-// 本周学习计划
-const weeklyPlan = ref([
-    // 示例数据
-    {
-        day: "周一",
-        items: [
-            {
-                icon: "📚",
-                title: "学习Vue基础语法",
-                duration: "45分钟",
-                status: "completed",
-            },
-        ],
-    },
-    {
-        day: "周二",
-        items: [
-            {
-                icon: "✏️",
-                title: "Vue基础练习",
-                duration: "30分钟",
-                status: "completed",
-            },
-        ],
-    },
-    {
-        day: "周三",
-        items: [
-            {
-                icon: "📚",
-                title: "学习组件通信",
-                duration: "60分钟",
-                status: "in-progress",
-            },
-        ],
-    },
-    {
-        day: "周四",
-        items: [
-            {
-                icon: "✏️",
-                title: "组件通信练习",
-                duration: "45分钟",
-                status: "pending",
-            },
-        ],
-    },
-    {
-        day: "周五",
-        items: [
-            {
-                icon: "📚",
-                title: "学习Vuex基础",
-                duration: "60分钟",
-                status: "pending",
-            },
-        ],
-    },
-    {
-        day: "周六",
-        items: [
-            {
-                icon: "📚",
-                title: "Vuex进阶用法",
-                duration: "90分钟",
-                status: "pending",
-            },
-            {
-                icon: "✏️",
-                title: "Vuex实战练习",
-                duration: "60分钟",
-                status: "pending",
-            },
-        ],
-    },
-    {
-        day: "周日",
-        items: [
-            {
-                icon: "📝",
-                title: "本周知识点总结",
-                duration: "60分钟",
-                status: "pending",
-            },
-        ],
-    },
-]);
+// 学习目标
+const targetKnowledge = ref('一元二次方程');
 
 // 状态变量
 const isLoading = ref(true);
@@ -582,49 +116,38 @@ const errorMsg = ref("");
 
 // 获取学习路径数据
 const fetchRouteData = () => {
-    // 模拟API调用
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            // 更新统计数据
-            stats.value = {
-                masteredCount: 12,
-                masteredIncrease: 3,
-                weakCount: 5,
-                weakIncrease: -1,
-                overallProgress: 45,
-                targetProgress: 100,
-            };
-
-            resolve();
-        }, 1000);
-    });
-
-    // 实际API调用代码（如果有）
-    /*
+    // 实际API调用代码
     return api
-        .getLearningRoute()
+        .getLearningRoute({ student_id: studentId.value, target: targetKnowledge.value })
         .then((res) => {
-            console.log("获取的学习路径数据：", res.data);
             const data = res.data;
             
-            // 更新统计数据
-            stats.value = { ...data.stats };
-            
-            // 更新知识点数据
-            knowledgePoints.value = [...data.knowledgePoints];
-            
-            // 更新学习资源
-            resources.value = [...data.resources];
-            
-            // 更新学习计划
-            weeklyPlan.value = [...data.weeklyPlan];
+            // 检查响应格式
+            if (data.code === 200 && data.data) {
+                // 更新知识点数据
+                if (data.data.path) {
+                    // 转换数据格式，将topic转换为name，使用后端返回的mastery值
+                    knowledgePoints.value = data.data.path.map((item, index) => ({
+                        id: index + 1,
+                        name: item.topic,
+                        difficulty: "medium", // 默认难度
+                        mastery: item.mastery || 50, // 使用后端返回的掌握度
+                        icon: "📐" // 默认图标
+                    }));
+                }
+                
+                // 更新推荐依据
+                if (data.data.explanation) {
+                    pathReason.value = data.data.explanation;
+                }
+            } else {
+                throw new Error(data.msg || "获取学习路径数据失败");
+            }
         })
         .catch((err) => {
-            console.error("获取学习路径失败：", err);
             errorMsg.value = "获取学习路径数据失败，请稍后重试";
             throw err;
         });
-    */
 };
 
 // 获取用户信息
@@ -654,129 +177,7 @@ const fetchUserInfo = () => {
     */
 };
 
-onMounted(() => {
-    // 加载数据
-    Promise.all([fetchUserInfo(), fetchRouteData()])
-        .then(() => {
-            isLoading.value = false;
-        })
-        .catch(() => {
-            isLoading.value = false;
-            if (!errorMsg.value) {
-                errorMsg.value = "加载数据失败，请稍后重试";
-            }
-        });
-});
-
-// 筛选后的资源
-const filteredResources = computed(() => {
-    let result = [...resources.value];
-
-    // 按类型筛选
-    if (selectedResourceType.value !== "all") {
-        result = result.filter((r) => r.type === selectedResourceType.value);
-    }
-
-    // 排序
-    switch (resourceSort.value) {
-        case "difficulty":
-            result.sort((a, b) => {
-                const difficultyOrder = { easy: 1, medium: 2, hard: 3 };
-                return (
-                    difficultyOrder[a.difficulty] -
-                    difficultyOrder[b.difficulty]
-                );
-            });
-            break;
-        case "duration":
-            result.sort((a, b) => {
-                const getMinutes = (str) => {
-                    if (str.includes("小时")) {
-                        const hours = parseInt(str);
-                        return hours * 60;
-                    }
-                    return parseInt(str);
-                };
-                return getMinutes(a.duration) - getMinutes(b.duration);
-            });
-            break;
-        // 默认按相关度
-        default:
-            result.sort((a, b) => b.relevance - a.relevance);
-    }
-
-    return result;
-});
-
-// 方法：筛选资源
-const filterResources = () => {
-    // 由computed属性处理
-};
-
-// 方法：获取资源类型文本
-const getResourceTypeText = (type) => {
-    const types = {
-        video: "视频教程",
-        article: "文章",
-        exercise: "练习题",
-        document: "文档",
-    };
-    return types[type] || "未知类型";
-};
-
-// 方法：获取进度条颜色类
-const getProgressColorClass = (progress) => {
-    if (progress < 50) return "progress-low";
-    if (progress < 75) return "progress-medium";
-    return "progress-high";
-};
-
-// 方法：获取难度样式类
-const getDifficultyClass = (difficulty) => {
-    const classes = {
-        easy: "difficulty-easy",
-        medium: "difficulty-medium",
-        hard: "difficulty-hard",
-    };
-    return classes[difficulty] || "";
-};
-
-// 方法：获取统计卡片样式
-const getStatCardClass = (type) => {
-    const classes = {
-        mastered: "stat-mastered",
-        weak: "stat-weak",
-        progress: "stat-progress",
-        recommended: "stat-recommended",
-    };
-    return classes[type];
-};
-
-// 方法：复习知识点
-const reviewKnowledge = (id) => {
-    alert(`开始复习知识点 #${id}`);
-    // 实际应用中会导航到相应的复习页面
-};
-
-// 方法：练习知识点
-const practiceKnowledge = (id) => {
-    alert(`开始练习知识点 #${id}`);
-    // 实际应用中会导航到相应的练习页面
-};
-
-// 方法：打开资源
-const openResource = (id) => {
-    alert(`打开资源 #${id}`);
-    // 实际应用中会打开相应的资源
-};
-
-// 方法：添加计划
-const addPlan = (day) => {
-    alert(`在${day}添加新计划`);
-    // 实际应用中会打开添加计划的表单
-};
-
-// 方法：重试加载
+// 重试加载
 const retryLoad = () => {
     isLoading.value = true;
     errorMsg.value = "";
@@ -791,10 +192,20 @@ const retryLoad = () => {
         });
 };
 
-// 退出功能
-const logout = () => {
-    alert("您已退出系统");
-};
+onMounted(() => {
+    // 加载数据
+    fetchRouteData()
+        .then(() => {
+            isLoading.value = false;
+        })
+        .catch(() => {
+            isLoading.value = false;
+            if (!errorMsg.value) {
+                errorMsg.value = "加载数据失败，请稍后重试";
+            }
+        });
+});
+
 </script>
 
 <style scoped>
@@ -897,169 +308,35 @@ const logout = () => {
     background-color: #2563eb;
 }
 
-/* 头部样式 */
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding: 18px 24px;
-    border-bottom: 2px solid transparent;
-    border-image: linear-gradient(90deg, #3498db, #9b59b6) 1;
-    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(52, 152, 219, 0.08);
-    position: relative;
-    overflow: hidden;
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.header::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(90deg, #3498db, #9b59b6, #3498db);
-    background-size: 200% 100%;
-    animation: headerGlow 6s ease-in-out infinite;
-}
-
-.header h1 {
-    margin: 0;
-    font-size: 30px;
-    font-weight: 600;
-    background: linear-gradient(90deg, #2c3e50, #34495e);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    position: relative;
-    padding-left: 12px;
-    transition: transform 0.3s ease;
-}
-
-.header h1::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 4px;
-    height: 60%;
-    border-radius: 2px;
-    background: linear-gradient(180deg, #3498db, #9b59b6);
-}
-
-.user-info {
-    display: flex;
-    align-items: center;
-    transition: transform 0.3s ease;
-}
-
-.avatar-container {
-    display: flex;
-    align-items: center;
-}
-
-.avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 10px;
-}
-
-.avatar-default {
-    background-color: #dbeafe;
-    color: #1e40af;
-    font-size: 20px;
-}
-
-.user-basic h2 {
-    font-size: 16px;
-    margin: 0;
-    color: #1e293b;
-}
-
-.user-id {
-    font-size: 13px;
-    color: #64748b;
-    margin: 0;
-}
-
-.logout-btn {
-    margin-left: 15px;
-    padding: 9px 18px;
-    background: linear-gradient(90deg, #3498db, #2980b9);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 16px !important;
-    font-weight: 500;
-    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    position: relative;
-    overflow: hidden;
-}
-
-.logout-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
-    background: linear-gradient(90deg, #2980b9, #3498db);
-}
-
-.logout-btn::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 120px;
-    height: 120px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-    transform: translate(-50%, -50%) scale(0);
-    transition: transform 0.6s ease;
-}
-
-.logout-btn:active::after {
-    transform: translate(-50%, -50%) scale(1);
-}
-
-.header:hover {
-    box-shadow: 0 6px 25px rgba(52, 152, 219, 0.12);
-    transform: translateY(-2px);
-}
-
-.header:hover h1 {
-    transform: translateX(5px);
-}
-
-.header:hover .user-info {
-    transform: translateX(-5px);
-}
-
-@keyframes headerGlow {
-    0% {
-        background-position: 0% 50%;
-    }
-    50% {
-        background-position: 100% 50%;
-    }
-    100% {
-        background-position: 0% 50%;
-    }
-}
+/* 头部样式 - 现在使用标准StudentHeader组件，此处样式已移除 */
 
 /* 卡片样式 */
 .dashboard {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 20px;
     width: 100%;
+}
+
+/* 路径卡片样式 */
+.path-card {
+    min-height: 300px;
+}
+
+/* 推荐依据卡片样式 */
+.reason-card {
+    min-height: 200px;
+}
+
+.reason-content {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #333;
+}
+
+.loading-reason {
+    color: #999;
+    font-style: italic;
 }
 
 .card {

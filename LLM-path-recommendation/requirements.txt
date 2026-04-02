@@ -6,4 +6,4 @@ transformers==4.41.2
 safetensors==0.4.3
 numpy==1.26.4
 neo4j==5.19.0
-zhipuai==1.0.0
+zhipuai==2.1.5.20250825

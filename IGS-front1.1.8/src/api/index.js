@@ -1,4 +1,4 @@
-import axios from "../utils/request"
+import axios from "axios"
 import path from "./path"
 
 const api = {
@@ -58,6 +58,14 @@ const api = {
     getQuestionStats(user_id) {
         return axios.get("/question/stats/", {
             params: { user_id: user_id }
+        })
+    },
+    // 获取LLM学习路径推荐
+    getLearningRoute(payload) {
+        return axios.post("http://localhost:8001/api/recommend_path/", payload, {
+            headers: {
+                "Content-Type": "application/json"
+            }
         })
     },
 }

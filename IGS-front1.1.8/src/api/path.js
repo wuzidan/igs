@@ -12,6 +12,7 @@ const base = {
     knowledgeGraph: "/graphs/neo4j/graph/", // 知识图谱数据API路径
     prerequisites: "/graphs/neo4j/prerequisites/", // 先修关系规则API路径
     questionStats: "/question/stats/", // 题目统计数据API路径
+    recommendPath: "/api/recommend_path/", // LLM学习路径推荐API路径
 }
 
 export default base

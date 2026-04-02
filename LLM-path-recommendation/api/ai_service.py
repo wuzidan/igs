@@ -2,13 +2,12 @@ import torch
 import torch.nn.functional as F
 import json
 import requests
-
 from safetensors.torch import load_file
 from zhipuai import ZhipuAI
 from transformers import GPTJConfig, GPTJModel
 
 # ==========================================
-# 1. 你的 AAKT 模型类 
+# 1. AAKT 模型类 
 # ==========================================
 class AAKT(torch.nn.Module):
     def __init__(self, num_questions, num_tags, max_seq_len=8096, with_tags=True, with_times=True, **kwargs):
@@ -117,7 +116,7 @@ def generate_graph_based_path(target_knowledge, student_mastery_dict, kg_rules_t
 
 
 # ==========================================
-# 3. 🌟 全局初始化模型 (Django 启动时执行) 🌟
+# 3. 全局初始化模型 (Django 启动时执行)
 # ==========================================
 print("Django 正在启动 AI 引擎...")
 aakt_model = AAKT(
@@ -132,7 +131,8 @@ aakt_model = AAKT(
     rotary_dim = 16
 )
 
-weights_path = "./model.safetensors"
+# 加载AAKT-main目录中的训练模型
+weights_path = "../AAKT-main/output-Educoder-Final/model.safetensors"
 
 try:
     aakt_model.load_state_dict(load_file(weights_path))
@@ -141,12 +141,31 @@ try:
 except Exception as e:
     print(f"❌ 加载失败，报错: {e}")
 
-# 使用全局Neo4j连接器
-print("✅ 使用全局Neo4j连接器")
-
 
 # ==========================================
-# 4. 供 Django 接口调用的主函数
+# 4. 从 Neo4j 获取知识图谱规则
+# ==========================================
+def get_kg_rules_from_neo4j(target_knowledge):
+    """
+    从Neo4j数据库获取与目标知识点相关的先修关系规则
+    """
+    try:
+        # 通过API调用获取先修关系
+        url = f"http://localhost:8000/graphs/neo4j/prerequisites?target={target_knowledge}"
+        response = requests.get(url)
+        data = response.json()
+        
+        if data.get("code") == 200:
+            return data.get("data", f"规则 A：未找到【{target_knowledge}】的先修知识点。")
+        else:
+            return f"规则 A：未找到【{target_knowledge}】的先修知识点。"
+    except Exception as e:
+        print(f"❌ API调用失败: {e}")
+        # 出错时返回默认规则
+        return f"规则 A：未找到【{target_knowledge}】的先修知识点。"
+
+# ==========================================
+# 5. 供 Django 接口调用的主函数
 # ==========================================
 def get_smart_path_for_student(student_id, target_knowledge):
     """
@@ -174,25 +193,3 @@ def get_smart_path_for_student(student_id, target_knowledge):
     # 最终调用大模型生成路径
     final_json = generate_graph_based_path(target_knowledge, student_status, kg_rules)
     return final_json
-
-# ==========================================
-# 5. 从 Neo4j 获取知识图谱规则
-# ==========================================
-def get_kg_rules_from_neo4j(target_knowledge):
-    """
-    从Neo4j数据库获取与目标知识点相关的先修关系规则
-    """
-    try:
-        # 通过API调用获取先修关系
-        url = f"http://localhost:8000/graphs/neo4j/prerequisites?target={target_knowledge}"
-        response = requests.get(url)
-        data = response.json()
-        
-        if data.get("code") == 200:
-            return data.get("data", f"规则 A：未找到【{target_knowledge}】的先修知识点。")
-        else:
-            return f"规则 A：未找到【{target_knowledge}】的先修知识点。"
-    except Exception as e:
-        print(f"❌ API调用失败: {e}")
-        # 出错时返回默认规则
-        return f"规则 A：未找到【{target_knowledge}】的先修知识点。"

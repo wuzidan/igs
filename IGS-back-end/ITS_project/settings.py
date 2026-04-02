@@ -200,7 +200,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_URL = '/static/'  # 静态资源访问URL前缀（如 http://localhost:8000/static/）
 # 开发环境下静态文件目录（若已有，保留）
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),  # 指向项目根目录下的 static 文件夹
+    # os.path.join(BASE_DIR, 'static'),  # 指向项目根目录下的 static 文件夹
 ]
 
 # 3. 将用户上传文件（头像）存储到/avatars

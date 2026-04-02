@@ -193,10 +193,18 @@ const handleAuthFailure = async (e) => {
 const domains = ref([]);
 
 const fetchDomains = async () => {
-    const resp = await request.get("/graphs/domains/");
-    const data = resp?.data || {};
-    const list = data.results || data;
-    domains.value = Array.isArray(list) ? list : [];
+    try {
+        const resp = await request.get("/graphs/domains/");
+        console.log('获取领域数据:', resp);
+        const data = resp?.data || {};
+        const list = data.results || data;
+        domains.value = Array.isArray(list) ? list : [];
+        console.log('处理后的领域数据:', domains.value);
+    } catch (error) {
+        console.error('获取领域数据失败:', error);
+        // 即使获取失败，也设置一个默认值，避免页面显示错误
+        domains.value = [];
+    }
 };
 
 // 图谱模板数据
