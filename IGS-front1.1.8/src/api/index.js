@@ -1,4 +1,5 @@
 import request from "../utils/request"
+import axios from "axios"
 import path from "./path"
 
 const api = {

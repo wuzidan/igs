@@ -815,6 +815,11 @@ const fetchQuestionData = () => {
                 totalItems.value = res.data.total || 0;
                 totalPages.value = res.data.total_pages || 1;
                 currentPage.value = res.data.page || 1;
+
+                // 更新分页元数据
+                totalItems.value = res.data.total || 0;
+                totalPages.value = res.data.total_pages || 1;
+                currentPage.value = res.data.page || 1;
             } else {
                 errorMsg.value = "数据格式错误";
             }

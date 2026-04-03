@@ -169,8 +169,21 @@ class Neo4jConnector:
         except Exception as e:
             logger.error(f"❌ 关闭连接失败: {e}")
 
-# 创建全局实例
-neo4j_connector = Neo4jConnector()
+# 全局实例（延迟初始化）
+_neo4j_connector_instance = None
+
+def get_neo4j_connector():
+    """获取Neo4j连接器实例（延迟初始化）"""
+    global _neo4j_connector_instance
+    if _neo4j_connector_instance is None:
+        _neo4j_connector_instance = Neo4jConnector()
+    return _neo4j_connector_instance
+
+# 为了向后兼容，保留 neo4j_connector 变量，但使用属性访问
+def __getattr__(name):
+    if name == 'neo4j_connector':
+        return get_neo4j_connector()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 if __name__ == "__main__":
     # 测试连接

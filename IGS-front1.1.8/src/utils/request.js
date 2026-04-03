@@ -20,13 +20,9 @@ instance.interceptors.request.use(
         });
         
         const token = window.localStorage ? window.localStorage.getItem("token") : null
-        console.log('请求拦截器 - token:', token);
         if (token) {
             config.headers = config.headers || {}
             config.headers.Authorization = `Token ${token}`
-            console.log('请求拦截器 - 添加 Authorization 头:', config.headers.Authorization);
-        } else {
-            console.log('请求拦截器 - 没有 token');
         }
 
         const method = (config.method || "").toLowerCase()

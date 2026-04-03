@@ -37,7 +37,7 @@
                     <div class="filter-item">
                         <label for="graph-type">图谱类型:</label>
                         <select
-                            id="graph-type"
+                            id="domain-select"
                             v-model="selectedType"
                             class="input-field"
                             @change="onFiltersChange"
@@ -138,6 +138,12 @@
                     </div>
                     <div class="graph-actions">
                         <button
+                            class="btn btn-view"
+                            @click.stop="showGraphVisualization(graph)"
+                        >
+                            查看图谱
+                        </button>
+                        <button
                             class="btn btn-edit"
                             @click.stop="editGraph(graph.id)"
                         >
@@ -173,18 +179,49 @@
                 </button>
             </div>
         </div>
+
+        <!-- 图谱可视化模态窗口 -->
+        <div
+            v-if="showGraphModal"
+            class="graph-modal-overlay"
+            @click="closeGraphModal"
+        >
+            <div class="graph-modal-content" @click.stop>
+                <div class="graph-modal-header">
+                    <h3>{{ currentGraph?.name || "知识图谱可视化" }}</h3>
+                    <button class="modal-close-btn" @click="closeGraphModal">
+                        ×
+                    </button>
+                </div>
+                <div class="graph-modal-body">
+                    <div v-if="graphLoading" class="graph-loading">
+                        <div class="loading-spinner"></div>
+                        <p>加载图谱数据中...</p>
+                    </div>
+                    <div v-else-if="graphError" class="graph-error">
+                        <p>{{ graphError }}</p>
+                    </div>
+                    <div
+                        v-else
+                        class="graph-visualization-container"
+                        ref="graphContainer"
+                    ></div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import request from "../../../utils/request";
+import * as echarts from "echarts";
 
 const router = useRouter();
 
 const isLoggedIn = ref(
-    !!(window.localStorage && window.localStorage.getItem("token"))
+    !!(window.localStorage && window.localStorage.getItem("token")),
 );
 
 const handleAuthFailure = async (e) => {
@@ -219,6 +256,14 @@ const total = ref(0);
 
 // 图谱数据
 const graphs = ref([]);
+
+// 图谱可视化相关
+const showGraphModal = ref(false);
+const currentGraph = ref(null);
+const graphLoading = ref(false);
+const graphError = ref("");
+const graphContainer = ref(null);
+let chartInstance = null;
 
 const normalizeGraph = (g) => {
     if (!g || typeof g !== "object") return {};
@@ -262,7 +307,10 @@ const fetchGraphs = async () => {
     const results = resp?.data?.results;
     total.value = resp?.data?.total || 0;
     graphs.value = (Array.isArray(results) ? results : []).map(normalizeGraph);
-    totalPages.value = Math.max(1, Math.ceil((total.value || 0) / pageSize.value));
+    totalPages.value = Math.max(
+        1,
+        Math.ceil((total.value || 0) / pageSize.value),
+    );
 };
 
 // 格式化日期
@@ -364,10 +412,119 @@ const createNewGraph = () => {
 // 分享图谱
 const shareGraph = (graphId) => {
     console.log("分享图谱:", graphId);
-    alert("图谱分享功能已触发，图谱ID: " + graphId);
 };
 
-// 组件挂载时执行
+// ==============================================
+// 【已修改】点击查看图谱 → 直接加载本地JSON并显示
+// ==============================================
+const showGraphVisualization = async (graph) => {
+    currentGraph.value = graph;
+    showGraphModal.value = true;
+    graphLoading.value = true;
+    graphError.value = "";
+
+    await nextTick();
+
+    try {
+        // 直接加载你本地的图谱文件，不再请求后端
+        const res = await fetch("/record_cs.json");
+        const rawData = await res.json();
+
+        // 解析成 ECharts 能用的节点 + 关系
+        const { nodes, links } = parseGraphData(rawData);
+        graphLoading.value = false;
+        renderGraph(nodes, links);
+    } catch (e) {
+        console.error("加载图谱失败", e);
+        graphError.value = "加载本地图谱失败，请检查 public/record_cs.json";
+        graphLoading.value = false;
+    }
+};
+
+// 解析你的JSON格式
+function parseGraphData(data) {
+    const nodeMap = new Map();
+    const links = [];
+
+    data.forEach((item) => {
+        const start = item.start_node;
+        const end = item.end_node;
+        const rel = item.relation;
+
+        if (start) {
+            nodeMap.set(start.identity, {
+                id: start.identity,
+                name: start.properties.name,
+                category: start.labels?.[0] || "Concept",
+                symbolSize: 50,
+                draggable: true,
+            });
+        }
+        if (end) {
+            nodeMap.set(end.identity, {
+                id: end.identity,
+                name: end.properties.name,
+                category: end.labels?.[0] || "Concept",
+                symbolSize: 50,
+                draggable: true,
+            });
+        }
+        if (rel) {
+            links.push({
+                source: rel.start,
+                target: rel.end,
+                name: rel.type,
+            });
+        }
+    });
+
+    return {
+        nodes: Array.from(nodeMap.values()),
+        links,
+    };
+}
+
+// 渲染图谱
+const renderGraph = (nodes, links) => {
+    if (!graphContainer.value) return;
+    if (chartInstance) chartInstance.dispose();
+    chartInstance = echarts.init(graphContainer.value);
+
+    const option = {
+        tooltip: {
+            formatter: (params) => {
+                if (params.dataType === "node") return params.data.name;
+                if (params.dataType === "edge") return params.data.name;
+            },
+        },
+        series: [
+            {
+                type: "graph",
+                layout: "force",
+                data: nodes,
+                links: links,
+                roam: true,
+                draggable: true,
+                label: { show: true, formatter: "{b}" },
+                force: { repulsion: 400, edgeLength: 120 },
+                lineStyle: { curveness: 0.2, color: "source" },
+            },
+        ],
+    };
+
+    chartInstance.setOption(option);
+    window.addEventListener("resize", () => chartInstance.resize());
+};
+
+// 关闭模态框
+const closeGraphModal = () => {
+    showGraphModal.value = false;
+    if (chartInstance) {
+        chartInstance.dispose();
+        chartInstance = null;
+    }
+};
+
 onMounted(async () => {
     try {
         await fetchDomains();
@@ -532,7 +689,9 @@ onMounted(async () => {
     display: flex;
     flex-direction: column;
     min-width: 150px;
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
     opacity: 0.9;
 }
 
@@ -560,7 +719,9 @@ onMounted(async () => {
     display: flex;
     align-items: center;
     gap: 10px;
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
     opacity: 0.9;
 }
 
@@ -785,7 +946,9 @@ onMounted(async () => {
     margin-top: 30px;
     padding-top: 20px;
     border-top: 1px solid #e9ecef;
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
     opacity: 0.9;
 }
 
@@ -903,5 +1066,136 @@ onMounted(async () => {
         margin-right: 0;
         margin-bottom: 8px;
     }
+}
+
+/* 图谱模态窗口样式 */
+.graph-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.graph-modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 1200px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.graph-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 1px solid #e0e0e0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.graph-modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.modal-close-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    font-size: 28px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.modal-close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+.graph-modal-body {
+    padding: 20px;
+    flex: 1;
+    overflow: auto;
+    min-height: 600px;
+}
+
+.graph-loading,
+.graph-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+    color: #666;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.graph-error {
+    color: #e74c3c;
+    font-size: 16px;
+}
+
+.graph-visualization-container {
+    width: 100%;
+    height: 600px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* 查看图谱按钮样式 */
+.btn-view {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    margin-right: 8px;
+}
+
+.btn-view:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 </style>
