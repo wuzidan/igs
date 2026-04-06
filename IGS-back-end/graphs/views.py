@@ -25,9 +25,10 @@ def _is_teacher_user(user) -> bool:
         return False
     if bool(getattr(user, "is_staff", False)):
         return True
-    if bool(getattr(user, "is_teacher_user", False)):
+    # 检查用户角色是否为教师（role == 2）
+    if getattr(user, "role", None) == 2:
         return True
-    if getattr(user, "role", None) == "TEACHER":
+    if bool(getattr(user, "is_teacher_user", False)):
         return True
     username = str(getattr(user, "username", "") or "")
     if username.lower().startswith("teacher"):
@@ -69,7 +70,13 @@ class GraphDomainViewSet(viewsets.ModelViewSet):
         user = getattr(self.request, "user", None)
         if not _is_teacher_user(user):
             raise PermissionDenied("只有教师/管理员可新增领域")
-        serializer.save(created_by=user)
+        # 获取教师工号
+        teacher_profile = getattr(user, "teacher_profile", None)
+        if teacher_profile:
+            created_by = teacher_profile.teacher_id
+        else:
+            created_by = user.username
+        serializer.save(created_by=created_by)
 
 
 class KnowledgeGraphViewSet(viewsets.ModelViewSet):
@@ -78,7 +85,8 @@ class KnowledgeGraphViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = getattr(self.request, "user", None)
-        qs = KnowledgeGraph.objects.select_related("domain", "owner").all()
+        # 暂时不使用 select_related，避免关联查询导致的错误
+        qs = KnowledgeGraph.objects.all()
 
         if user is None or not getattr(user, "is_authenticated", False):
             return qs.filter(status=KnowledgeGraph.GraphStatus.PUBLISHED)
@@ -87,7 +95,16 @@ class KnowledgeGraphViewSet(viewsets.ModelViewSet):
             return qs
 
         if _is_teacher_user(user):
-            return qs.filter(Q(status=KnowledgeGraph.GraphStatus.PUBLISHED) | Q(owner=user))
+            try:
+                # 导入Teacher模型
+                from teacher.models import Teacher
+                # 尝试通过user_id获取Teacher实例
+                teacher_profile = Teacher.objects.filter(user=user).first()
+                if teacher_profile:
+                    return qs.filter(Q(status=KnowledgeGraph.GraphStatus.PUBLISHED) | Q(owner=teacher_profile))
+            except Exception:
+                pass
+            return qs.filter(status=KnowledgeGraph.GraphStatus.PUBLISHED)
 
         return qs.filter(status=KnowledgeGraph.GraphStatus.PUBLISHED)
 
@@ -128,7 +145,13 @@ class KnowledgeGraphViewSet(viewsets.ModelViewSet):
         if not _is_teacher_user(user):
             raise PermissionDenied("只有教师/管理员可创建图谱")
 
-        graph = serializer.save(owner=user)
+        # 获取教师工号
+        teacher_profile = getattr(user, "teacher_profile", None)
+        if not teacher_profile:
+            raise PermissionDenied("教师档案不存在")
+        teacher_id = teacher_profile.teacher_id
+
+        graph = serializer.save(owner=teacher_profile)
         if not isinstance(graph.content, dict) or not graph.content:
             graph.content = {"nodes": [], "relationships": []}
             graph.save(update_fields=["content"])
@@ -140,7 +163,13 @@ class KnowledgeGraphViewSet(viewsets.ModelViewSet):
             return Response({"error": "未授权"}, status=status.HTTP_401_UNAUTHORIZED)
 
         graph = self.get_object()
-        if not (bool(getattr(user, "is_staff", False)) or graph.owner_id == user.id):
+        # 获取教师工号进行权限检查
+        teacher_profile = getattr(user, "teacher_profile", None)
+        if not teacher_profile:
+            return Response({"error": "教师档案不存在"}, status=status.HTTP_403_FORBIDDEN)
+        teacher_id = teacher_profile.teacher_id
+
+        if not (bool(getattr(user, "is_staff", False)) or graph.owner_id == teacher_id):
             return Response({"error": "无权限"}, status=status.HTTP_403_FORBIDDEN)
 
         graph.status = KnowledgeGraph.GraphStatus.PUBLISHED

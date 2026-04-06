@@ -189,10 +189,11 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { ref, onMounted, watch } from "vue";
+import { useRouter, useRoute } from "vue-router";
 
 const router = useRouter();
+const route = useRoute();
 
 // 当前激活的菜单
 const activeMenu = ref("");
@@ -212,6 +213,69 @@ const toggleMenu = (menu) => {
 const setActiveSubmenu = (submenu) => {
     activeSubmenu.value = submenu;
 };
+
+// 根据当前路由更新菜单状态
+const updateMenuState = () => {
+    const path = route.path;
+    
+    // 重置状态
+    activeMenu.value = "";
+    activeSubmenu.value = "";
+    
+    // 班级模块
+    if (path.includes("/teacher/class/")) {
+        activeMenu.value = "class";
+        if (path.includes("info")) {
+            activeSubmenu.value = "学习者信息";
+        }
+    }
+    
+    // 习题模块
+    else if (path.includes("/teacher/exercise/")) {
+        activeMenu.value = "exercise";
+        if (path.includes("existing")) {
+            activeSubmenu.value = "已设计习题";
+        } else if (path.includes("new")) {
+            activeSubmenu.value = "设计新题";
+        } else if (path.includes("bank")) {
+            activeSubmenu.value = "题库";
+        } else if (path.includes("assignment")) {
+            activeSubmenu.value = "发布作业";
+        }
+    }
+    
+    // 图谱模块
+    else if (path.includes("/teacher/graphs/")) {
+        activeMenu.value = "graph";
+        if (path === "/teacher/graphs/graph") {
+            activeSubmenu.value = "图谱管理";
+        } else if (path === "/teacher/graphs/create") {
+            activeSubmenu.value = "新建图谱";
+        }
+    }
+    
+    // 信息模块
+    else if (path.includes("/teacher/info/")) {
+        activeMenu.value = "info";
+        if (path.includes("personal")) {
+            activeSubmenu.value = "个人信息";
+        }
+    }
+};
+
+// 监听路由变化
+watch(
+    () => route.path,
+    () => {
+        updateMenuState();
+    }
+);
+
+// 组件挂载时更新菜单状态
+onMounted(() => {
+    updateMenuState();
+});
+
 </script>
 
 <style scoped>

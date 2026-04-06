@@ -56,7 +56,15 @@ class KnowledgeGraphListSerializer(serializers.ModelSerializer):
         owner = getattr(obj, "owner", None)
         if owner is None:
             return ""
-        return getattr(owner, "first_name", "") or getattr(owner, "name", "") or getattr(owner, "username", "") or ""
+        # 从教师档案获取姓名
+        name = getattr(owner, "name", "")
+        if name:
+            return name
+        # 如果教师档案没有姓名，尝试从关联的用户获取
+        user = getattr(owner, "user", None)
+        if user:
+            return getattr(user, "first_name", "") or getattr(user, "username", "") or ""
+        return ""
 
     def get_nodesCount(self, obj):
         content = getattr(obj, "content", None) or {}

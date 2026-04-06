@@ -1,4 +1,8 @@
 <template>
+     <a href="/teacher/index" class="back-to-home">
+        <span class="icon">🏠</span>
+        <span>首页</span>
+    </a>
     <a href="/teacher/graphs/graph" class="back-to-list">
         <span class="icon">←</span>
         <span>返回知识图谱列表</span>

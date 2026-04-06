@@ -10,25 +10,26 @@
         </div>
 
         <!-- 加载失败界面 -->
-        <div class="error-container" v-if="!isLoading && errorMsg">
+        <!-- 临时注释掉错误状态显示 -->
+        <!-- <div class="error-container" v-if="!isLoading && errorMsg">
             <div class="error-content">
                 <div class="error-icon">⚠️</div>
                 <h2>加载失败</h2>
                 <p class="error-message">{{ errorMsg }}</p>
                 <button class="retry-btn" @click="retryLoad">重试</button>
             </div>
-        </div>
+        </div> -->
 
         <!-- 使用标准顶栏组件 -->
         <StudentHeader title="学习路径规划" />
 
-        <div class="dashboard" v-if="!isLoading && !errorMsg">
+
+        <div class="dashboard">
             <!-- 学习路径图 -->
             <div class="card path-card">
                 <h3>推荐学习路径</h3>
                 <div class="small-chart">
                     <div class="path-visualization">
-                        <!-- 当前位置节点 -->
                         <div
                             class="path-node current-node"
                             :style="{ left: '10%', top: '50%' }"
@@ -38,32 +39,53 @@
 
                         <div class="path-connector"></div>
 
-                        <!-- 动态生成路径节点 -->
                         <div
-                            v-for="(point, index) in knowledgePoints"
-                            :key="point.id"
                             class="path-node next-node"
-                            :style="{
-                                left: `${20 + index * 20}%`,
-                                top: `${30 + (index % 2) * 30}%`
-                            }"
+                            :style="{ left: '30%', top: '30%' }"
                         >
                             <div class="node-content">
-                                {{ point.name }}
+                                {{ knowledgePoints[0].name }}
                             </div>
                             <div class="node-details">
-                                掌握度: {{ point.mastery }}%
+                                难度: {{ knowledgePoints[0].difficulty }}
                             </div>
                         </div>
 
                         <div class="path-connector"></div>
 
-                        <!-- 目标节点 -->
+                        <div
+                            class="path-node next-node"
+                            :style="{ left: '50%', top: '60%' }"
+                        >
+                            <div class="node-content">
+                                {{ knowledgePoints[1].name }}
+                            </div>
+                            <div class="node-details">
+                                难度: {{ knowledgePoints[1].difficulty }}
+                            </div>
+                        </div>
+
+                        <div class="path-connector"></div>
+
+                        <div
+                            class="path-node next-node"
+                            :style="{ left: '70%', top: '40%' }"
+                        >
+                            <div class="node-content">
+                                {{ knowledgePoints[2].name }}
+                            </div>
+                            <div class="node-details">
+                                难度: {{ knowledgePoints[2].difficulty }}
+                            </div>
+                        </div>
+
+                        <div class="path-connector"></div>
+
                         <div
                             class="path-node target-node"
                             :style="{ left: '90%', top: '50%' }"
                         >
-                            <div class="node-content">{{ targetKnowledge }}</div>
+                            <div class="node-content">学习目标</div>
                         </div>
                     </div>
                 </div>
@@ -102,13 +124,38 @@ const userName = ref("李四");
 const studentId = ref("20230002");
 
 // 知识点数据
-const knowledgePoints = ref([]);
+const knowledgePoints = ref([
+    // 示例数据
+    { id: 1, name: "Vue基础语法", difficulty: "easy", mastery: 85, icon: "📐" },
+    { id: 2, name: "组件通信", difficulty: "medium", mastery: 65, icon: "🔄" },
+    {
+        id: 3,
+        name: "Vuex状态管理",
+        difficulty: "medium",
+        mastery: 45,
+        icon: "📦",
+    },
+    {
+        id: 4,
+        name: "Vue Router路由",
+        difficulty: "medium",
+        mastery: 70,
+        icon: "🧭",
+    },
+    {
+        id: 5,
+        name: "Composition API",
+        difficulty: "hard",
+        mastery: 30,
+        icon: "🧩",
+    },
+]);
 
 // 推荐依据
 const pathReason = ref('');
 
 // 学习目标
-const targetKnowledge = ref('一元二次方程');
+const targetKnowledge = ref('处理器调度');
 
 // 状态变量
 const isLoading = ref(true);
@@ -120,33 +167,47 @@ const fetchRouteData = () => {
     return api
         .getLearningRoute({ student_id: studentId.value, target: targetKnowledge.value })
         .then((res) => {
+            console.log("获取的学习路径数据：", res.data);
             const data = res.data;
             
-            // 检查响应格式
-            if (data.code === 200 && data.data) {
-                // 更新知识点数据
-                if (data.data.path) {
-                    // 转换数据格式，将topic转换为name，使用后端返回的mastery值
-                    knowledgePoints.value = data.data.path.map((item, index) => ({
-                        id: index + 1,
-                        name: item.topic,
-                        difficulty: "medium", // 默认难度
-                        mastery: item.mastery || 50, // 使用后端返回的掌握度
-                        icon: "📐" // 默认图标
-                    }));
-                }
-                
-                // 更新推荐依据
-                if (data.data.explanation) {
-                    pathReason.value = data.data.explanation;
-                }
-            } else {
-                throw new Error(data.msg || "获取学习路径数据失败");
+            // 更新知识点数据
+            if (data.data && data.data.path) {
+                // 转换数据格式，将topic转换为name，添加默认difficulty
+                knowledgePoints.value = data.data.path.map((item, index) => ({
+                    id: index + 1,
+                    name: item.topic,
+                    difficulty: "medium", // 默认难度
+                    mastery: 50, // 默认掌握度
+                    icon: "📐" // 默认图标
+                }));
+            }
+            
+            // 更新推荐依据
+            if (data.data && data.data.explanation) {
+                pathReason.value = data.data.explanation;
             }
         })
         .catch((err) => {
-            errorMsg.value = "获取学习路径数据失败，请稍后重试";
-            throw err;
+            console.error("获取学习路径失败：", err);
+            // 临时注释掉错误信息设置
+            // errorMsg.value = "获取学习路径数据失败，请稍后重试";
+            
+            // 失败时使用模拟数据
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    // 模拟从LLM获取的学习路径数据
+                    knowledgePoints.value = [
+                        { id: 1, name: "Vue基础语法", difficulty: "easy", mastery: 85, icon: "📐" },
+                        { id: 2, name: "组件通信", difficulty: "medium", mastery: 65, icon: "🔄" },
+                        { id: 3, name: "Vuex状态管理", difficulty: "medium", mastery: 45, icon: "📦" },
+                    ];
+
+                    // 模拟从LLM获取的推荐依据
+                    pathReason.value = "基于您的学习状态和知识图谱分析，我们为您推荐以下学习路径：首先巩固Vue基础语法，这是后续学习的基础；然后学习组件通信，这是Vue开发中的核心概念；最后学习Vuex状态管理，这将帮助您更好地管理应用状态。这个路径符合知识的逻辑递进关系，能够帮助您更高效地掌握Vue技术栈。";
+
+                    resolve();
+                }, 1000);
+            });
         });
 };
 
@@ -177,8 +238,24 @@ const fetchUserInfo = () => {
     */
 };
 
-// 重试加载
-const retryLoad = () => {
+onMounted(() => {
+    // 加载数据
+    Promise.all([fetchUserInfo(), fetchRouteData()])
+        .then(() => {
+            isLoading.value = false;
+        })
+        .catch(() => {
+            isLoading.value = false;
+            // 临时注释掉错误信息设置
+            // if (!errorMsg.value) {
+            //     errorMsg.value = "加载数据失败，请稍后重试";
+            // }
+        });
+});
+
+// 方法：重试加载
+// 临时注释掉重试函数
+/* const retryLoad = () => {
     isLoading.value = true;
     errorMsg.value = "";
 
@@ -190,22 +267,12 @@ const retryLoad = () => {
             isLoading.value = false;
             errorMsg.value = "重试加载失败，请检查网络连接后再试";
         });
-};
+}; */
 
-onMounted(() => {
-    // 加载数据
-    fetchRouteData()
-        .then(() => {
-            isLoading.value = false;
-        })
-        .catch(() => {
-            isLoading.value = false;
-            if (!errorMsg.value) {
-                errorMsg.value = "加载数据失败，请稍后重试";
-            }
-        });
-});
-
+// 退出功能 - 现在由StudentHeader组件管理
+// const logout = () => {
+//     alert("您已退出系统");
+// };
 </script>
 
 <style scoped>

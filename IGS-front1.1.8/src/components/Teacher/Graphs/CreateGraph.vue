@@ -1,8 +1,8 @@
 <template>
-    <a href="/teacher/graphs/graph" class="back-to-list">
+    <button class="back-to-list" @click="goBackToList">
         <span class="icon">←</span>
         <span>返回知识图谱列表</span>
-    </a>
+    </button>
 
     <div class="create-graph-container">
         <div class="page-header">
@@ -195,15 +195,6 @@ const domains = ref([]);
 const fetchDomains = async () => {
     try {
         const resp = await request.get("/graphs/domains/");
-<<<<<<< HEAD
-        console.log('获取领域数据:', resp);
-        const data = resp?.data || {};
-        const list = data.results || data;
-        domains.value = Array.isArray(list) ? list : [];
-        console.log('处理后的领域数据:', domains.value);
-    } catch (error) {
-        console.error('获取领域数据失败:', error);
-=======
         console.log("获取领域数据:", resp);
         const data = resp?.data || {};
         const list = data.results || data;
@@ -211,7 +202,6 @@ const fetchDomains = async () => {
         console.log("处理后的领域数据:", domains.value);
     } catch (error) {
         console.error("获取领域数据失败:", error);
->>>>>>> master
         // 即使获取失败，也设置一个默认值，避免页面显示错误
         domains.value = [];
     }
@@ -359,7 +349,9 @@ const cancelCreate = () => {
         router.push(`/teacher/graphs/graph`);
     }
 };
-
+const goBackToList = () => {
+    router.push(`/teacher/graphs/graph`);
+}
 // 使用模板创建
 const useTemplate = (templateId) => {
     const template = templates.value.find((t) => t.id === templateId);
