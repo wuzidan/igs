@@ -1,8 +1,8 @@
 <template>
-    <a href="/teacher/graphs/graph" class="back-to-list">
+    <button class="back-to-list" @click="goBackToList">
         <span class="icon">←</span>
         <span>返回知识图谱列表</span>
-    </a>
+    </button>
 
     <div class="create-graph-container">
         <div class="page-header">
@@ -349,7 +349,9 @@ const cancelCreate = () => {
         router.push(`/teacher/graphs/graph`);
     }
 };
-
+const goBackToList = () => {
+    router.push(`/teacher/graphs/graph`);
+}
 // 使用模板创建
 const useTemplate = (templateId) => {
     const template = templates.value.find((t) => t.id === templateId);

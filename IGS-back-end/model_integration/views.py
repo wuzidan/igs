@@ -1532,9 +1532,9 @@ def select_next_questions(user_id, num_questions=5, force_model: bool = False):
             })
         return predicted_questions
 
-# 在模块加载时尝试预加载模型（暂时注释掉以避免启动问题）
-# try:
-#     load_model()
-#     print("Model preloaded successfully at startup")
-# except Exception as e:
-#     print(f"Failed to preload model at startup: {str(e)}")
+# 在模块加载时尝试预加载模型
+try:
+    load_model()
+    print("Model preloaded successfully at startup")
+except Exception as e:
+    print(f"Failed to preload model at startup: {str(e)}")

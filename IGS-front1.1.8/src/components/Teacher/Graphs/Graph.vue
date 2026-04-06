@@ -37,7 +37,7 @@
                     <div class="filter-item">
                         <label for="graph-type">图谱类型:</label>
                         <select
-                            id="domain-select"
+                            id="graph-type"
                             v-model="selectedType"
                             class="input-field"
                             @change="onFiltersChange"
@@ -414,9 +414,7 @@ const shareGraph = (graphId) => {
     console.log("分享图谱:", graphId);
 };
 
-// ==============================================
-// 【已修改】点击查看图谱 → 直接加载本地JSON并显示
-// ==============================================
+// 显示图谱可视化
 const showGraphVisualization = async (graph) => {
     currentGraph.value = graph;
     showGraphModal.value = true;
@@ -426,105 +424,203 @@ const showGraphVisualization = async (graph) => {
     await nextTick();
 
     try {
-        // 直接加载你本地的图谱文件，不再请求后端
-        const res = await fetch("/record_cs.json");
-        const rawData = await res.json();
-
-        // 解析成 ECharts 能用的节点 + 关系
-        const { nodes, links } = parseGraphData(rawData);
-        graphLoading.value = false;
-        renderGraph(nodes, links);
+        await loadGraphData(graph.id);
     } catch (e) {
-        console.error("加载图谱失败", e);
-        graphError.value = "加载本地图谱失败，请检查 public/record_cs.json";
+        console.error("加载图谱数据失败:", e);
+        graphError.value = "加载图谱数据失败，请稍后重试";
         graphLoading.value = false;
     }
 };
 
-// 解析你的JSON格式
-function parseGraphData(data) {
-    const nodeMap = new Map();
-    const links = [];
+// 加载图谱数据
+const loadGraphData = async (graphId) => {
+    try {
+        // 从后端 API 获取图谱数据
+        const response = await request.get(`/graphs/${graphId}/`);
+        const graphData = response.data;
 
-    data.forEach((item) => {
-        const start = item.start_node;
-        const end = item.end_node;
-        const rel = item.relation;
+        if (!graphData.content || !graphData.content.nodes) {
+            throw new Error("图谱数据格式不正确");
+        }
 
-        if (start) {
-            nodeMap.set(start.identity, {
-                id: start.identity,
-                name: start.properties.name,
-                category: start.labels?.[0] || "Concept",
-                symbolSize: 50,
-                draggable: true,
-            });
-        }
-        if (end) {
-            nodeMap.set(end.identity, {
-                id: end.identity,
-                name: end.properties.name,
-                category: end.labels?.[0] || "Concept",
-                symbolSize: 50,
-                draggable: true,
-            });
-        }
-        if (rel) {
-            links.push({
-                source: rel.start,
-                target: rel.end,
-                name: rel.type,
-            });
-        }
-    });
+        const nodes = graphData.content.nodes.map((node) => ({
+            id: node.id,
+            name: node.name,
+            category: node.labels?.[0] || "Concept",
+            symbolSize: 50,
+            draggable: true,
+        }));
 
-    return {
-        nodes: Array.from(nodeMap.values()),
-        links,
-    };
-}
+        const links = graphData.content.relationships.map((rel) => ({
+            source: rel.source,
+            target: rel.target,
+            name: rel.type || "PREREQUISITE",
+        }));
+
+        graphLoading.value = false;
+        renderGraph(nodes, links);
+    } catch (error) {
+        console.error("加载图谱数据失败:", error);
+        graphError.value = "加载图谱数据失败，请稍后重试";
+        graphLoading.value = false;
+    }
+};
 
 // 渲染图谱
 const renderGraph = (nodes, links) => {
     if (!graphContainer.value) return;
-    if (chartInstance) chartInstance.dispose();
+
+    // 销毁已存在的图表实例
+    if (chartInstance) {
+        chartInstance.dispose();
+    }
+
+    // 创建图表实例
     chartInstance = echarts.init(graphContainer.value);
 
+    // 计算初始位置，使图谱居中显示
+    const width = graphContainer.value.clientWidth;
+    const height = graphContainer.value.clientHeight;
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    // 为节点设置初始位置（圆形分布）
+    const radius = Math.min(width, height) * 0.3;
+    nodes.forEach((node, index) => {
+        const angle = (index / nodes.length) * 2 * Math.PI;
+        node.x = centerX + radius * Math.cos(angle);
+        node.y = centerY + radius * Math.sin(angle);
+    });
+
+    // 配置图表选项
     const option = {
+        title: {
+            text: "知识图谱",
+            top: "bottom",
+            left: "right",
+        },
         tooltip: {
-            formatter: (params) => {
-                if (params.dataType === "node") return params.data.name;
-                if (params.dataType === "edge") return params.data.name;
+            formatter: function (params) {
+                if (params.dataType === "node") {
+                    return `${params.data.name}<br/>类别: ${params.data.category}`;
+                } else if (params.dataType === "edge") {
+                    return `${params.data.name}`;
+                }
             },
         },
+        legend: [
+            {
+                data: nodes
+                    .map((n) => n.category)
+                    .filter((v, i, a) => a.indexOf(v) === i),
+            },
+        ],
+        animationDuration: 1500,
+        animationEasingUpdate: "quinticInOut",
         series: [
             {
+                name: "知识图谱",
                 type: "graph",
                 layout: "force",
                 data: nodes,
                 links: links,
+                categories: nodes
+                    .map((n) => n.category)
+                    .filter((v, i, a) => a.indexOf(v) === i)
+                    .map((c) => ({ name: c })),
                 roam: true,
-                draggable: true,
-                label: { show: true, formatter: "{b}" },
-                force: { repulsion: 400, edgeLength: 120 },
-                lineStyle: { curveness: 0.2, color: "source" },
+                label: {
+                    show: true,
+                    position: "right",
+                    formatter: "{b}",
+                },
+                lineStyle: {
+                    color: "source",
+                    curveness: 0.3,
+                },
+                emphasis: {
+                    focus: "adjacency",
+                    lineStyle: {
+                        width: 10,
+                    },
+                },
+                force: {
+                    repulsion: 300,
+                    edgeLength: 100,
+                    gravity: 0.1,
+                    layoutAnimation: true,
+                },
+                // 点击节点时的处理
+                autoCurveness: true,
             },
         ],
     };
 
     chartInstance.setOption(option);
-    window.addEventListener("resize", () => chartInstance.resize());
+
+    // 监听点击事件，点击节点时将其移动到视图中央
+    chartInstance.on("click", function (params) {
+        if (params.dataType === "node") {
+            // 获取当前图表的 option
+            const currentOption = chartInstance.getOption();
+            const seriesData = currentOption.series[0].data;
+
+            // 找到被点击的节点
+            const clickedNode = seriesData.find(
+                (node) => node.id === params.data.id,
+            );
+            if (clickedNode) {
+                // 将节点位置设置为画布中心
+                const width = graphContainer.value.clientWidth;
+                const height = graphContainer.value.clientHeight;
+                clickedNode.x = width / 2;
+                clickedNode.y = height / 2;
+                clickedNode.fixed = true; // 固定位置
+
+                // 更新图表
+                chartInstance.setOption({
+                    series: [
+                        {
+                            data: seriesData,
+                        },
+                    ],
+                });
+
+                // 3秒后解除固定，让力导向图继续作用
+                setTimeout(() => {
+                    clickedNode.fixed = false;
+                    chartInstance.setOption({
+                        series: [
+                            {
+                                data: seriesData,
+                            },
+                        ],
+                    });
+                }, 3000);
+            }
+        }
+    });
+
+    // 响应式调整
+    window.addEventListener("resize", () => {
+        if (chartInstance) {
+            chartInstance.resize();
+        }
+    });
 };
 
-// 关闭模态框
+// 关闭图谱模态窗口
 const closeGraphModal = () => {
     showGraphModal.value = false;
     if (chartInstance) {
         chartInstance.dispose();
         chartInstance = null;
     }
+    currentGraph.value = null;
+    graphError.value = "";
 };
 
+// 组件挂载时执行
 onMounted(async () => {
     try {
         await fetchDomains();

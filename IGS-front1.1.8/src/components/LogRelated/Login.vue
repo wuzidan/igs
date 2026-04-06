@@ -148,18 +148,22 @@ const handleLogin = async () => {
 
     try {
         window.localStorage && window.localStorage.removeItem("token");
+        console.log("登录请求前 - localStorage token:", window.localStorage ? window.localStorage.getItem("token") : null);
 
         const resp = await request.post("/api/user/login/", {
             username: username.value,
             password: password.value,
         });
 
+        console.log("登录响应:", resp.data);
         const token = resp?.data?.token;
         if (token) {
             window.localStorage && window.localStorage.setItem("token", token);
+            console.log("登录成功后 - localStorage token:", window.localStorage ? window.localStorage.getItem("token") : null);
         }
 
         const userType = resp?.data?.userType;
+        console.log("登录成功 - userType:", userType);
         if (userType === "admin") {
             console.log("管理员登录成功");
             router.push("/teacher/index");
@@ -168,16 +172,17 @@ const handleLogin = async () => {
             router.push("/teacher/index");
         } else {
             console.log("学生登录成功");
-
             router.push("/student/index");
         }
     } catch (e) {
         window.localStorage && window.localStorage.removeItem("token");
+        console.error("登录失败", e);
         // 根据错误类型显示不同的错误信息
         if (e.response) {
             // 服务器返回错误
             const status = e.response.status;
             const data = e.response.data;
+            console.error("登录失败 - 服务器错误:", status, data);
             
             if (status === 401) {
                 errorMessage.value = "用户名或密码错误，请重新输入";
@@ -194,15 +199,16 @@ const handleLogin = async () => {
             }
         } else if (e.request) {
             // 请求已发送但没有响应
+            console.error("登录失败 - 网络错误:", e.request);
             errorMessage.value = "网络连接失败，请检查网络设置";
         } else {
             // 其他错误
+            console.error("登录失败 - 其他错误:", e.message);
             errorMessage.value = "登录失败，请稍后再试";
         }
         
         // 清空密码字段
         password.value = "";
-        console.error("登录失败", e);
     }
     finally {
         isLoading.value = false;

@@ -20,32 +20,32 @@ export default defineConfig({
   server: {
     proxy: {
       '/graphs': {
-        target: 'http://localhost:8090',
+        target: 'http://localhost:8001',
         changeOrigin: true,
         secure: false
       },
       '/teacher': {
-        target: 'http://localhost:8090',
+        target: 'http://localhost:8001',
         changeOrigin: true,
         secure: false
       },
       '/api': {
-        target: 'http://localhost:8090',
+        target: 'http://localhost:8001',
         changeOrigin: true,
         secure: false
       },
       '/student': {
-        target: 'http://localhost:8090',
+        target: 'http://localhost:8001',
         changeOrigin: true,
         secure: false
       },
       '/historyRecord': {
-        target: 'http://localhost:8090',
+        target: 'http://localhost:8001',
         changeOrigin: true,
         secure: false
       },
       '/question': {
-        target: 'http://localhost:8090',
+        target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false
       },

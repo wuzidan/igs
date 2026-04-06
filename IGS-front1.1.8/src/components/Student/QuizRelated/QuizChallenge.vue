@@ -816,8 +816,10 @@ const fetchQuestionData = () => {
                 totalPages.value = res.data.total_pages || 1;
                 currentPage.value = res.data.page || 1;
 
-                // 渲染图表
-                renderDifficultyChart();
+                // 更新分页元数据
+                totalItems.value = res.data.total || 0;
+                totalPages.value = res.data.total_pages || 1;
+                currentPage.value = res.data.page || 1;
             } else {
                 errorMsg.value = "数据格式错误";
             }
@@ -838,6 +840,11 @@ const fetchStatsData = () => {
             console.log("获取的统计数据：", res.data);
             if (res.data) {
                 stats.value = res.data;
+                console.log("更新后的 stats.value:", stats.value);
+                // 渲染图表
+                setTimeout(() => {
+                    renderDifficultyChart();
+                }, 100);
             } else {
                 console.error("统计数据格式错误");
             }
