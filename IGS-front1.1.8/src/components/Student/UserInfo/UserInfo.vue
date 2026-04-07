@@ -77,6 +77,13 @@
                     <div class="card-icon">👤</div>
                 </div>
                 <div class="info-item">
+                    <label>姓名:</label>
+                    <template v-if="isEditing">
+                        <input type="text" v-model="userName" disabled class="disabled-input" />
+                    </template>
+                    <span v-else>{{ userName }}</span>
+                </div>
+                <div class="info-item">
                     <label>出生日期:</label>
                     <template v-if="isEditing">
                         <input type="date" v-model="birthDate" />
@@ -641,9 +648,13 @@ onMounted(() => {
             // 保存完整原始数据（用于取消编辑时恢复）
             studentInfo.value = res.data;
 
-            // 为字段赋值（不包括由StudentHeader管理的字段）
+            // 为字段赋值
             userAvatarUrl.value = res.data.userAvatarUrl || "";
             userAvatar.value = res.data.userAvatar || "👨‍💻";
+            userName.value = res.data.userName || "";
+            studentId.value = res.data.studentId || "";
+            className.value = res.data.className || "";
+            major.value = res.data.major || "";
             birthDate.value = res.data.birthDate || "";
             hometown.value = res.data.hometown || "";
             politicalStatus.value = res.data.politicalStatus || "";
@@ -1126,6 +1137,20 @@ select:focus {
     outline: none;
     box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.15);
     transform: translateY(-2px);
+}
+
+/* 禁用输入框样式 */
+.disabled-input {
+    background-color: #f5f5f5;
+    color: #666;
+    border-color: #ddd;
+    cursor: not-allowed;
+}
+
+.disabled-input:focus {
+    border-color: #ddd;
+    box-shadow: none;
+    transform: none;
 }
 
 textarea {

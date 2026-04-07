@@ -1,16 +1,9 @@
-from django.conf import settings
 from django.db import models
 
 
 class GraphDomain(models.Model):
     name = models.CharField("领域名称", max_length=100, unique=True)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="created_graph_domains",
-    )
+    created_by = models.CharField("创建者", max_length=20, blank=True, null=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
 
     class Meta:
@@ -35,11 +28,19 @@ class KnowledgeGraph(models.Model):
         ARCHIVED = "archived", "已归档"
 
     owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="owned_graphs",
+        'teacher.Teacher',
+        on_delete=models.RESTRICT,
+        to_field='teacher_id',
+        db_column='owner_id',
+        related_name='owned_graphs',
         verbose_name="创建者",
     )
+    
+    class Meta:
+        verbose_name = "知识图谱"
+        verbose_name_plural = "知识图谱"
+        ordering = ["-updated_at", "-id"]
+
     name = models.CharField("图谱名称", max_length=200)
     domain = models.ForeignKey(
         GraphDomain,

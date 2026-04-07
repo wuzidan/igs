@@ -804,8 +804,6 @@ const renderScoreTrendChart = () => {
     });
 };
 
-// 退出功能已在StudentHeader组件中实现，此处不再需要
-
 const retryLoad = () => {
     // 重置状态
     isLoading.value = true;

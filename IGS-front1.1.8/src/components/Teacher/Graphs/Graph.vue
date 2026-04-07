@@ -138,6 +138,12 @@
                     </div>
                     <div class="graph-actions">
                         <button
+                            class="btn btn-view"
+                            @click.stop="showGraphVisualization(graph)"
+                        >
+                            查看图谱
+                        </button>
+                        <button
                             class="btn btn-edit"
                             @click.stop="editGraph(graph.id)"
                         >
@@ -173,18 +179,49 @@
                 </button>
             </div>
         </div>
+
+        <!-- 图谱可视化模态窗口 -->
+        <div
+            v-if="showGraphModal"
+            class="graph-modal-overlay"
+            @click="closeGraphModal"
+        >
+            <div class="graph-modal-content" @click.stop>
+                <div class="graph-modal-header">
+                    <h3>{{ currentGraph?.name || "知识图谱可视化" }}</h3>
+                    <button class="modal-close-btn" @click="closeGraphModal">
+                        ×
+                    </button>
+                </div>
+                <div class="graph-modal-body">
+                    <div v-if="graphLoading" class="graph-loading">
+                        <div class="loading-spinner"></div>
+                        <p>加载图谱数据中...</p>
+                    </div>
+                    <div v-else-if="graphError" class="graph-error">
+                        <p>{{ graphError }}</p>
+                    </div>
+                    <div
+                        v-else
+                        class="graph-visualization-container"
+                        ref="graphContainer"
+                    ></div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import request from "../../../utils/request";
+import * as echarts from "echarts";
 
 const router = useRouter();
 
 const isLoggedIn = ref(
-    !!(window.localStorage && window.localStorage.getItem("token"))
+    !!(window.localStorage && window.localStorage.getItem("token")),
 );
 
 const handleAuthFailure = async (e) => {
@@ -219,6 +256,14 @@ const total = ref(0);
 
 // 图谱数据
 const graphs = ref([]);
+
+// 图谱可视化相关
+const showGraphModal = ref(false);
+const currentGraph = ref(null);
+const graphLoading = ref(false);
+const graphError = ref("");
+const graphContainer = ref(null);
+let chartInstance = null;
 
 const normalizeGraph = (g) => {
     if (!g || typeof g !== "object") return {};
@@ -262,7 +307,10 @@ const fetchGraphs = async () => {
     const results = resp?.data?.results;
     total.value = resp?.data?.total || 0;
     graphs.value = (Array.isArray(results) ? results : []).map(normalizeGraph);
-    totalPages.value = Math.max(1, Math.ceil((total.value || 0) / pageSize.value));
+    totalPages.value = Math.max(
+        1,
+        Math.ceil((total.value || 0) / pageSize.value),
+    );
 };
 
 // 格式化日期
@@ -364,7 +412,212 @@ const createNewGraph = () => {
 // 分享图谱
 const shareGraph = (graphId) => {
     console.log("分享图谱:", graphId);
-    alert("图谱分享功能已触发，图谱ID: " + graphId);
+};
+
+// 显示图谱可视化
+const showGraphVisualization = async (graph) => {
+    currentGraph.value = graph;
+    showGraphModal.value = true;
+    graphLoading.value = true;
+    graphError.value = "";
+
+    await nextTick();
+
+    try {
+        await loadGraphData(graph.id);
+    } catch (e) {
+        console.error("加载图谱数据失败:", e);
+        graphError.value = "加载图谱数据失败，请稍后重试";
+        graphLoading.value = false;
+    }
+};
+
+// 加载图谱数据
+const loadGraphData = async (graphId) => {
+    try {
+        // 从后端 API 获取图谱数据
+        const response = await request.get(`/graphs/${graphId}/`);
+        const graphData = response.data;
+
+        if (!graphData.content || !graphData.content.nodes) {
+            throw new Error("图谱数据格式不正确");
+        }
+
+        const nodes = graphData.content.nodes.map((node) => ({
+            id: node.id,
+            name: node.name,
+            category: node.labels?.[0] || "Concept",
+            symbolSize: 50,
+            draggable: true,
+        }));
+
+        const links = graphData.content.relationships.map((rel) => ({
+            source: rel.source,
+            target: rel.target,
+            name: rel.type || "PREREQUISITE",
+        }));
+
+        graphLoading.value = false;
+        renderGraph(nodes, links);
+    } catch (error) {
+        console.error("加载图谱数据失败:", error);
+        graphError.value = "加载图谱数据失败，请稍后重试";
+        graphLoading.value = false;
+    }
+};
+
+// 渲染图谱
+const renderGraph = (nodes, links) => {
+    if (!graphContainer.value) return;
+
+    // 销毁已存在的图表实例
+    if (chartInstance) {
+        chartInstance.dispose();
+    }
+
+    // 创建图表实例
+    chartInstance = echarts.init(graphContainer.value);
+
+    // 计算初始位置，使图谱居中显示
+    const width = graphContainer.value.clientWidth;
+    const height = graphContainer.value.clientHeight;
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    // 为节点设置初始位置（圆形分布）
+    const radius = Math.min(width, height) * 0.3;
+    nodes.forEach((node, index) => {
+        const angle = (index / nodes.length) * 2 * Math.PI;
+        node.x = centerX + radius * Math.cos(angle);
+        node.y = centerY + radius * Math.sin(angle);
+    });
+
+    // 配置图表选项
+    const option = {
+        title: {
+            text: "知识图谱",
+            top: "bottom",
+            left: "right",
+        },
+        tooltip: {
+            formatter: function (params) {
+                if (params.dataType === "node") {
+                    return `${params.data.name}<br/>类别: ${params.data.category}`;
+                } else if (params.dataType === "edge") {
+                    return `${params.data.name}`;
+                }
+            },
+        },
+        legend: [
+            {
+                data: nodes
+                    .map((n) => n.category)
+                    .filter((v, i, a) => a.indexOf(v) === i),
+            },
+        ],
+        animationDuration: 1500,
+        animationEasingUpdate: "quinticInOut",
+        series: [
+            {
+                name: "知识图谱",
+                type: "graph",
+                layout: "force",
+                data: nodes,
+                links: links,
+                categories: nodes
+                    .map((n) => n.category)
+                    .filter((v, i, a) => a.indexOf(v) === i)
+                    .map((c) => ({ name: c })),
+                roam: true,
+                label: {
+                    show: true,
+                    position: "right",
+                    formatter: "{b}",
+                },
+                lineStyle: {
+                    color: "source",
+                    curveness: 0.3,
+                },
+                emphasis: {
+                    focus: "adjacency",
+                    lineStyle: {
+                        width: 10,
+                    },
+                },
+                force: {
+                    repulsion: 300,
+                    edgeLength: 100,
+                    gravity: 0.1,
+                    layoutAnimation: true,
+                },
+                // 点击节点时的处理
+                autoCurveness: true,
+            },
+        ],
+    };
+
+    chartInstance.setOption(option);
+
+    // 监听点击事件，点击节点时将其移动到视图中央
+    chartInstance.on("click", function (params) {
+        if (params.dataType === "node") {
+            // 获取当前图表的 option
+            const currentOption = chartInstance.getOption();
+            const seriesData = currentOption.series[0].data;
+
+            // 找到被点击的节点
+            const clickedNode = seriesData.find(
+                (node) => node.id === params.data.id,
+            );
+            if (clickedNode) {
+                // 将节点位置设置为画布中心
+                const width = graphContainer.value.clientWidth;
+                const height = graphContainer.value.clientHeight;
+                clickedNode.x = width / 2;
+                clickedNode.y = height / 2;
+                clickedNode.fixed = true; // 固定位置
+
+                // 更新图表
+                chartInstance.setOption({
+                    series: [
+                        {
+                            data: seriesData,
+                        },
+                    ],
+                });
+
+                // 3秒后解除固定，让力导向图继续作用
+                setTimeout(() => {
+                    clickedNode.fixed = false;
+                    chartInstance.setOption({
+                        series: [
+                            {
+                                data: seriesData,
+                            },
+                        ],
+                    });
+                }, 3000);
+            }
+        }
+    });
+
+    // 响应式调整
+    window.addEventListener("resize", () => {
+        if (chartInstance) {
+            chartInstance.resize();
+        }
+    });
+};
+
+// 关闭图谱模态窗口
+const closeGraphModal = () => {
+    showGraphModal.value = false;
+    if (chartInstance) {
+        chartInstance.dispose();
+        chartInstance = null;
+    }
+    currentGraph.value = null;
+    graphError.value = "";
 };
 
 // 组件挂载时执行
@@ -532,7 +785,9 @@ onMounted(async () => {
     display: flex;
     flex-direction: column;
     min-width: 150px;
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
     opacity: 0.9;
 }
 
@@ -560,7 +815,9 @@ onMounted(async () => {
     display: flex;
     align-items: center;
     gap: 10px;
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
     opacity: 0.9;
 }
 
@@ -785,7 +1042,9 @@ onMounted(async () => {
     margin-top: 30px;
     padding-top: 20px;
     border-top: 1px solid #e9ecef;
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
     opacity: 0.9;
 }
 
@@ -903,5 +1162,136 @@ onMounted(async () => {
         margin-right: 0;
         margin-bottom: 8px;
     }
+}
+
+/* 图谱模态窗口样式 */
+.graph-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.graph-modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 1200px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.graph-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 1px solid #e0e0e0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.graph-modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.modal-close-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    font-size: 28px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.modal-close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+.graph-modal-body {
+    padding: 20px;
+    flex: 1;
+    overflow: auto;
+    min-height: 600px;
+}
+
+.graph-loading,
+.graph-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+    color: #666;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.graph-error {
+    color: #e74c3c;
+    font-size: 16px;
+}
+
+.graph-visualization-container {
+    width: 100%;
+    height: 600px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* 查看图谱按钮样式 */
+.btn-view {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    margin-right: 8px;
+}
+
+.btn-view:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 </style>

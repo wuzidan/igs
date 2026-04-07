@@ -1,13 +1,10 @@
 <template>
     <div class="assignment-container">
       <!-- 返回首页 -->
-      <div class="back-to-home">
-        <router-link to="/teacher/index" class="back-link">
-          <span class="icon">🏠</span>
-          <span>首页</span>
-        </router-link>
-      </div>
-  
+       <a href="/teacher/index" class="back-to-home">
+        <span class="icon">🏠</span>
+        <span>首页</span>
+    </a>
       <!-- 发布作业主区域 -->
       <div class="assignment-card">
         <h2 class="assignment-title">
@@ -1503,4 +1500,37 @@
       padding: 20px;
     }
   }
+  .back-to-home {
+    position: fixed;
+    right: 30px;
+    bottom: 30px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #3b82f6 100%);
+    color: white;
+    border-radius: 50px;
+    text-decoration: none;
+    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+    transition: all 0.3s ease;
+    z-index: 9999;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.back-to-home .icon {
+    font-size: 18px;
+}
+
+.back-to-home:hover {
+    transform: translateY(-5px) scale(1.05);
+    box-shadow: 0 8px 25px rgba(79, 70, 229, 0.4);
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #4f46e5 100%);
+}
+
+.back-to-home:active {
+    transform: translateY(-2px);
+}
   </style>

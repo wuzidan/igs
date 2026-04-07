@@ -13,6 +13,10 @@ from idlelib import history
 from pathlib import Path
 import os
 
+# 使用 PyMySQL 替代 mysqlclient
+import pymysql
+pymysql.install_as_MySQLdb()
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,7 +30,7 @@ SECRET_KEY = 'django-insecure-6o_fa3n-har18%o9aiew9#uev983o@ld(1f*#$l!ybu8laz(p3
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
 
 
 # Application definition
@@ -200,9 +204,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_URL = '/static/'  # 静态资源访问URL前缀（如 http://localhost:8000/static/）
 # 开发环境下静态文件目录（若已有，保留）
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),  # 指向项目根目录下的 static 文件夹
+    # os.path.join(BASE_DIR, 'static'),  # 指向项目根目录下的 static 文件夹
 ]
 
 # 3. 将用户上传文件（头像）存储到/avatars
 MEDIA_URL = '/avatars/'  # 头像访问URL前缀（如 http://localhost:8000/avatars/）
 MEDIA_ROOT = os.path.join(BASE_DIR,  'avatars')  # 本地存储路径：项目根目录/static/avatars
+
+
+# Neo4j 数据库配置
+NEO4J_URI = 'bolt://localhost:7687'
+NEO4J_USER = 'neo4j'
+NEO4J_PASSWORD = 'password'  # 请根据实际情况修改密码

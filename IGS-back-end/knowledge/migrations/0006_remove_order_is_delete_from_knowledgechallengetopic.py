@@ -8,7 +8,6 @@ class Migration(migrations.Migration):
     dependencies = [
         ('knowledge', '0005_alter_coursechapter_table_knowledgechallengetopic_and_more'),
     ]
-
     operations = [
         migrations.RunSQL(
             'ALTER TABLE challenge_topic DROP COLUMN `order`;',

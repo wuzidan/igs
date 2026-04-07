@@ -118,7 +118,6 @@
             </div>
             <div class="card-footer">
                 <el-button type="warning" @click="showEditClassDialog" :loading="loading">编辑班级信息</el-button>
-                <el-button type="success" @click="showAddStudentDialog" :loading="loading">添加学生</el-button>
                 <el-button type="danger" :disabled="!selectedClassId" @click="showDeleteConfirm" :loading="loading">删除班级</el-button>
             </div>
         </div>
@@ -206,9 +205,6 @@
             <el-form-item label="班级名称" prop="name">
                 <el-input v-model="editClassForm.name" placeholder="请输入班级名称" />
             </el-form-item>
-            <el-form-item label="班级代码" prop="code">
-                <el-input v-model="editClassForm.code" placeholder="请输入班级代码" />
-            </el-form-item>
             <el-form-item label="课程名称" prop="course_id">
                 <el-select v-model="editClassForm.course_id" placeholder="请选择课程" :loading="courseLoading">
                     <el-option v-for="course in courses" :key="course.id" :label="course.name" :value="String(course.id)"></el-option>
@@ -219,34 +215,6 @@
             <span class="dialog-footer">
                 <el-button @click="editClassDialogVisible = false">取消</el-button>
                 <el-button type="primary" @click="handleEditClass">确定</el-button>
-            </span>
-        </template>
-    </el-dialog>
-
-    <!-- 添加学生对话框 -->
-    <el-dialog
-        v-model="addStudentDialogVisible"
-        title="添加学生"
-        width="500px"
-    >
-        <el-form :model="addStudentForm" :rules="addStudentRules" ref="addStudentFormRef">
-            <el-form-item label="学号" prop="student_id">
-                <el-input v-model="addStudentForm.student_id" placeholder="请输入学号" />
-            </el-form-item>
-            <el-form-item label="姓名" prop="name">
-                <el-input v-model="addStudentForm.name" placeholder="请输入姓名" />
-            </el-form-item>
-            <el-form-item label="手机号" prop="phone">
-                <el-input v-model="addStudentForm.phone" placeholder="请输入手机号" />
-            </el-form-item>
-            <el-form-item label="邮箱" prop="email">
-                <el-input v-model="addStudentForm.email" placeholder="请输入邮箱" />
-            </el-form-item>
-        </el-form>
-        <template #footer>
-            <span class="dialog-footer">
-                <el-button @click="addStudentDialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="handleAddStudent">确定</el-button>
             </span>
         </template>
     </el-dialog>
@@ -407,7 +375,6 @@ const totalCount = ref(0);
 // 对话框状态
 const createClassDialogVisible = ref(false);
 const editClassDialogVisible = ref(false);
-const addStudentDialogVisible = ref(false);
 
 // 表单数据
 const createClassForm = ref({
@@ -421,12 +388,7 @@ const editClassForm = ref({
     course_id: ''
 });
 
-const addStudentForm = ref({
-    student_id: '',
-    name: '',
-    phone: '',
-    email: ''
-});
+
 
 // 表单验证规则
 const createClassRules = ref({
@@ -439,17 +401,9 @@ const editClassRules = ref({
     course_id: [{ required: true, message: '请选择课程', trigger: 'change' }]
 });
 
-const addStudentRules = ref({
-    student_id: [{ required: true, message: '请输入学号', trigger: 'blur' }],
-    name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-    phone: [{ pattern: /^1[3-9]\\d{9}$/, message: '请输入正确的手机号', trigger: 'blur', required: false }],
-    email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur', required: false }]
-});
-
 // 表单引用
 const createClassFormRef = ref(null);
 const editClassFormRef = ref(null);
-const addStudentFormRef = ref(null);
 
 const fetchClassList = async () => {
     if (!isLoggedIn.value) return;
@@ -1024,9 +978,13 @@ const deleteCourse = async (courseId) => {
             ElMessage.success('课程删除成功');
         } catch (e) {
             console.error("删除课程失败", e);
-            ElMessage.error('删除课程失败，请稍后重试');
-            // 移除跳转到登录页面的逻辑
-            // await handleAuthFailure(e);
+            if (e.message.includes('课程不存在')) {
+                // 课程已经被删除，更新课程列表
+                await fetchCourses();
+                ElMessage.success('课程已被删除');
+            } else {
+                ElMessage.error('删除课程失败，请稍后重试');
+            }
         } finally {
             loading.value = false;
         }
