@@ -1,9 +1,10 @@
 from django.shortcuts import render
 # user/api/views.py
 from rest_framework import generics, status, permissions
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token
+from django.db import DatabaseError
 from .models import User
 from .serializers import UserBaseSerializer, UserUpdateSerializer, UserLoginSerializer, UserCreateSerializer
 from .permissions import IsAdmin, IsStudent, IsTeacher
@@ -30,27 +31,48 @@ class CustomLoginView(generics.GenericAPIView):
     serializer_class = UserLoginSerializer
 
     def post(self, request, *args, **kwargs):
-        # 使用自定义的登录序列化器验证数据
         serializer = self.serializer_class(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data["user"]
-        # 生成/获取Token（用于后续接口认证）
-        token, created = Token.objects.get_or_create(user=user)
-        # 根据角色ID判断用户类型
-        if user.role == 1:
-            user_type = "student"
-        elif user.role == 2:
-            user_type = "teacher"
-        elif user.role == 3:
-            user_type = "admin"
-        else:
-            user_type = "student"
-        # 返回Token+用户基础信息
-        return Response({
-            "token": token.key,
-            "userType": user_type,
-            "user": UserBaseSerializer(user).data
-        }, status=status.HTTP_200_OK)
+        try:
+            serializer.is_valid(raise_exception=True)
+            user = serializer.validated_data["user"]
+            try:
+                token, created = Token.objects.get_or_create(user=user)
+            except DatabaseError as exc:
+                return Response({
+                    "detail": "登录失败：Token 创建异常",
+                    "error": str(exc)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            role = getattr(user, "role", None)
+            if role == 1:
+                user_type = "student"
+            elif role == 2:
+                user_type = "teacher"
+            elif role == 3:
+                user_type = "admin"
+            else:
+                user_type = "student"
+            try:
+                user_data = UserBaseSerializer(user).data
+            except Exception as exc:
+                return Response({
+                    "detail": "登录失败：用户信息序列化异常",
+                    "error": str(exc),
+                    "user_id": getattr(user, "id", None),
+                    "role": role,
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({
+                "token": token.key,
+                "userType": user_type,
+                "user": user_data
+            }, status=status.HTTP_200_OK)
+        except ValidationError:
+            raise
+        except Exception as exc:
+            return Response({
+                "detail": "登录失败：未处理异常",
+                "error": str(exc),
+                "exception_type": exc.__class__.__name__,
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # 4. 管理员创建用户接口（仅管理员可访问）
 class AdminCreateUserView(generics.CreateAPIView):

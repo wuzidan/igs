@@ -16,6 +16,16 @@ const api = {
             }
         })
     },
+    getHomework() {
+        return request.get(path.quiz)
+    },
+    submitPracticeRecord(payload) {
+        return request.post(path.submitPracticeRecord, payload, {
+            headers: {
+                "Content-Type": "application/json"
+            }
+        })
+    },
     getStructure() {
         return request.get(path.structure)
     },

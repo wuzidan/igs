@@ -6,7 +6,7 @@ let hostUrl = "http://localhost:5173"
 const instance = axios.create({
     //baseUrl : hostUrl,
     baseURL: "/",
-    timeout: 5000   
+    timeout: 20000   
 })
 
 // 拦截器 - 请求拦截器
@@ -69,7 +69,17 @@ instance.interceptors.response.use(
             if (!data) return null
             if (typeof data === 'string') return data
             if (typeof data === 'object') {
-                return data.error || data.detail || data.message || null
+                if (data.error || data.detail || data.message) {
+                    return data.error || data.detail || data.message
+                }
+                if (Array.isArray(data.non_field_errors) && data.non_field_errors.length > 0) {
+                    return String(data.non_field_errors[0])
+                }
+                const firstFieldErrors = Object.values(data).find(value => Array.isArray(value) && value.length > 0)
+                if (firstFieldErrors) {
+                    return String(firstFieldErrors[0])
+                }
+                return null
             }
             return null
         })();

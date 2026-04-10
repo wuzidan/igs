@@ -1,7 +1,9 @@
 # teacher/api/views.py
 import os
 import logging
+import re
 from datetime import datetime
+from collections import Counter
 from collections import defaultdict
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -271,44 +273,171 @@ class StudentKnowledgeMasteryView(APIView):
 
         return None
 
-    def _resolve_diagnosis_user_id(self, student_user):
-        """选择用于诊断的 user.User 主键，优先选择存在练习记录的账号。"""
-        primary_user = self._resolve_core_user(student_user)
-        candidates = []
+    def _count_usable_aakt_interactions(self, candidate_id):
+        if candidate_id is None:
+            return 0
 
-        if primary_user is not None:
-            candidates.append(primary_user)
+        practice_records = list(
+            PracticeRecord.objects.filter(student_id=candidate_id)
+            .select_related('challenge')
+            .prefetch_related('questions__exercise__exercise_challenges__challenge')
+            .order_by('date')
+        )
+
+        usable_count = 0
+        for record in practice_records:
+            record_challenge = getattr(record, 'challenge', None)
+            record_challenge_id = getattr(record_challenge, 'challenge_id', None)
+            if record_challenge_id is not None:
+                usable_count += 1
+                continue
+
+            for question in record.questions.all():
+                model_qid = None
+                question_record_challenge = getattr(question.record, 'challenge', None)
+                if getattr(question_record_challenge, 'challenge_id', None) is not None:
+                    model_qid = question_record_challenge.challenge_id
+                elif getattr(question, 'exercise', None) is not None:
+                    challenge_link = question.exercise.exercise_challenges.select_related('challenge').first()
+                    if challenge_link is not None and getattr(challenge_link.challenge, 'challenge_id', None) is not None:
+                        model_qid = challenge_link.challenge.challenge_id
+                if model_qid is not None:
+                    usable_count += 1
+
+        return usable_count
+
+    def _log_aakt_record_diagnostics(self, student_user, diagnosis_user_id, practice_records):
+        diagnostics = Counter()
+        samples = []
+
+        for record in practice_records:
+            record_challenge = getattr(record, 'challenge', None)
+            record_challenge_code = getattr(record_challenge, 'challenge_id', None)
+            if record_challenge_code is not None:
+                diagnostics['record_has_challenge'] += 1
+            else:
+                diagnostics['record_missing_challenge'] += 1
+
+            questions = list(record.questions.all())
+            if questions:
+                diagnostics['record_has_questions'] += 1
+            else:
+                diagnostics['record_without_questions'] += 1
+
+            usable_from_questions = 0
+            question_with_exercise = 0
+            question_with_challenge_link = 0
+            question_missing_exercise = 0
+            for question in questions:
+                exercise = getattr(question, 'exercise', None)
+                if exercise is None:
+                    question_missing_exercise += 1
+                    continue
+                question_with_exercise += 1
+                challenge_link = exercise.exercise_challenges.select_related('challenge').first()
+                if challenge_link is not None and getattr(challenge_link.challenge, 'challenge_id', None) is not None:
+                    question_with_challenge_link += 1
+                    usable_from_questions += 1
+
+            diagnostics['questions_total'] += len(questions)
+            diagnostics['questions_with_exercise'] += question_with_exercise
+            diagnostics['questions_missing_exercise'] += question_missing_exercise
+            diagnostics['questions_with_challenge_link'] += question_with_challenge_link
+            if usable_from_questions > 0:
+                diagnostics['record_usable_via_questions'] += 1
+            else:
+                diagnostics['record_not_usable_via_questions'] += 1
+
+            if len(samples) < 5:
+                samples.append({
+                    'record_id': getattr(record, 'id', None),
+                    'practice_student_id': getattr(record, 'student_id', None),
+                    'record_challenge_fk': getattr(record, 'challenge_id', None),
+                    'record_challenge_code': record_challenge_code,
+                    'question_count': len(questions),
+                    'question_with_exercise': question_with_exercise,
+                    'question_with_challenge_link': question_with_challenge_link,
+                    'usable_from_questions': usable_from_questions,
+                })
+
+        logger.info(
+            "AAKT interaction diagnostics for student_id=%s, diagnosis_user_id=%s: %s",
+            getattr(student_user, 'student_id', None),
+            diagnosis_user_id,
+            dict(diagnostics),
+        )
+        logger.info(
+            "AAKT interaction diagnostic samples for student_id=%s: %s",
+            getattr(student_user, 'student_id', None),
+            samples,
+        )
+
+    def _resolve_diagnosis_user_id(self, student_user):
+        """选择用于诊断的 PracticeRecord.student 外键主键值。"""
+        candidate_ids = []
+
+        student_user_id = getattr(student_user, 'id', None)
+        if student_user_id is not None:
+            candidate_ids.append(student_user_id)
+
+        primary_user = self._resolve_core_user(student_user)
+        primary_user_id = getattr(primary_user, 'id', None)
+        if primary_user_id is not None:
+            candidate_ids.append(primary_user_id)
 
         username = str(getattr(student_user, 'username', '') or '').strip()
         email = str(getattr(student_user, 'email', '') or '').strip()
 
         if username:
             matched_by_username = CoreUser.objects.filter(username=username).first()
-            if matched_by_username is not None:
-                candidates.append(matched_by_username)
+            matched_id = getattr(matched_by_username, 'id', None)
+            if matched_id is not None:
+                candidate_ids.append(matched_id)
 
         if email:
             matched_by_email = CoreUser.objects.filter(email=email).first()
-            if matched_by_email is not None:
-                candidates.append(matched_by_email)
+            matched_id = getattr(matched_by_email, 'id', None)
+            if matched_id is not None:
+                candidate_ids.append(matched_id)
 
-        best_user = None
-        best_count = -1
+        best_candidate_id = None
+        best_usable_interactions = -1
+        best_record_count = -1
         seen_ids = set()
-        for candidate in candidates:
-            candidate_id = getattr(candidate, 'id', None)
+        candidate_counts = []
+        for candidate_id in candidate_ids:
             if candidate_id is None or candidate_id in seen_ids:
                 continue
             seen_ids.add(candidate_id)
             record_count = PracticeRecord.objects.filter(student_id=candidate_id).count()
-            if record_count > best_count:
-                best_count = record_count
-                best_user = candidate
+            usable_interactions = self._count_usable_aakt_interactions(candidate_id)
+            candidate_counts.append({
+                "candidate_id": candidate_id,
+                "record_count": record_count,
+                "usable_interactions": usable_interactions,
+            })
+            if usable_interactions > best_usable_interactions:
+                best_usable_interactions = usable_interactions
+                best_record_count = record_count
+                best_candidate_id = candidate_id
+                continue
+            if usable_interactions == best_usable_interactions and record_count > best_record_count:
+                best_record_count = record_count
+                best_candidate_id = candidate_id
 
-        if best_user is not None:
-            return best_user.id
+        logger.info(
+            "AAKT diagnosis candidate resolution for student_id=%s, student_user_pk=%s, core_user_pk=%s, candidates=%s, selected=%s",
+            getattr(student_user, 'student_id', None),
+            student_user_id,
+            primary_user_id,
+            candidate_counts,
+            best_candidate_id,
+        )
 
-        return getattr(primary_user, 'id', None) or student_user.id
+        if best_candidate_id is not None:
+            return best_candidate_id
+
+        return student_user_id or primary_user_id
 
     def _collect_student_interactions(self, student_user, diagnosis_user_id=None):
         """收集学生的答题交互数据，用于 AAKT 模型输入
@@ -321,14 +450,39 @@ class StudentKnowledgeMasteryView(APIView):
             student_user,
             diagnosis_user_id=diagnosis_user_id,
         )
+        self._log_aakt_record_diagnostics(student_user, diagnosis_user_id, practice_records)
 
         for record in practice_records:
-            for question in record.questions.all():
+            record_challenge = getattr(record, "challenge", None)
+            record_challenge_id = getattr(record_challenge, "challenge_id", None)
+            if record_challenge_id is not None:
+                interactions.append({
+                    'question_id': record_challenge_id,
+                    'correct': bool(getattr(record, 'score', 0) > 0),
+                })
+                continue
+
+            record_questions = list(record.questions.all())
+            if not record_questions:
+                interactions.append({
+                    'question_id': f"synthetic_record_{getattr(record, 'id', 'unknown')}",
+                    'correct': bool(getattr(record, 'score', 0) > 0),
+                    'synthetic': True,
+                    'source': 'practice_record_fallback',
+                })
+                continue
+
+            for question in record_questions:
                 model_qid = None
                 try:
-                    if (getattr(question, "exercise", None) is not None
+                    question_record_challenge = getattr(question.record, "challenge", None)
+                    if question_record_challenge is not None and getattr(question_record_challenge, "challenge_id", None) is not None:
+                        model_qid = question_record_challenge.challenge_id
+                    elif (getattr(question, "exercise", None) is not None
                             and getattr(question.exercise, "exercise_id", None) is not None):
-                        model_qid = question.exercise.exercise_id
+                        challenge_link = question.exercise.exercise_challenges.select_related('challenge').first()
+                        if challenge_link is not None and getattr(challenge_link.challenge, "challenge_id", None) is not None:
+                            model_qid = challenge_link.challenge.challenge_id
                 except Exception:
                     model_qid = None
                 interactions.append({
@@ -342,7 +496,43 @@ class StudentKnowledgeMasteryView(APIView):
         target_user_id = diagnosis_user_id or self._resolve_diagnosis_user_id(student_user)
         records = PracticeRecord.objects.filter(student_id=target_user_id).order_by('date')
         if records.exists():
+            logger.info(
+                "AAKT practice records matched primary target for student_id=%s: target_user_id=%s, count=%s",
+                getattr(student_user, 'student_id', None),
+                target_user_id,
+                records.count(),
+            )
             return records
+        student_user_id = getattr(student_user, 'id', None)
+        if student_user_id is not None and student_user_id != target_user_id:
+            records = PracticeRecord.objects.filter(student_id=student_user_id).order_by('date')
+            if records.exists():
+                logger.info(
+                    "AAKT practice records matched student_user.id fallback for student_id=%s: student_user_id=%s, count=%s",
+                    getattr(student_user, 'student_id', None),
+                    student_user_id,
+                    records.count(),
+                )
+                return records
+        core_user = self._resolve_core_user(student_user)
+        core_user_id = getattr(core_user, 'id', None)
+        if core_user_id is not None and core_user_id != target_user_id:
+            records = PracticeRecord.objects.filter(student_id=core_user_id).order_by('date')
+            if records.exists():
+                logger.info(
+                    "AAKT practice records matched core_user.id fallback for student_id=%s: core_user_id=%s, count=%s",
+                    getattr(student_user, 'student_id', None),
+                    core_user_id,
+                    records.count(),
+                )
+                return records
+        logger.info(
+            "AAKT practice records not found for student_id=%s using target_user_id=%s, student_user_id=%s, core_user_id=%s",
+            getattr(student_user, 'student_id', None),
+            target_user_id,
+            student_user_id,
+            core_user_id,
+        )
         return PracticeRecord.objects.filter(student_id=student_user.id).order_by('date')
 
     def _build_mastery_from_question_relations(self, student_user, diagnosis_user_id=None):
@@ -425,7 +615,6 @@ class StudentKnowledgeMasteryView(APIView):
             skills.append(
                 {
                     **stat,
-                    # 与现有前端保持兼容：Tracking.vue 使用 level 渲染百分比
                     'level': mastery,
                     'mastery': mastery,
                 }
@@ -436,19 +625,59 @@ class StudentKnowledgeMasteryView(APIView):
             skill['color'] = self.SKILL_COLORS[idx % len(self.SKILL_COLORS)]
         return skills
 
+    def _get_student_topic_display_names(self, student_user, diagnosis_user_id=None):
+        relation_skills = self._build_mastery_from_question_relations(
+            student_user,
+            diagnosis_user_id=diagnosis_user_id,
+        )
+        return [item['name'] for item in relation_skills if item.get('name')]
+
+    def _remap_mastery_display_names(self, mastery_per_tag: dict, student_user, diagnosis_user_id=None) -> dict:
+        if not isinstance(mastery_per_tag, dict) or not mastery_per_tag:
+            return {}
+
+        real_topic_names = self._get_student_topic_display_names(
+            student_user,
+            diagnosis_user_id=diagnosis_user_id,
+        )
+        if not real_topic_names:
+            return mastery_per_tag
+
+        remapped = {}
+        fallback_index = 0
+        for raw_tag_name, mastery_value in mastery_per_tag.items():
+            raw_name = str(raw_tag_name or '').strip()
+            if re.fullmatch(r'知识点_\d+', raw_name) and fallback_index < len(real_topic_names):
+                display_name = real_topic_names[fallback_index]
+                fallback_index += 1
+            else:
+                display_name = raw_name
+
+            dedupe_name = display_name
+            duplicate_index = 2
+            while dedupe_name in remapped:
+                dedupe_name = f"{display_name}_{duplicate_index}"
+                duplicate_index += 1
+            remapped[dedupe_name] = mastery_value
+
+        return remapped
+
     def _mastery_to_skills(self, mastery_per_tag: dict, max_display: int = 20) -> list:
-        """将 mastery_per_tag 字典转换为前端 skills 数组格式
-        当知识点过多时，取最弱和最强的各 max_display/2 个展示。
-        """
+        """将 mastery_per_tag 字典转换为前端 skills 数组格式，仅展示最弱的非占位知识点。"""
         all_skills = []
         for tag_name, mastery_value in mastery_per_tag.items():
+            normalized_name = str(tag_name or '').strip()
+            if not normalized_name or re.fullmatch(r'知识点_\d+', normalized_name):
+                continue
             all_skills.append({
-                "name": tag_name,
+                "name": normalized_name,
                 "level": round(mastery_value * 100, 1),
             })
 
-        half = max_display // 2
-        all_skills = all_skills[:half] + all_skills[-half:]
+        all_skills.sort(key=lambda item: item["level"])
+
+        if max_display > 0 and len(all_skills) > max_display:
+            all_skills = all_skills[:max_display]
 
         # 分配颜色
         color_list = self.SKILL_COLORS
@@ -496,6 +725,12 @@ class StudentKnowledgeMasteryView(APIView):
                 )
 
         diagnosis_user_id = self._resolve_diagnosis_user_id(student_user)
+        logger.info(
+            "AAKT diagnosis request context: requested_student_id=%s, student_user_pk=%s, diagnosis_user_id=%s",
+            student_id,
+            getattr(student_user, 'id', None),
+            diagnosis_user_id,
+        )
         relation_skills = self._build_mastery_from_question_relations(
             student_user,
             diagnosis_user_id=diagnosis_user_id,
@@ -569,8 +804,21 @@ class StudentKnowledgeMasteryView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        mastery_per_tag = diagnosis_result.get("mastery_per_tag", {})
-        skills = self._mastery_to_skills(mastery_per_tag)
+        mastery_per_tag = self._remap_mastery_display_names(
+            diagnosis_result.get("mastery_per_tag", {}),
+            student_user,
+            diagnosis_user_id=diagnosis_user_id,
+        )
+        diagnosis_result["mastery_per_tag"] = mastery_per_tag
+        filtered_weakest_tags = [
+            tag for tag in sorted(
+                mastery_per_tag.keys(),
+                key=lambda tag: mastery_per_tag[tag],
+            )
+            if not re.fullmatch(r'知识点_\d+', str(tag or '').strip())
+        ]
+        diagnosis_result["weakest_tags"] = filtered_weakest_tags[:3]
+        skills = self._mastery_to_skills(mastery_per_tag, max_display=6)
 
         return Response({
             "status": "success",

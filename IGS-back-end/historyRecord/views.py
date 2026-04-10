@@ -9,7 +9,7 @@ from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from question.models import Question, PracticeRecord, QuestionType, DifficultyLevel
+from question.models import Challenge, Exercise, ExerciseChallenge, Question, PracticeRecord, PracticeType, QuestionType, DifficultyLevel
 from .models import HistoryRecord
 
 
@@ -265,6 +265,46 @@ historyRecord = HistoryRecordView
 class SubmitPracticeRecordView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def _resolve_challenge(self, question_data, exercise=None):
+        challenge_pk_candidates = [
+            question_data.get("challenge_pk"),
+            question_data.get("challengePk"),
+        ]
+        challenge_id_candidates = [
+            question_data.get("challenge_id"),
+            question_data.get("challengeId"),
+        ]
+
+        for candidate in challenge_pk_candidates:
+            if candidate in (None, ""):
+                continue
+            try:
+                challenge = Challenge.objects.filter(pk=int(candidate)).first()
+                if challenge is not None:
+                    return challenge
+            except (TypeError, ValueError):
+                pass
+
+        for candidate in challenge_id_candidates:
+            if candidate in (None, ""):
+                continue
+            challenge = Challenge.objects.filter(challenge_id=str(candidate)).first()
+            if challenge is not None:
+                return challenge
+            try:
+                challenge = Challenge.objects.filter(pk=int(candidate)).first()
+                if challenge is not None:
+                    return challenge
+            except (TypeError, ValueError):
+                pass
+
+        if exercise is not None:
+            challenge_link = exercise.exercise_challenges.select_related("challenge").first()
+            if challenge_link is not None and getattr(challenge_link, "challenge", None) is not None:
+                return challenge_link.challenge
+
+        return None
+
     def _resolve_exercise(self, question_data):
         content_value = str(question_data.get("content") or "").strip()
         exercise_pk_candidates = [
@@ -367,6 +407,7 @@ class SubmitPracticeRecordView(APIView):
 
         created_questions = 0
         mapped_questions = 0
+        resolved_record_challenge = None
 
         with transaction.atomic():
             practice_record = PracticeRecord.objects.create(
@@ -392,6 +433,9 @@ class SubmitPracticeRecordView(APIView):
                 exercise = self._resolve_exercise(question_data)
                 if exercise is not None:
                     mapped_questions += 1
+                challenge = self._resolve_challenge(question_data, exercise=exercise)
+                if resolved_record_challenge is None and challenge is not None:
+                    resolved_record_challenge = challenge
 
                 Question.objects.create(
                     record=practice_record,
@@ -410,6 +454,10 @@ class SubmitPracticeRecordView(APIView):
             if created_questions == 0:
                 return Response({"error": "没有可保存的题目数据"}, status=status.HTTP_400_BAD_REQUEST)
 
+            if resolved_record_challenge is not None:
+                practice_record.challenge = resolved_record_challenge
+                practice_record.save(update_fields=["challenge"])
+
             HistoryRecord.objects.create(
                 user=request.user,
                 type="练习" if practice_type == PracticeType.PRACTICE else "考试",
@@ -426,6 +474,8 @@ class SubmitPracticeRecordView(APIView):
                 "saved_questions": created_questions,
                 "mapped_questions": mapped_questions,
                 "unmapped_questions": max(created_questions - mapped_questions, 0),
+                "challenge_mapped": resolved_record_challenge is not None,
+                "challenge_id": getattr(resolved_record_challenge, "challenge_id", None),
                 "correct_questions": correct_count,
                 "score": score,
                 "duration_minutes": duration_minutes,
