@@ -1,3 +1,6 @@
+
+# classInfo/views.py 调整建议
+
 from django.shortcuts import render
 from django.db.models import Q
 from rest_framework import viewsets, status, generics
@@ -171,6 +174,7 @@ class StudentManagementViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
     def create(self, request, class_id=None):
         """
         添加学生 - 匹配 POST /api/classes/{class_id}/students/
@@ -220,6 +224,7 @@ class StudentManagementViewSet(viewsets.ViewSet):
             pass
 
         return Response(StudentDetailSerializer(student).data, status=status.HTTP_201_CREATED)
+
 
     def retrieve(self, request, class_id=None, pk=None):
         """
@@ -490,3 +495,4 @@ class ClassAndChartViewSet(viewsets.ReadOnlyModelViewSet):
         except Exception as e:
             logger.error("AAKT knowledge chart aggregation failed: %s", str(e))
             return None
+

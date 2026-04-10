@@ -151,8 +151,12 @@ const handleLogin = async () => {
         console.log("登录请求前 - localStorage token:", window.localStorage ? window.localStorage.getItem("token") : null);
 
         const resp = await request.post("/api/user/login/", {
-            username: username.value,
-            password: password.value,
+            username: username.value.trim(),
+            password: password.value.trim(),
+        }, {
+            headers: {
+                "Content-Type": "application/json"
+            }
         });
 
         console.log("登录响应:", resp.data);
@@ -177,37 +181,35 @@ const handleLogin = async () => {
     } catch (e) {
         window.localStorage && window.localStorage.removeItem("token");
         console.error("登录失败", e);
-        // 根据错误类型显示不同的错误信息
-        if (e.response) {
-            // 服务器返回错误
-            const status = e.response.status;
-            const data = e.response.data;
+        const response = e?.originalError?.response || e?.response;
+        const data = response?.data;
+        const serverMessage = data?.detail
+            || data?.error
+            || data?.message
+            || (Array.isArray(data?.non_field_errors) ? data.non_field_errors[0] : null);
+        if (response) {
+            const status = response.status;
             console.error("登录失败 - 服务器错误:", status, data);
             
-            if (status === 401) {
+            if (status === 401 || status === 400) {
                 errorMessage.value = "用户名或密码错误，请重新输入";
-            } else if (status === 400) {
-                errorMessage.value = data.detail || "请求参数错误";
             } else if (status === 404) {
                 errorMessage.value = "用户不存在";
             } else if (status === 429) {
                 errorMessage.value = "登录尝试次数过多，请稍后再试";
             } else if (status >= 500) {
-                errorMessage.value = "服务器错误，请稍后再试";
+                errorMessage.value = serverMessage || "服务器错误，请稍后再试";
             } else {
-                errorMessage.value = data.detail || "登录失败，请稍后再试";
+                errorMessage.value = serverMessage || "登录失败，请稍后再试";
             }
-        } else if (e.request) {
-            // 请求已发送但没有响应
-            console.error("登录失败 - 网络错误:", e.request);
+        } else if (e?.originalError?.request || e?.request) {
+            console.error("登录失败 - 网络错误:", e?.originalError?.request || e?.request);
             errorMessage.value = "网络连接失败，请检查网络设置";
         } else {
-            // 其他错误
             console.error("登录失败 - 其他错误:", e.message);
-            errorMessage.value = "登录失败，请稍后再试";
+            errorMessage.value = e?.message || "登录失败，请稍后再试";
         }
         
-        // 清空密码字段
         password.value = "";
     }
     finally {
