@@ -29,5 +29,6 @@ urlpatterns = [
     path('classInfo/', include('classInfo.urls'), name='classInfo'),
     path('api/user/', include('user.urls'), name='user'),
     path("graphs/", include("graphs.urls")),
+    path("llm/", include("llm_recommendation.urls")),
 
 ]

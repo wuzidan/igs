@@ -3,6 +3,7 @@ Neo4j 连接管理模块
 提供单例模式的Neo4j连接，供多个组件使用
 """
 from neo4j import GraphDatabase
+from django.conf import settings
 import logging
 
 # 配置日志
@@ -23,10 +24,10 @@ class Neo4jConnector:
     def _initialize(self, uri, user, password):
         """初始化Neo4j连接"""
         try:
-            # 默认连接参数
-            self.uri = uri or "bolt://localhost:7687"
-            self.user = user or "neo4j"
-            self.password = password or "neo4j123456"  # 修改为实际密码
+            # 从settings.py读取配置，如果没有则使用默认值
+            self.uri = uri or getattr(settings, 'NEO4J_URI', "bolt://localhost:7687")
+            self.user = user or getattr(settings, 'NEO4J_USER', "neo4j")
+            self.password = password or getattr(settings, 'NEO4J_PASSWORD', "neo4j")
             
             # 创建驱动实例
             self.driver = GraphDatabase.driver(

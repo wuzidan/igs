@@ -17,10 +17,10 @@ const api = {
         })
     },
     getHomework() {
-        return axios.get(path.quiz)
+        return request.get(path.quiz)
     },
     submitPracticeRecord(payload) {
-        return axios.post(path.submitPracticeRecord, payload, {
+        return request.post(path.submitPracticeRecord, payload, {
             headers: {
                 "Content-Type": "application/json"
             }
@@ -73,11 +73,15 @@ const api = {
     },
     // 获取LLM学习路径推荐
     getLearningRoute(payload) {
-        return request.post("http://localhost:8001/api/recommend_path/", payload, {
+        return request.post("http://localhost:8000/llm/recommend/", payload, {
             headers: {
                 "Content-Type": "application/json"
             }
         })
+    },
+    // 获取知识图谱节点列表
+    getKnowledgeNodes() {
+        return request.get(path.knowledgeNodes)
     },
 }
 
