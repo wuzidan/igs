@@ -10,7 +10,6 @@
         </div>
 
         <!-- 加载失败界面 -->
-        <!-- 临时注释掉错误状态显示 -->
         <!-- <div class="error-container" v-if="!isLoading && errorMsg">
             <div class="error-content">
                 <div class="error-icon">⚠️</div>
@@ -23,70 +22,135 @@
         <!-- 使用标准顶栏组件 -->
         <StudentHeader title="学习路径规划" />
 
+        <!-- 目标知识点选择 -->
+        <div class="card target-selection-card">
+            <h3>选择学习目标</h3>
+            <div class="target-selection">
+                <div class="select-container">
+                    <!-- 下拉选择框 -->
+                    <div class="custom-select">
+                        <!-- 选择框触发按钮 -->
+                        <div class="select-trigger" @click="toggleDropdown" :class="{ 'disabled': isLoading }">
+                            <span v-if="selectedTarget">{{ selectedTarget }}</span>
+                            <span v-else class="placeholder">请选择目标知识点</span>
+                            <span class="select-arrow" :class="{ 'open': showDropdown, 'disabled': isLoading }">▼</span>
+                        </div>
+                        
+                        <!-- 下拉菜单 -->
+                        <div class="select-dropdown" v-show="showDropdown && !isLoading">
+                            <!-- 搜索框 -->
+                            <div class="dropdown-search">
+                                <div class="search-input-container">
+                                    <input 
+                                        type="text" 
+                                        v-model="searchKeyword" 
+                                        placeholder="搜索知识点..."
+                                        class="search-input"
+                                    />
+                                    <button 
+                                        v-if="searchKeyword" 
+                                        class="clear-search-btn"
+                                        @click.stop="searchKeyword = ''"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- 选项列表 -->
+                            <div class="dropdown-options">
+                                <div 
+                                    v-for="knowledge in filteredKnowledgeList" 
+                                    :key="knowledge" 
+                                    class="dropdown-item"
+                                    @click="selectKnowledge(knowledge)"
+                                >
+                                    {{ knowledge }}
+                                </div>
+                                <div v-if="filteredKnowledgeList.length === 0" class="dropdown-empty">
+                                    没有找到匹配的知识点
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button @click="generatePath" class="generate-btn" :disabled="!selectedTarget || isLoading">
+                    {{ isLoading ? '生成中...' : '推荐路径' }}
+                </button>
+            </div>
+        </div>
 
         <div class="dashboard">
             <!-- 学习路径图 -->
             <div class="card path-card">
                 <h3>推荐学习路径</h3>
-                <div class="small-chart">
+                <div class="path-visualization-container">
                     <div class="path-visualization">
-                        <div
-                            class="path-node current-node"
-                            :style="{ left: '10%', top: '50%' }"
-                        >
-                            <div class="node-content">当前位置</div>
-                        </div>
-
-                        <div class="path-connector"></div>
-
-                        <div
-                            class="path-node next-node"
-                            :style="{ left: '30%', top: '30%' }"
-                        >
-                            <div class="node-content">
-                                {{ knowledgePoints[0].name }}
+                        <!-- 计算总节点数 -->
+                        <template v-if="knowledgePoints.length > 0">
+                            <!-- 计算总节点数（包括当前位置和目标节点） -->
+                            <div
+                                class="path-node current-node"
+                                :style="{ left: '10%', top: '50%' }"
+                            >
+                                <div class="node-content">当前位置</div>
                             </div>
-                            <div class="node-details">
-                                难度: {{ knowledgePoints[0].difficulty }}
+
+                            <!-- 主连接线 -->
+                            <div class="path-connector main-connector"></div>
+
+                            <!-- 路径节点 -->
+                            <div
+                                v-for="(point, index) in knowledgePoints.slice(0, -1)"
+                                :key="index"
+                                class="path-node next-node"
+                                :style="{
+                                    left: (20 + index * (60 / Math.max(1, knowledgePoints.length - 1))) + '%', 
+                                    top: '50%'
+                                }"
+                            >
+                                <div class="node-content">{{ point.name }}</div>
+                                <div class="node-details">
+                                    难度: {{ point.difficulty }}
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="path-connector"></div>
-
-                        <div
-                            class="path-node next-node"
-                            :style="{ left: '50%', top: '60%' }"
-                        >
-                            <div class="node-content">
-                                {{ knowledgePoints[1].name }}
+                            <!-- 目标节点 -->
+                            <div
+                                v-if="selectedTarget"
+                                class="path-node target-node"
+                                :style="{ left: '85%', top: '50%' }"
+                            >
+                                <div class="node-content">{{ selectedTarget }}</div>
                             </div>
-                            <div class="node-details">
-                                难度: {{ knowledgePoints[1].difficulty }}
+                            <div
+                                v-else
+                                class="path-node target-node"
+                                :style="{ left: '85%', top: '50%' }"
+                            >
+                                <div class="node-content">学习目标</div>
                             </div>
-                        </div>
-
-                        <div class="path-connector"></div>
-
-                        <div
-                            class="path-node next-node"
-                            :style="{ left: '70%', top: '40%' }"
-                        >
-                            <div class="node-content">
-                                {{ knowledgePoints[2].name }}
+                        </template>
+                        <template v-else>
+                            <!-- 没有路径数据时的默认布局 -->
+                            <div
+                                class="path-node current-node"
+                                :style="{ left: '15%', top: '50%' }"
+                            >
+                                <div class="node-content">当前位置</div>
                             </div>
-                            <div class="node-details">
-                                难度: {{ knowledgePoints[2].difficulty }}
+
+                            <!-- 主连接线 -->
+                            <div class="path-connector main-connector"></div>
+
+                            <!-- 目标节点 -->
+                            <div
+                                class="path-node target-node"
+                                :style="{ left: '85%', top: '50%' }"
+                            >
+                                <div class="node-content">学习目标</div>
                             </div>
-                        </div>
-
-                        <div class="path-connector"></div>
-
-                        <div
-                            class="path-node target-node"
-                            :style="{ left: '90%', top: '50%' }"
-                        >
-                            <div class="node-content">学习目标</div>
-                        </div>
+                        </template>
                     </div>
                 </div>
             </div>
@@ -99,7 +163,7 @@
                         {{ pathReason }}
                     </p>
                     <p v-else class="loading-reason">
-                        正在生成推荐依据...
+                        选择目标知识点后点击"推荐路径"按钮生成推荐依据...
                     </p>
                 </div>
             </div>
@@ -124,32 +188,7 @@ const userName = ref("李四");
 const studentId = ref("20230002");
 
 // 知识点数据
-const knowledgePoints = ref([
-    // 示例数据
-    { id: 1, name: "Vue基础语法", difficulty: "easy", mastery: 85, icon: "📐" },
-    { id: 2, name: "组件通信", difficulty: "medium", mastery: 65, icon: "🔄" },
-    {
-        id: 3,
-        name: "Vuex状态管理",
-        difficulty: "medium",
-        mastery: 45,
-        icon: "📦",
-    },
-    {
-        id: 4,
-        name: "Vue Router路由",
-        difficulty: "medium",
-        mastery: 70,
-        icon: "🧭",
-    },
-    {
-        id: 5,
-        name: "Composition API",
-        difficulty: "hard",
-        mastery: 30,
-        icon: "🧩",
-    },
-]);
+const knowledgePoints = ref([]);
 
 // 推荐依据
 const pathReason = ref('');
@@ -158,33 +197,159 @@ const pathReason = ref('');
 const targetKnowledge = ref('处理器调度');
 
 // 状态变量
-const isLoading = ref(true);
+const isLoading = ref(false);
 const errorMsg = ref("");
 
+// 知识点列表
+const knowledgeList = ref([]);
+
+// 搜索关键词
+const searchKeyword = ref('');
+
+// 选中的目标知识点
+const selectedTarget = ref('');
+
+// 下拉框显示状态
+const showDropdown = ref(false);
+
+// 过滤后的知识点列表
+const filteredKnowledgeList = computed(() => {
+    if (!searchKeyword.value) {
+        return knowledgeList.value;
+    }
+    return knowledgeList.value.filter(knowledge => 
+        knowledge.toLowerCase().includes(searchKeyword.value.toLowerCase())
+    );
+});
+
+// 选择知识点
+const selectKnowledge = (knowledge) => {
+    selectedTarget.value = knowledge;
+    searchKeyword.value = knowledge;
+    showDropdown.value = false;
+};
+
+// 清除选择
+const clearSelection = () => {
+    selectedTarget.value = '';
+    searchKeyword.value = '';
+};
+
+// 切换下拉框显示/隐藏
+const toggleDropdown = () => {
+    showDropdown.value = !showDropdown.value;
+};
+
+// 获取知识图谱节点
+const fetchKnowledgeNodes = () => {
+    // 立即使用默认数据，确保下拉框有内容
+    knowledgeList.value = [
+        "文件管理",
+        "进程调度",
+        "内存管理",
+        "处理器调度",
+        "缺页中断",
+        "存储分配",
+        "系统配置",
+        "缓存",
+        "辅助存储器",
+        "内存管理单元",
+        "中断机制",
+        "虚拟地址空间",
+        "储存空间"
+    ];
+    
+    // API调用代码
+    return api
+        .getKnowledgeNodes()
+        .then((res) => {
+            console.log("获取的知识图谱节点：", res.data);
+            const data = res.data;
+            console.log("data.code：", data.code);
+            console.log("data.data：", data.data);
+            if (data.code === 200 && data.data) {
+                // 从完整的知识图谱数据中提取节点名称
+                console.log("data.data.nodes：", data.data.nodes);
+                if (data.data.nodes) {
+                    knowledgeList.value = data.data.nodes.map(node => node.name);
+                    console.log("knowledgeList赋值后：", knowledgeList.value);
+                } else {
+                    console.log("没有nodes字段，保持默认数据");
+                }
+            } else {
+                console.log("code不是200或data不存在，保持默认数据");
+            }
+        })
+        .catch((err) => {
+            console.error("获取知识图谱节点失败：", err);
+            console.log("API调用失败，保持默认数据");
+        });
+};
+
 // 获取学习路径数据
-const fetchRouteData = () => {
+const fetchRouteData = (target) => {
+    isLoading.value = true;
     // 实际API调用代码
     return api
-        .getLearningRoute({ student_id: studentId.value, target: targetKnowledge.value })
+        .getLearningRoute({ student_id: studentId.value, target_knowledge: target })
         .then((res) => {
             console.log("获取的学习路径数据：", res.data);
             const data = res.data;
             
             // 更新知识点数据
-            if (data.data && data.data.path) {
-                // 转换数据格式，将topic转换为name，添加默认difficulty
-                knowledgePoints.value = data.data.path.map((item, index) => ({
-                    id: index + 1,
-                    name: item.topic,
-                    difficulty: "medium", // 默认难度
-                    mastery: 50, // 默认掌握度
-                    icon: "📐" // 默认图标
-                }));
+            if (data.path) {
+                // 转换数据格式，处理可能的JSON字符串
+                knowledgePoints.value = data.path.map((item, index) => {
+                    let name = item;
+                    // 尝试解析JSON字符串
+                    if (typeof item === 'string') {
+                        try {
+                            // 清理字符串，移除可能的引号和空格
+                            const cleanedItem = item.trim().replace(/^["']|["']$/g, '');
+                            const parsed = JSON.parse(cleanedItem);
+                            if (parsed.topic) {
+                                name = parsed.topic;
+                            } else if (typeof parsed === 'string') {
+                                name = parsed;
+                            } else {
+                                // 尝试将对象转换为字符串
+                                name = JSON.stringify(parsed);
+                            }
+                        } catch (e) {
+                            // 解析失败，使用原始字符串
+                            // 尝试提取topic字段
+                            const topicMatch = item.match(/"topic":"([^"]+)"/);
+                            if (topicMatch && topicMatch[1]) {
+                                name = topicMatch[1];
+                            } else {
+                                // 直接使用原始字符串
+                                name = item;
+                            }
+                        }
+                    } else if (typeof item === 'object' && item !== null) {
+                        // 如果已经是对象，直接提取topic字段
+                        if (item.topic) {
+                            name = item.topic;
+                        } else if (item.name) {
+                            name = item.name;
+                        } else {
+                            // 尝试将对象转换为字符串
+                            name = JSON.stringify(item);
+                        }
+                    }
+                    return {
+                        id: index + 1,
+                        name: name,
+                        difficulty: "medium", // 默认难度
+                        mastery: 50, // 默认掌握度
+                        icon: "📐" // 默认图标
+                    };
+                });
             }
             
             // 更新推荐依据
-            if (data.data && data.data.explanation) {
-                pathReason.value = data.data.explanation;
+            if (data.explanation) {
+                pathReason.value = data.explanation;
             }
         })
         .catch((err) => {
@@ -208,21 +373,21 @@ const fetchRouteData = () => {
                     resolve();
                 }, 1000);
             });
+        })
+        .finally(() => {
+            isLoading.value = false;
         });
+};
+
+// 生成路径
+const generatePath = () => {
+    if (!selectedTarget.value) return;
+    showDropdown.value = false; // 生成路径时关闭下拉框
+    fetchRouteData(selectedTarget.value);
 };
 
 // 获取用户信息
 const fetchUserInfo = () => {
-    // 模拟API调用
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            // 保持现有示例数据不变
-            resolve();
-        }, 500);
-    });
-
-    // 实际API调用代码（如果有）
-    /*
     return api
         .getStudentinfo()
         .then((res) => {
@@ -235,22 +400,23 @@ const fetchUserInfo = () => {
             console.error("获取用户信息失败：", err);
             // 不显示错误，使用默认值
         });
-    */
 };
 
 onMounted(() => {
-    // 加载数据
-    Promise.all([fetchUserInfo(), fetchRouteData()])
+    // 加载用户信息和知识图谱节点
+    Promise.all([fetchUserInfo(), fetchKnowledgeNodes()])
         .then(() => {
-            isLoading.value = false;
-        })
-        .catch(() => {
-            isLoading.value = false;
-            // 临时注释掉错误信息设置
-            // if (!errorMsg.value) {
-            //     errorMsg.value = "加载数据失败，请稍后重试";
-            // }
+            console.log("知识图谱节点加载完成，共" + knowledgeList.value.length + "个节点");
+            console.log("knowledgeList值：", knowledgeList.value);
         });
+    
+    // 点击外部关闭下拉框
+    document.addEventListener('click', (e) => {
+        const customSelect = document.querySelector('.custom-select');
+        if (customSelect && !customSelect.contains(e.target)) {
+            showDropdown.value = false;
+        }
+    });
 });
 
 // 方法：重试加载
@@ -624,44 +790,236 @@ onMounted(() => {
     font-weight: 500;
 }
 
+/* 目标知识点选择样式 */
+.target-selection-card {
+    margin-bottom: 20px;
+    overflow: visible;
+    z-index: 1000;
+}
+
+.target-selection {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.select-container {
+    flex: 1;
+    min-width: 300px;
+    position: relative;
+}
+
+.custom-select {
+    position: relative;
+    width: 100%;
+}
+
+.select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 15px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background-color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.select-trigger:hover {
+    border-color: #3b82f6;
+}
+
+.select-trigger:focus-within {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.select-trigger .placeholder {
+    color: #94a3b8;
+}
+
+.select-arrow {
+    font-size: 12px;
+    color: #64748b;
+    transition: transform 0.3s ease;
+}
+
+.select-arrow.open {
+    transform: rotate(180deg);
+}
+
+.select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0 0 6px 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 9999;
+    margin-top: 2px;
+}
+
+.dropdown-search {
+    padding: 10px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.search-input-container {
+    position: relative;
+    width: 100%;
+}
+
+.dropdown-search .search-input {
+    width: 100%;
+    padding: 8px 32px 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.dropdown-search .search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.clear-search-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0 4px;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+}
+
+.clear-search-btn:hover {
+    background-color: #f1f5f9;
+    color: #64748b;
+}
+
+.select-container.disabled {
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.select-trigger.disabled {
+    cursor: not-allowed;
+    background-color: #f8fafc;
+}
+
+.select-arrow.disabled {
+    color: #cbd5e1;
+}
+
+.dropdown-options {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.dropdown-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background-color: #f1f5f9;
+}
+
+.dropdown-empty {
+    padding: 15px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 14px;
+}
+
+.generate-btn {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.generate-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.generate-btn:disabled {
+    background: #e2e8f0;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+/* 路径可视化容器 */
+.path-visualization-container {
+    width: 100%;
+    min-height: 250px;
+    margin-top: 20px;
+}
+
 /* 路径可视化样式 */
 .path-visualization {
     position: relative;
     width: 100%;
     height: 100%;
     min-height: 200px;
-    padding: 20px 0;
+    padding: 40px 0;
 }
 
 .path-node {
     position: absolute;
-    width: 80px;
-    height: 80px;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
     transform: translate(-50%, -50%);
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
     z-index: 2;
+    background-color: white;
 }
 
 .path-node:hover {
     transform: translate(-50%, -50%) scale(1.1);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
 }
 
 .path-node .node-content {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
+    line-height: 1.2;
 }
 
 .path-node .node-details {
-    font-size: 12px;
-    margin-top: 5px;
+    font-size: 10px;
+    margin-top: 3px;
     color: #64748b;
 }
 
@@ -669,20 +1027,29 @@ onMounted(() => {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
     color: white;
     border: 3px solid #93c5fd;
-    width: 90px;
-    height: 90px;
+    width: 110px;
+    height: 110px;
 }
 
 .next-node {
     background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
     color: #1e293b;
     border: 2px solid #dbeafe;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+    width: 90px;
+    height: 90px;
+}
+
+.next-node:hover {
+    border-color: #3b82f6;
 }
 
 .target-node {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: white;
     border: 3px solid #a7f3d0;
+    width: 110px;
+    height: 110px;
 }
 
 .path-connector {
@@ -694,6 +1061,12 @@ onMounted(() => {
     background: linear-gradient(90deg, #3b82f6, #60a5fa, #93c5fd, #bfdbfe);
     transform: translateY(-50%);
     z-index: 1;
+}
+
+.main-connector {
+    height: 4px;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa, #93c5fd, #10b981);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
 /* 知识点列表样式 */

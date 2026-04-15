@@ -5,7 +5,7 @@ let hostUrl = "http://localhost:5173"
 
 const instance = axios.create({
     //baseUrl : hostUrl,
-    baseURL: "/",
+    baseURL: "http://localhost:8000",
     timeout: 20000   
 })
 

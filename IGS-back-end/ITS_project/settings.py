@@ -56,7 +56,8 @@ INSTALLED_APPS = [
     'classInfo',
     'notification',
     'user',
-    'graphs'
+    'graphs',
+    'llm_recommendation'
 ]
 
 REST_FRAMEWORK = {
@@ -215,4 +216,4 @@ MEDIA_ROOT = os.path.join(BASE_DIR,  'avatars')  # 本地存储路径：项目�
 # Neo4j 数据库配置
 NEO4J_URI = 'bolt://localhost:7687'
 NEO4J_USER = 'neo4j'
-NEO4J_PASSWORD = 'password'  # 请根据实际情况修改密码
+NEO4J_PASSWORD = 'neo4j123456'  
