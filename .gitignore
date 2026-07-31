@@ -1,0 +1,35 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+venv/
+.venv/
+env/
+ENV/
+
+# Local databases and logs
+*.sqlite3
+*.log
+
+# Node and build output
+node_modules/
+dist/
+build/
+coverage/
+
+# Editor and AI workspace files
+.trae/
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
